@@ -3,4 +3,5 @@ def calc(a,b):
     return a + b
 
 calc(3,4)
-print("dmsdud")
+
+print('wowowow') # 수정
