@@ -2,5 +2,9 @@ print("hello world")
 def calc(a,b):
     return a + b
 
-# test
 
+calc(3,4)
+
+print('wowowow')
+
+# test
