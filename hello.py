@@ -4,4 +4,4 @@ def calc(a,b):
 
 calc(3,4)
 
-print('wowowow')
+print('wowowow') # 수정
