@@ -11,12 +11,12 @@ load_dotenv()
 _ENGINE: Optional[Engine] = None
 
 def _dsn() -> str:
-    dialect = os.getenv("DB_DIALECT", "mysql+pymysql")
-    user    = os.getenv("DB_USER", "")
-    pw      = os.getenv("DB_PASSWORD", "")
-    host    = os.getenv("DB_HOST", "127.0.0.1")
-    port    = os.getenv("DB_PORT", "3306")
-    name    = os.getenv("DB_NAME", "")
+    dialect = os.getenv("DB_DIALECT", "{DB_DIALECT}")
+    user    = os.getenv("DB_USER", "{DB_USER}")
+    pw      = os.getenv("DB_PASSWORD", "{DB_PASSWORD}")
+    host    = os.getenv("DB_HOST", "{DB_HOST}")
+    port    = os.getenv("DB_PORT", "{DB_PORT}")
+    name    = os.getenv("DB_NAME", "{DB_NAME}")
 
     # ← 반드시 URL 인코딩!
     user_q = quote_plus(user)

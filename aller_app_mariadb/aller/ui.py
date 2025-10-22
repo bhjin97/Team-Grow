@@ -36,10 +36,10 @@ def render_app_sidebar():
 
         # Streamlit 1.25+라면 page_link, 아니면 버튼으로 전환
         try:
-            st.page_link("pages/1_Dashboard.py", label="📊 대시보드", icon="📊")
-            st.page_link("pages/2_Chat.py", label="💬 채팅", icon="💬")
-            st.page_link("pages/3_Profile.py", label="👤 사용자 정보", icon="👤")
-            st.page_link("pages/4_Settings.py", label="⚙️ 설정", icon="⚙️")
+            st.page_link("pages/1_Dashboard.py", label="대시보드", icon="📊")
+            st.page_link("pages/2_Chat.py", label="채팅", icon="💬")
+            st.page_link("pages/3_Profile.py", label="사용자 정보", icon="👤")
+            st.page_link("pages/4_Settings.py", label="설정", icon="⚙️")
         except Exception:
             if st.button("📊 대시보드"): switch_to("pages/1_Dashboard.py")
             if st.button("💬 채팅"):     switch_to("pages/2_Chat.py")
@@ -49,7 +49,7 @@ def render_app_sidebar():
         st.markdown("---")
         if st.button("🚪 로그아웃"):
             st.session_state["auth_user"] = None
-            switch_to("🏠_Login.py")  # ← 로그인 화면으로 이동 (로그인 메뉴는 없음)
+            switch_to("Login.py")  # ← 로그인 화면으로 이동 (로그인 메뉴는 없음)
 # aller/ui.py (추가)
 def hide_multipage_nav():
     _hide_default_nav()
