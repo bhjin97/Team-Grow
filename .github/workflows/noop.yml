@@ -1,0 +1,7 @@
+﻿name: noop
+on: [pull_request]
+jobs:
+  pass:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
