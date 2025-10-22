@@ -33,7 +33,7 @@ with tab_login:
         if user:
             st.session_state["auth_user"] = user
             st.success("로그인 성공! 대시보드로 이동합니다…")
-            switch_to("pages/Dashboard.py")
+            switch_to("pages/1_Dashboard.py")
         else:
             st.error("로그인 실패")
 
