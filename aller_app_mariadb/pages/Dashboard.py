@@ -2,6 +2,8 @@
 import os, json
 import streamlit as st
 import pandas as pd
+import requests
+from dotenv import load_dotenv
 from datetime import datetime
 from dataclasses import dataclass
 from statistics import pstdev
@@ -9,6 +11,15 @@ from typing import Dict, List, Optional
 from urllib.parse import quote_plus
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+from utils.perfume import (
+    initialize,  # ✅ 초기화 함수 추가
+    load_all_data,
+    recommend_perfume_hybrid,
+    CITY_MAPPING,
+    LOCATION_NOTES_MAP,
+    AGE_NOTES_MAP,
+    MOOD_NOTES_MAP
+)
 from aller.ui import require_login_redirect, render_app_sidebar
 require_login_redirect()   # 비로그인 접근 차단 + 기본 네비 숨김
 render_app_sidebar()       # 로그인 후 커스텀 사이드바 표시 (로그인은 없음)
@@ -147,42 +158,80 @@ with col2:
 
 st.divider()
 
-# ─────────────────────────────────────────
-# 2) 날씨/기분 맞춤 향 추천 (데모)
-# ─────────────────────────────────────────
-st.subheader("2) 날씨/기분 맞춤 향 추천")
-c1, c2, c3 = st.columns([1,1,3])
-with c1:
-    weather = st.selectbox("날씨", ["맑음", "흐림", "비", "더움", "추움"], key="weather")
-with c2:
-    mood = st.selectbox("기분", ["상쾌", "집중", "우울", "스트레스"], key="mood")
-with c3:
-    if st.button("🪔 향 추천 받기", key="frag_btn"):
-        # TODO: weather_mood_rule → tags → product_fragrance 매칭
-        tag_map = {
-            ("맑음","상쾌"): ["citrus","green"],
-            ("흐림","집중"): ["herbal","woody"],
-            ("비","우울"): ["musk","powdery"],
-            ("더움","스트레스"): ["aquatic","citrus"],
-            ("추움","집중"): ["amber","spicy"],
-        }
-        st.session_state["fragrance_tags"] = tag_map.get((weather, mood), ["clean"])
-        st.session_state["fragrance_products"] = [
-            {"name": "상쾌한 시트러스 바디워시", "score": 4.5},
-            {"name": "그린 허브 핸드솝", "score": 4.3},
-            {"name": "클린 머스크 퍼퓸", "score": 4.1},
-        ]
-st.write("**추천 향 태그:**", ", ".join(st.session_state.get("fragrance_tags", [])))
-fp = st.session_state.get("fragrance_products", [])
-if fp:
-    cols = st.columns(3)
-    for i, p in enumerate(fp[:3]):
-        with cols[i]:
-            st.image(f"https://picsum.photos/seed/fr{i}/240/160")
-            st.write(f"**{p['name']}**")
-            st.caption(f"평점 {p['score']} / 향 태그 매칭")
+# ============================================
+# 2. 향수 추천 (실제 프로그램)
+# ============================================
+initialize()
 
-st.divider()
+st.subheader('2)🌿 AI 향수 추천')
+st.caption('날씨, 상황, 연령, 기분에 맞는 최적의 향수를 찾아보세요.')
+
+# 데이터 로드
+all_data = load_all_data()
+if not all(all_data):
+    st.error("데이터 로드 실패. 관리자에게 문의하세요.")
+else:
+    # 입력 폼
+    with st.form("perfume_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            selected_city = st.selectbox('📍 현재 위치', list(CITY_MAPPING.keys()))
+            selected_location = st.selectbox('🧑‍🤝‍🧑 상황', list(LOCATION_NOTES_MAP.keys()))
+            selected_mood = st.selectbox('😊 기분', list(MOOD_NOTES_MAP.keys()))
+        
+        with col2:
+            selected_price = st.selectbox('💰 가격대', 
+                ["가격 무관", "5만원 이하", "5~10만원", "10~15만원", "15만원 이상"])
+            selected_age = st.selectbox('🎂 연령대', list(AGE_NOTES_MAP.keys()))
+            selected_gender = st.selectbox('🚻 성별', ["여성", "남성", "공용"])
+        
+        submitted = st.form_submit_button("✨ 추천받기")
+    
+    if submitted:
+        user_input = {
+            'city': selected_city,
+            'price_range': selected_price,
+            'location': selected_location,
+            'age': selected_age,
+            'mood': selected_mood,
+            'gender': selected_gender
+        }
+        
+        with st.spinner('최적의 향수를 분석 중입니다...'):
+            recommendations, weather, condition = recommend_perfume_hybrid(user_input, all_data)
+        
+        # 날씨 정보
+        if weather:
+            st.info(f"**{selected_city}**의 현재 날씨는 **'{weather['condition']}'** 이며, "
+                   f"**'{condition}'** 조건으로 추천되었습니다.")
+        
+        # 추천 결과
+        if not recommendations:
+            st.warning('선택하신 조건에 맞는 향수를 찾지 못했습니다. 다른 조건을 시도해보세요.')
+        else:
+            st.success(f'총 {len(recommendations)}개의 향수를 추천합니다!')
+            
+            for idx, product in enumerate(recommendations, 1):
+                with st.expander(f"**{idx}. {product['name']}** (점수: {product['final_score']:.2f})"):
+                    col1, col2 = st.columns([1, 2])
+                    
+                    with col1:
+                        if product.get('image_url'):
+                            st.image(product['image_url'], use_container_width=True)
+                        else:
+                            st.write("🖼️ 이미지 없음")
+                    
+                    with col2:
+                        st.metric("⭐ 평점", f"{product.get('rating', 'N/A')} / 5.0")
+                        st.metric("💰 가격", product.get('price', '정보 없음'))
+                        st.metric("📦 용량", product.get('volume', '정보 없음'))
+                        st.markdown(f"**카테고리:** {product.get('category', 'N/A')}")
+                        
+                        # 노트 정보
+                        notes = all_data[2].get(product['name'], {}).get('notes_factors', [])
+                        if notes:
+                            st.markdown(f"**주요 노트:** `{'`, `'.join(notes[:5])}`")
 
 # ─────────────────────────────────────────
 # 3) 바우만 피부타입 진단 (적응형) + 프로필 저장
@@ -396,6 +445,6 @@ with tab_pm:
             for j, prod in enumerate(s["candidates"][:2]):
                 st.image(f"https://picsum.photos/seed/pm{i}{j}/220/140")
                 st.caption(prod)
-
+s
 st.divider()
 st.caption(f"© {datetime.now().year} Aller · 본 화면은 데모 로직 포함. 실제 데이터 연동 시 DB/규칙/LLM이 적용됩니다.")
