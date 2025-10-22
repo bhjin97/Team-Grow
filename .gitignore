@@ -1,0 +1,22 @@
+# venv / caches
+.venv/
+__pycache__/
+*.pyc
+*.ipynb_checkpoints/
+
+# OS / editors
+.DS_Store
+.vscode/
+
+# env / secrets
+.env
+*.env
+*.env.local
+aller_app_mariadb/.streamlit/secrets.toml
+
+# builds
+dist/
+build/
+
+# data (원하면 세부 폴더만)
+data/
