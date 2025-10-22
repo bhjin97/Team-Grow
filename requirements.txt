@@ -1,0 +1,6 @@
+streamlit>=1.22
+SQLAlchemy>=2.0
+pymysql>=1.1
+python-dotenv>=1.0
+pandas>=2.0
+openai>=1.0   # 채팅에서 OpenAI 쓰는 경우 (없으면 로컬 룰봇으로 폴백)

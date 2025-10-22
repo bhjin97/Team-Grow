@@ -183,6 +183,26 @@ user_row = fetch_user_profile(auth_user["id"])
 if not user_row:
     st.error("사용자 정보를 불러올 수 없습니다.")
     st.stop()
+    
+# 정수 나이(년) 계산
+birth_year = user_row.get("birth_year") 
+age_years = None
+if birth_year:
+    try:
+        age_years = datetime.now().year - int(birth_year)
+    except Exception:
+        age_years = None
+
+# 배지(필) 스타일 유틸
+def _pill(label: str, bg: str = "#6C7FED", fg: str = "#fff") -> str:
+    return f"""
+    <span style="
+        display:inline-block;
+        background:{bg}; color:{fg};
+        padding:4px 12px; margin-right:8px; margin-top:6px;
+        border-radius:999px; font-size:13px; font-weight:600;">
+        {label}
+    </span>"""
 
 # ============================================
 # 데이터 파싱
@@ -288,30 +308,37 @@ with col1:
 
 with col2:
     st.markdown(f"## {nickname}")
-    st.caption(f"{age_group} · {gender}")
+
+    # --- 배지 3종(성별/나이/피부타입) 한 줄 표시 ---
+    pills = []
+
+    # 성별
+    if gender and gender != "미설정":
+        pills.append(_pill(gender, bg="#7E57C2"))
+    else:
+        pills.append(_pill("성별 미설정", bg="#BDBDBD"))
+
+    # 나이
+    if age_years is not None:
+        pills.append(_pill(f"{age_years}세", bg="#29B6F6"))
+    else:
+        pills.append(_pill("나이 미설정", bg="#BDBDBD"))
+
+    # 피부타입(코드) + 전체명(툴팁 겸 캡션)
+    if skin_type_code and skin_type_code != "미설정":
+        pills.append(_pill(f"{skin_type_code}", bg="#66BB6A"))
+    else:
+        pills.append(_pill("피부타입 미설정", bg="#BDBDBD"))
+
+    st.markdown("".join(pills), unsafe_allow_html=True)
+
+    # 전체 피부타입 한글 설명(있으면)
+    if skin_type_code and skin_type_code != "미설정":
+        st.caption(f"피부타입: {skin_type_full}")
+
+    # 이메일
     st.caption(f"📧 {email}")
-    
-    if skin_type_code != "미설정":
-        tags_html = f"""
-            <div style="margin-top: 10px;">
-                <span style="
-                    background-color: #6C7FED; 
-                    color: white; 
-                    padding: 5px 15px; 
-                    border-radius: 20px; 
-                    margin-right: 8px;
-                    font-size: 14px;
-                ">{skin_type_code}</span>
-                <span style="
-                    background-color: #9C27B0; 
-                    color: white; 
-                    padding: 5px 15px; 
-                    border-radius: 20px;
-                    font-size: 14px;
-                ">{skin_type_full}</span>
-            </div>
-        """
-        st.markdown(tags_html, unsafe_allow_html=True)
+
 
 with col3:
     # ✅ 프로필 편집 버튼
