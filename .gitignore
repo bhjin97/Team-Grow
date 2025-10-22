@@ -13,6 +13,7 @@ __pycache__/
 *.env
 *.env.local
 aller_app_mariadb/.streamlit/secrets.toml
+aller_app_mariadb/.env
 
 # builds
 dist/
