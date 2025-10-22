@@ -36,15 +36,15 @@ def render_app_sidebar():
 
         # Streamlit 1.25+라면 page_link, 아니면 버튼으로 전환
         try:
-            st.page_link("pages/1_📊_Dashboard.py", label="📊 대시보드", icon="📊")
-            st.page_link("pages/2_💬_Chat.py", label="💬 채팅", icon="💬")
-            st.page_link("pages/3_👤_Profile.py", label="👤 사용자 정보", icon="👤")
-            st.page_link("pages/4_⚙️_Settings.py", label="⚙️ 설정", icon="⚙️")
+            st.page_link("pages/1_Dashboard.py", label="📊 대시보드", icon="📊")
+            st.page_link("pages/2_Chat.py", label="💬 채팅", icon="💬")
+            st.page_link("pages/3_Profile.py", label="👤 사용자 정보", icon="👤")
+            st.page_link("pages/4_Settings.py", label="⚙️ 설정", icon="⚙️")
         except Exception:
-            if st.button("📊 대시보드"): switch_to("pages/1_📊_Dashboard.py")
-            if st.button("💬 채팅"):     switch_to("pages/2_💬_Chat.py")
-            if st.button("👤 사용자 정보"): switch_to("pages/3_👤_Profile.py")
-            if st.button("⚙️ 설정"):     switch_to("pages/4_⚙️_Settings.py")
+            if st.button("📊 대시보드"): switch_to("pages/1_Dashboard.py")
+            if st.button("💬 채팅"):     switch_to("pages/2_Chat.py")
+            if st.button("👤 사용자 정보"): switch_to("pages/3_Profile.py")
+            if st.button("⚙️ 설정"):     switch_to("pages/4_Settings.py")
 
         st.markdown("---")
         if st.button("🚪 로그아웃"):
