@@ -49,7 +49,7 @@ def render_app_sidebar():
         st.markdown("---")
         if st.button("🚪 로그아웃"):
             st.session_state["auth_user"] = None
-            switch_to("🏠_Login.py")  # ← 로그인 화면으로 이동 (로그인 메뉴는 없음)
+            switch_to("Login.py")  # ← 로그인 화면으로 이동 (로그인 메뉴는 없음)
 # aller/ui.py (추가)
 def hide_multipage_nav():
     _hide_default_nav()
