@@ -10,12 +10,12 @@ from datetime import datetime
 from aller.ui import render_app_sidebar, require_login_redirect
 
 def get_engine() -> Engine:
-    dialect = os.getenv("DB_DIALECT", "mysql+pymysql")
-    host    = os.getenv("DB_HOST", "211.51.163.232")
-    port    = os.getenv("DB_PORT", "19306")
-    user    = os.getenv("DB_USER", "lgup1")
-    pw      = os.getenv("DB_PASSWORD", "lgup1P@ssw0rd")
-    name    = os.getenv("DB_NAME", "lgup1")
+    dialect = os.getenv("DB_DIALECT", "{DB_DIALECT}")
+    host    = os.getenv("DB_HOST", "{DB_HOST}")
+    port    = os.getenv("DB_PORT", "{DB_PORT}")
+    user    = os.getenv("DB_USER", "{DB_USER}")
+    pw      = os.getenv("DB_PASSWORD", "{DB_PASSWORD}")
+    name    = os.getenv("DB_NAME", "{DB_NAME}")
     dsn = f"{dialect}://{quote_plus(user)}:{quote_plus(pw)}@{host}:{port}/{quote_plus(name)}?charset=utf8mb4"
     return create_engine(dsn, pool_pre_ping=True, future=True)
 
