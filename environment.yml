@@ -1,0 +1,14 @@
+name: grow
+channels:
+  - conda-forge
+dependencies:
+  # 정확 고정: 3.11.13
+  - python=3.11.13
+  # 코어(가능한 conda 패키지 사용)
+  - pandas>=2.2
+  - sqlalchemy>=2.0
+  - pymysql>=1.1
+  - pip
+  # pip 패키지는 requirements.txt에서 관리
+  - pip:
+      - -r requirements.txt
