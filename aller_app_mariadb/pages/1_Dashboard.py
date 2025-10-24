@@ -523,36 +523,37 @@ with colR:
 st.divider()
 
 # ─────────────────────────────────────────
-# 5) 맞춤형 관리 루틴 (AM/PM) (데모)
+# 5) 맞춤형 관리 루틴 (AM/PM)
 # ─────────────────────────────────────────
-st.subheader("5) 맞춤형 관리 루틴 (AM/PM)")
-tab_am, tab_pm = st.tabs(["☀️ 아침 루틴", "🌙 저녁 루틴"])
+from utils.skincare_routine import recommend_products, render_routine
 
-am_steps = [
-    {"step": "저자극 클렌저", "candidates": ["약산성 클렌저", "센시티브 워시"]},
-    {"step": "수분 세럼",   "candidates": ["히알루론 세럼", "판테놀 세럼"]},
-    {"step": "톤업 크림",   "candidates": ["UV 톤업", "민감톤업"]},
+st.subheader("5) 맞춤형 관리 루틴 (AM/PM)")
+
+# 바우만 피부타입 16개
+SKIN_TYPES = [
+    "DSPT", "DSPW", "DSNT", "DSNW",
+    "DRPT", "DRPW", "DRNT", "DRNW",
+    "OSPT", "OSPW", "OSNT", "OSNW",
+    "ORPT", "ORPW", "ORNT", "ORNW"
 ]
-pm_steps = [
-    {"step": "진정 앰플",   "candidates": ["시카 앰플", "마데카 앰플"]},
-    {"step": "보습 크림",   "candidates": ["세라마이드 크림", "수분 장벽크림"]},
-]
-with tab_am:
-    ca = st.columns(len(am_steps))
-    for i, s in enumerate(am_steps):
-        with ca[i]:
-            st.write(f"**{s['step']}**")
-            for j, prod in enumerate(s["candidates"][:2]):
-                st.image(f"https://picsum.photos/seed/am{i}{j}/220/140")
-                st.caption(prod)
-with tab_pm:
-    cp = st.columns(len(pm_steps))
-    for i, s in enumerate(pm_steps):
-        with cp[i]:
-            st.write(f"**{s['step']}**")
-            for j, prod in enumerate(s["candidates"][:2]):
-                st.image(f"https://picsum.photos/seed/pm{i}{j}/220/140")
-                st.caption(prod)
-s
-st.divider()
-st.caption(f"© {datetime.now().year} Aller · 본 화면은 데모 로직 포함. 실제 데이터 연동 시 DB/규칙/LLM이 적용됩니다.")
+
+# 사용자 피부타입 불러오기 (없으면 DSPT로 기본 설정)
+skin_type = st.selectbox(
+    "피부타입 선택",
+    SKIN_TYPES,
+    index=SKIN_TYPES.index(user_ctx["skin_type"]) if user_ctx["skin_type"] in SKIN_TYPES else 0
+)
+
+# 계절, 시간대 선택
+season = st.radio("계절 선택", ["여름", "겨울"], horizontal=True)
+time_choice = st.radio("시간대 선택", ["☀️ 아침 루틴", "🌙 저녁 루틴"], horizontal=True)
+time = "아침" if "아침" in time_choice else "저녁"
+
+# 실행 버튼
+if st.button("루틴 추천 보기"):
+    df = recommend_products(skin_type, season, time, top_n=1)
+    if df.empty:
+        st.warning("추천할 제품이 없습니다.")
+    else:
+        st.success(f"{skin_type} / {season} / {time} 루틴 추천 결과")
+        render_routine(df)
