@@ -11,7 +11,7 @@ import os
 import io
 import re
 from typing import Dict, List, Optional, Any
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from google.cloud import vision
 from PIL import Image
 from sqlalchemy import create_engine, text
@@ -32,7 +32,6 @@ def get_engine() -> Engine:
     user    = os.getenv("DB_USER", "{DB_USER}")
     pw      = os.getenv("DB_PASSWORD", "{DB_PASSWORD}")
     name    = os.getenv("DB_NAME", "{DB_NAME}")
-    
     dsn = f"{dialect}://{quote_plus(user)}:{quote_plus(pw)}@{host}:{port}/{quote_plus(name)}?charset=utf8mb4"
     return create_engine(dsn, pool_pre_ping=True, future=True)
 
@@ -43,8 +42,28 @@ def get_engine() -> Engine:
 def extract_text_from_image(image_path: str) -> Optional[str]:
     """Google Cloud Vision API를 사용해 이미지에서 텍스트를 추출합니다."""
     try:
-        load_dotenv()
-        client = vision.ImageAnnotatorClient()
+        # 1. .env 파일의 '절대 경로'를 찾습니다. (예: C:\...\ALERRE\.env)
+        dotenv_path = find_dotenv()
+        
+        # 2. 해당 .env 파일을 로드합니다.
+        load_dotenv(dotenv_path) 
+        
+        # 3. .env 파일이 있는 '디렉토리'의 절대 경로를 가져옵니다.
+        #    (예: C:\...\ALERRE)
+        base_dir = os.path.dirname(dotenv_path)
+        
+        # 4. .env에서 '파일명'만 읽어옵니다. (예: "gcp-team-key.json")
+        json_filename = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        
+        if not json_filename:
+            raise Exception("'.env' 파일에 GOOGLE_APPLICATION_CREDENTIALS가 없습니다.")
+        
+        # 5. '디렉토리 절대 경로'와 '파일명'을 조합하여 'JSON 파일의 절대 경로'를 만듭니다.
+        #    (예: C:\...\ALERRE\gcp-team-key.json)
+        abs_json_path = os.path.join(base_dir, json_filename)
+        
+        # 6. [중요] Google 클라이언트를 '절대 경로'로 명시적으로 초기화합니다.
+        client = vision.ImageAnnotatorClient.from_service_account_json(abs_json_path)
         
         with io.open(image_path, 'rb') as image_file:
             content = image_file.read()
