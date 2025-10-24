@@ -238,12 +238,66 @@ else:
 # ─────────────────────────────────────────
 st.subheader("3) 바우만 피부타입 진단 (간단·적응형)")
 
-SCALE_GUIDE = (
-    "응답 기준: **1=전혀 아니다**, **5=매우 그렇다**. "
-    "숫자가 클수록 **‘예(그렇다)’**에 가깝습니다. 애매하면 **‘모름’**을 선택하세요."
-)
-# 상단 전역 안내
-st.caption(SCALE_GUIDE)
+# =========================
+# 공통: 설문 상태 초기화 함수
+# =========================
+def reset_quiz_state():
+    # 세션 키 전부 제거
+    for k in ["skinq_responses", "skinq_tb_needed", "skinq_tb_answers", "skinq_result", "redo_prompt_dismissed"]:
+        if k in st.session_state:
+            del st.session_state[k]
+    # 초기 상태로 재설정
+    st.session_state.skinq_responses = {}
+    st.session_state.skinq_tb_needed = []
+    st.session_state.skinq_tb_answers = {}
+    st.session_state.skinq_result = None
+
+# =========================
+# 사용자 변경 감지 → 자동 초기화
+# =========================
+if "current_user_id" not in st.session_state:
+    st.session_state.current_user_id = None
+
+# user_row["id"]가 이전 사용자와 다르면 모든 설문 상태 초기화
+if user_row and st.session_state.current_user_id != user_row["id"]:
+    reset_quiz_state()
+    # 혹시 남아있을 수 있는 컨펌 닫힘 플래그 제거
+    if "redo_prompt_dismissed" in st.session_state:
+        del st.session_state.redo_prompt_dismissed
+    st.session_state.current_user_id = user_row["id"]
+
+# =========================
+# 재진단 안내(컨펌) 처리
+# - DB의 과거 진단 보유 여부(user_row["skin_type_code"]) 또는
+# - 현재 세션에 결과가 있음(skinq_result)
+# =========================
+has_past_diag = bool(user_row.get("skin_type_code"))          # DB 저장값 기준
+has_session_diag = bool(st.session_state.get("skinq_result")) # 세션 기준
+needs_redo_prompt = has_past_diag or has_session_diag
+
+# 모달/팝업 대용: 경고 박스 + 버튼 2개
+if needs_redo_prompt and not st.session_state.get("redo_prompt_dismissed"):
+    with st.container(border=True):
+        st.warning("기존에 진단 완료하였습니다. 다시 진단 하시겠습니까?")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("다시 진단", key="redo_yes"):
+                reset_quiz_state()
+                st.session_state.redo_prompt_dismissed = True
+                st.toast("문항을 다시 선택해주세요.")
+                try:
+                    st.rerun()
+                except Exception:
+                    st.experimental_rerun()
+        with c2:
+            if st.button("그대로 둘게요", key="redo_no"):
+                st.session_state.redo_prompt_dismissed = True
+
+# ====== 여기서부터 원래 코드 계속 ======
+from dataclasses import dataclass
+from typing import List, Dict, Optional
+from statistics import pstdev
+import json
 
 @dataclass
 class Item:
@@ -326,7 +380,7 @@ def evaluate_baumann(responses: Dict[str, Optional[int]], tiebreaker_responses: 
                                         "used_tiebreaker": False, "tiebreaker_id": None, "scores": scored_list}
                 result["needed_tiebreakers"].append({"axis": axis, "item": {"id": tb_id, "text": tb_item.text, "reverse": tb_item.reverse}})
                 continue
-            tb_val = tiebreaker_responses.get(tb_id); 
+            tb_val = tiebreaker_responses.get(tb_id)
             if tb_val is None: tb_val, unknown = 3, unknown + 1
             tb_scored = _apply_reverse(tb_val, tb_item.reverse)
             avg2 = (avg*len(base_items) + tb_scored) / (len(base_items)+1)
@@ -342,19 +396,39 @@ def evaluate_baumann(responses: Dict[str, Optional[int]], tiebreaker_responses: 
     return result
 
 def _resp_widget(label: str, key: str):
-    choice = st.radio(label, options=[1,2,3,4,5,"모름"], key=key, horizontal=True)
+    choice = st.radio(
+        label,
+        options=[1,2,3,4,5,"모름"],
+        key=key,
+        horizontal=True,
+        help="1=전혀 아니다 · 5=매우 그렇다 (숫자가 클수록 ‘예’). 애매하면 ‘모름’.",
+    )
     return None if choice == "모름" else int(choice)
 
+def render_scale_guide():
+    st.markdown(
+        """
+        <p style='font-size:14px; color:gray; margin:0 0 6px 0;'>
+        응답 기준: <b>1=전혀 아니다</b>, <b>5=매우 그렇다</b>.
+        숫자가 클수록 <b>‘예(그렇다)’</b>에 가깝습니다.
+        애매하면 <b>‘모름’</b>을 선택하세요.
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
+
+# 설문 상태 기본값(초기화 이후 보장)
 if "skinq_responses" not in st.session_state: st.session_state.skinq_responses = {}
-if "skinq_tb_needed" not in st.session_state: st.session_state.skinq_tb_needed = []
+if "skinq_tb_needed"  not in st.session_state: st.session_state.skinq_tb_needed = []
 if "skinq_tb_answers" not in st.session_state: st.session_state.skinq_tb_answers = {}
-if "skinq_result" not in st.session_state:    st.session_state.skinq_result = None
+if "skinq_result"     not in st.session_state: st.session_state.skinq_result = None
 
 axis_titles = {"OD":"지성↔건성(OD)", "SR":"민감↔저항(SR)", "PN":"색소↔비색소(PN)", "WT":"주름↔탄탄(WT)"}
 cols = st.columns(2)
 for idx, axis in enumerate(AXES):
     with cols[idx % 2]:
         with st.expander(f"{axis_titles[axis]} · 클릭하여 답변하기", expanded=False):
+            render_scale_guide()
             items = _axis_items(SURVEY_V1, axis)
             for it in items:
                 st.session_state.skinq_responses[it.id] = _resp_widget(it.text, key=f"skin_{it.id}")
@@ -384,6 +458,15 @@ if r and r["type_code"]:
         left, right = LEFT_LETTER[axis], RIGHT_LETTER[axis]
         st.write(f"- **{axis}**: 평균 {ax['avg_base']}, 판정 **{ax['final_letter']}** (신뢰도 {ax['confidence']})  ·  {left}← {(ax['avg_base']-1)/4:.2f} →{right}")
 
+    # 재진단 버튼(결과 화면에서도 제공)
+    if st.button("다시 진단하기 🔄", key="redo_from_result"):
+        reset_quiz_state()
+        st.toast("문항을 다시 선택해주세요.")
+        try:
+            st.rerun()
+        except Exception:
+            st.experimental_rerun()
+
     if st.button("진단 결과를 프로필에 저장 💾", type="primary", key="save_quiz"):
         try:
             axes_payload = {
@@ -405,7 +488,14 @@ if r and r["type_code"]:
         except Exception as e:
             st.error(f"저장 실패: {e}")
 else:
-    st.caption("카드를 눌러 문항에 답변한 뒤 **1차 채점 ▶**을 눌러주세요.")
+    st.markdown(
+        """
+        <p style='font-size:14px; color:gray;'>
+        카드를 눌러 문항에 답변한 뒤 <b>1차 채점 ▶</b> 버튼을 눌러주세요.
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
 
 st.divider()
 
