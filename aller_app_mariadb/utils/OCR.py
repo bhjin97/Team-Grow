@@ -1,15 +1,13 @@
-# feature/OCR.py
+# utils/OCR.py
 # ============================================
 # 화장품 OCR 분석 모듈 (MariaDB + SQLAlchemy 버전)
-# [수정]
-# 1. 제품 검색 로직을 FTS -> LIKE 2단계로 강화
-# 2. ML 테이블명을 'ML_caution_ingredients'로 수정
-# 3. ML 테이블 컬럼을 'caution_grade', 'description'으로 수정
+# [수정] FTS 검색 로직을 'Top-K' + 'difflib.SequenceMatcher'로 변경
 # ============================================
 
 import os
 import io
 import re
+import difflib  # <-- [신규] 문자열 유사도 비교 라이브러리 import
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv, find_dotenv
 from google.cloud import vision
@@ -40,43 +38,30 @@ def get_engine() -> Engine:
 # ============================================
 
 def extract_text_from_image(image_path: str) -> Optional[str]:
-    """Google Cloud Vision API를 사용해 이미지에서 텍스트를 추출합니다."""
+    """[수정] Google Cloud Vision API 인증을 '절대 경로'로 수정"""
     try:
-        # 1. .env 파일의 '절대 경로'를 찾습니다. (예: C:\...\ALERRE\.env)
         dotenv_path = find_dotenv()
-        
-        # 2. 해당 .env 파일을 로드합니다.
+        if not dotenv_path:
+            raise Exception("'.env' 파일을 찾을 수 없습니다. (find_dotenv() 실패)")
         load_dotenv(dotenv_path) 
-        
-        # 3. .env 파일이 있는 '디렉토리'의 절대 경로를 가져옵니다.
-        #    (예: C:\...\ALERRE)
         base_dir = os.path.dirname(dotenv_path)
-        
-        # 4. .env에서 '파일명'만 읽어옵니다. (예: "gcp-team-key.json")
         json_filename = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        
         if not json_filename:
             raise Exception("'.env' 파일에 GOOGLE_APPLICATION_CREDENTIALS가 없습니다.")
-        
-        # 5. '디렉토리 절대 경로'와 '파일명'을 조합하여 'JSON 파일의 절대 경로'를 만듭니다.
-        #    (예: C:\...\ALERRE\gcp-team-key.json)
         abs_json_path = os.path.join(base_dir, json_filename)
-        
-        # 6. [중요] Google 클라이언트를 '절대 경로'로 명시적으로 초기화합니다.
         client = vision.ImageAnnotatorClient.from_service_account_json(abs_json_path)
-        
+        if not os.path.exists(abs_json_path):
+            raise Exception(f"파일을 찾을 수 없습니다 (경로 확인): {abs_json_path}")
+            
         with io.open(image_path, 'rb') as image_file:
             content = image_file.read()
-        
         image = vision.Image(content=content)
         response = client.document_text_detection(image=image)
-        
         if response.error.message:
             raise Exception(f"API 오류: {response.error.message}")
-        
         return response.full_text_annotation.text
     except Exception as e:
-        print(f"OCR 추출 오류: {e}")
+        print(f"OCR 추출 오류: {e}") 
         return None
 
 def validate_cosmetic_image(ocr_text: str) -> Dict[str, Any]:
@@ -121,35 +106,46 @@ class CosmeticAnalyzer:
     
     def analyze_from_text(self, ocr_text: str) -> Optional[Dict[str, Any]]:
         """
-        [수정] OCR 텍스트 기반으로 DB 검색 (FTS 우선, LIKE 차선)
+        [수정] FTS 검색 로직을 'Top-K 후보 검증' 방식으로 변경
         """
         # 1. 검증
         validation = validate_cosmetic_image(ocr_text)
         if not validation['is_valid']:
-            # 유효하지 않아도, DB에서 못 찾으면 OCR 직접 분석을 시도
             pass
         
-        # 2. 제품명 후보 추출 (상위 5줄)
-        lines = [line.strip() for line in ocr_text.split('\n') if line.strip()]
+        # 2. 제품명 후보 추출 (상위 10줄 + 불용어 필터링)
+        lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
         product_candidates = []
-        for line in lines[:5]:
-            if len(line) > 3 and len(re.findall(r'[가-힣a-zA-Z]', line)) > len(line) * 0.5:
+        STOP_KEYWORDS = ['사용', '펌프', '공기', '분리배출', '플라스틱', '전성분', '주의', '제조', '용량', 'ml', '방법', '피부', '고민']
+
+        for line in lines[:10]:
+            if len(line) < 3 or len(line) > 60: 
+                continue
+            if any(keyword in line for keyword in STOP_KEYWORDS):
+                continue
+            if len(re.findall(r'[가-힣a-zA-Z]', line)) > len(line) * 0.5:
                 product_candidates.append(line)
         
         # 3. [수정] DB에서 제품 검색 (FTS 우선, LIKE 차선)
         product_data = None
         
-        # 3-1. FTS (전체 텍스트, OCR_streamlit.py 방식)
-        product_data = self._fuzzy_search_product(ocr_text)
+        # 3-1. FTS
+        clean_search_text = " ".join(product_candidates) 
+        print(f"[DEBUG] FTS Search Text: '{clean_search_text}'") 
         
-        # 3-2. FTS 실패 시, LIKE (상위 후보, OCR.py 원본 방식)
+        if clean_search_text:
+             # [수정] Top-K 로직은 'clean_search_text'만 사용
+             product_data = self._fuzzy_search_product(clean_search_text)
+        
+        # 3-2. FTS 실패 시, LIKE
         if not product_data:
+            print("[DEBUG] FTS Failed. Falling back to LIKE search...") 
             for candidate in product_candidates:
-                product_data = self._search_product_by_name(candidate, use_fts=False) # LIKE 검색 사용
+                product_data = self._search_product_by_name(candidate, use_fts=False) 
                 if product_data:
-                    break # 찾으면 중단
+                    break 
         
-        # 4. [수정] DB 조회 최종 실패 시, OCR 텍스트 직접 분석
+        # 4. DB 조회 최종 실패 시, OCR 텍스트 직접 분석 (기존과 동일)
         if not product_data:
             ocr_ingredients = self._extract_ingredients_from_ocr(ocr_text)
             caution_ingredients = self._query_caution_ingredients(ocr_ingredients)
@@ -168,10 +164,10 @@ class CosmeticAnalyzer:
                 'error': '데이터베이스에서 제품을 찾지 못해 OCR 텍스트로 성분만 분석합니다.'
             }
         
-        # 5. DB 조회 성공 시 주의 성분 조회
+        # 5. DB 조회 성공 시 주의 성분 조회 (기존과 동일)
         caution_ingredients = self._query_caution_ingredients(product_data.get('ingredients', []))
         
-        # 6. 결과 반환
+        # 6. 결과 반환 (기존과 동일)
         return {
             'source': 'database',
             'product_name': product_data.get('product_name'),
@@ -208,14 +204,10 @@ class CosmeticAnalyzer:
         """
         제품명으로 직접 검색하여 분석합니다. (채팅 UI의 '검색' 버튼용)
         """
-        # 직접 검색은 FTS를 우선 사용
         product_data = self._search_product_by_name(product_name, use_fts=True)
-        
         if not product_data:
             return None
-        
         caution_ingredients = self._query_caution_ingredients(product_data.get('ingredients', []))
-        
         return {
             'source': 'database',
             'product_name': product_data.get('product_name'),
@@ -234,8 +226,6 @@ class CosmeticAnalyzer:
         try:
             with self.engine.connect() as conn:
                 result = None
-                
-                # 1. FTS 검색 (정확도 높음)
                 if use_fts:
                     query_fts = text("""
                         SELECT 
@@ -247,10 +237,8 @@ class CosmeticAnalyzer:
                         LIMIT 1
                     """)
                     result_fts = conn.execute(query_fts, {"name": product_name}).fetchone()
-                    if result_fts and result_fts[6] > 0.5: # FTS 점수 0.5 이상만 신뢰
+                    if result_fts and result_fts[6] > 0.5:
                         result = result_fts
-
-                # 2. FTS가 실패했거나(None) 사용 안 함(False) 경우, LIKE 검색 (Fallback)
                 if not result:
                     query_like = text("""
                         SELECT product_name, brand, image_url, price_krw, capacity, ingredients
@@ -260,8 +248,6 @@ class CosmeticAnalyzer:
                     """)
                     result_like = conn.execute(query_like, {"name": f"%{product_name}%"}).fetchone()
                     result = result_like
-
-                # 최종 결과 처리
                 if result:
                     return {
                         'product_name': result[0],
@@ -276,10 +262,13 @@ class CosmeticAnalyzer:
             print(f"DB 검색 오류 (_search_product_by_name): {e}")
             return None
     
-    def _fuzzy_search_product(self, ocr_text: str) -> Optional[Dict[str, Any]]:
-        """[수정] OCR 텍스트에서 제품을 FTS로 찾습니다. (OCR_streamlit.py 방식)"""
+    def _fuzzy_search_product(self, clean_search_text: str) -> Optional[Dict[str, Any]]:
+        """
+        [수정] FTS Top-K (K=5) + difflib.SequenceMatcher 로직
+        """
         try:
             with self.engine.connect() as conn:
+                # 1. FTS LIMIT 5로 변경
                 query = text("""
                     SELECT 
                         product_name, brand, image_url, price_krw, capacity, ingredients,
@@ -287,30 +276,46 @@ class CosmeticAnalyzer:
                     FROM product_data
                     WHERE MATCH(product_name) AGAINST(:text IN NATURAL LANGUAGE MODE)
                     ORDER BY relevance_score DESC
-                    LIMIT 1
+                    LIMIT 5 
                 """)
                 
-                result = conn.execute(query, {"text": ocr_text}).fetchone()
+                results = conn.execute(query, {"text": clean_search_text}).fetchall()
                 
-                if result and result[6] > 0.5: # 관련도 0.5 이상
-                    product_name = result[0]
-                    product_words = [word for word in product_name.split() if len(word) > 1]
-                    ocr_lower = ocr_text.lower()
+                if not results:
+                    return None
+
+                # [수정] '깨끗한 검색어'를 비교 기준으로 사용
+                search_text_lower = clean_search_text.lower()
+                best_match = None
+                best_ratio = 0.0
+
+                # 2. [신규] 5개의 후보를 모두 반복하며 최고의 '유사도'를 찾음
+                for row in results:
+                    product_name_lower = row[0].lower() # DB 제품명
                     
-                    match_count = sum(1 for word in product_words if word.lower() in ocr_lower)
-                    match_ratio = match_count / len(product_words) if product_words else 0
+                    # [수정] SequenceMatcher로 문자열 유사도 계산
+                    s = difflib.SequenceMatcher(None, search_text_lower, product_name_lower)
+                    match_ratio = s.ratio()
                     
-                    if match_ratio >= 0.3: # 제품명 단어 30% 이상 일치
-                        return {
-                            'product_name': result[0],
-                            'brand': result[1],
-                            'image_url': result[2],
-                            'price_krw': result[3],
-                            'capacity': result[4],
-                            'ingredients': result[5].split(',') if result[5] else []
-                        }
+                    if match_ratio > best_ratio:
+                        best_ratio = match_ratio
+                        best_match = row
                 
-                return None
+                # 3. [수정] 최고의 '유사도'가 60% 이상일 때만 통과
+                if best_match and best_ratio >= 0.6: 
+                    print(f"[DEBUG] FTS Best Match Found (SimRatio: {best_ratio:.0%})")
+                    return {
+                        'product_name': best_match[0],
+                        'brand': best_match[1],
+                        'image_url': best_match[2],
+                        'price_krw': best_match[3],
+                        'capacity': best_match[4],
+                        'ingredients': best_match[5].split(',') if best_match[5] else []
+                    }
+                else:
+                    print(f"[DEBUG] FTS Failed (Best SimRatio {best_ratio:.0%} < 60%)")
+                    return None
+
         except Exception as e:
             print(f"퍼지 검색 오류 (_fuzzy_search_product): {e}")
             return None
@@ -382,7 +387,7 @@ class CosmeticAnalyzer:
                         ]
                     except Exception as e:
                         print(f"ML 주의 성분 조회 오류 (ML_caution_ingredients): {e}")
-                        ml_list = [] # 테이블이 없거나 오류 발생 시 무시
+                        ml_list = [] 
                 
                 return {
                     'official': official_list,
@@ -508,7 +513,6 @@ def format_analysis_for_chat(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
         output.append("*머신러닝 모델로 예측된 비안전 성분입니다.*\n")
         for ing in ml_predicted:
             name = ing.get('korean_name', 'N/A')
-            # [수정] ML_caution_ingredients 스키마(caution_grade, description)를 따름
             grade = ing.get('caution_grade', 'N/A')
             desc = ing.get('description', '')
             output.append(f"- **{name}** (예측 등급: {grade})")
