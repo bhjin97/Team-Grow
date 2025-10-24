@@ -30,7 +30,6 @@ def get_engine() -> Engine:
     user    = os.getenv("DB_USER", "{DB_USER}")
     pw      = os.getenv("DB_PASSWORD", "{DB_PASSWORD}")
     name    = os.getenv("DB_NAME", "{DB_NAME}")
-    
     dsn = f"{dialect}://{quote_plus(user)}:{quote_plus(pw)}@{host}:{port}/{quote_plus(name)}?charset=utf8mb4"
     return create_engine(dsn, pool_pre_ping=True, future=True)
 
