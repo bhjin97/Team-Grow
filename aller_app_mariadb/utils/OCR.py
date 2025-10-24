@@ -1,17 +1,14 @@
-# feature/OCR.py
+# utils/OCR.py
 # ============================================
 # 화장품 OCR 분석 모듈 (MariaDB + SQLAlchemy 버전)
-# [수정]
-# 1. 제품 검색 로직을 FTS -> LIKE 2단계로 강화
-# 2. ML 테이블명을 'ML_caution_ingredients'로 수정
-# 3. ML 테이블 컬럼을 'caution_grade', 'description'으로 수정
+# [수정] FTS 검색 시 '상위 5줄'을 사용하여 정확도 향상
 # ============================================
 
 import os
 import io
 import re
 from typing import Dict, List, Optional, Any
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from google.cloud import vision
 from PIL import Image
 from sqlalchemy import create_engine, text
@@ -19,7 +16,7 @@ from sqlalchemy.engine import Engine
 from urllib.parse import quote_plus
 
 # ============================================
-# 데이터베이스 연결 (수정 없음)
+# 데이터베이스 연결 (수정 없음 - 기존 코드)
 # ============================================
 
 def get_engine() -> Engine:
@@ -37,15 +34,44 @@ def get_engine() -> Engine:
     return create_engine(dsn, pool_pre_ping=True, future=True)
 
 # ============================================
-# OCR 및 검증 함수 (수정 없음)
+# OCR 및 검증 함수 (수정 없음 - 기존 코드)
 # ============================================
 
 def extract_text_from_image(image_path: str) -> Optional[str]:
-    """Google Cloud Vision API를 사용해 이미지에서 텍스트를 추출합니다."""
+    """[수정] Google Cloud Vision API 인증을 '절대 경로'로 수정"""
     try:
-        load_dotenv()
-        client = vision.ImageAnnotatorClient()
+        # 1. .env 파일의 '절대 경로'를 찾습니다. (예: C:\...\GROW\.env)
+        #    (find_dotenv()는 .env 파일을 찾을 때까지 상위 폴더로 이동합니다)
+        dotenv_path = find_dotenv()
         
+        if not dotenv_path:
+            raise Exception("'.env' 파일을 찾을 수 없습니다. (find_dotenv() 실패)")
+
+        # 2. 해당 .env 파일을 로드합니다.
+        load_dotenv(dotenv_path) 
+        
+        # 3. .env 파일이 있는 '디렉토리'의 절대 경로를 가져옵니다.
+        #    (예: C:\...\GROW)
+        base_dir = os.path.dirname(dotenv_path)
+        
+        # 4. .env에서 '파일명'만 읽어옵니다. (예: "peppy-linker-....json")
+        json_filename = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        
+        if not json_filename:
+            raise Exception("'.env' 파일에 GOOGLE_APPLICATION_CREDENTIALS가 없습니다.")
+        
+        # 5. '디렉토리 절대 경로'와 '파일명'을 조합하여 'JSON 파일의 절대 경로'를 만듭니다.
+        #    (예: C:\...\GROW\peppy-linker-....json)
+        abs_json_path = os.path.join(base_dir, json_filename)
+        
+        # 6. [중요] Google 클라이언트를 '절대 경로'로 명시적으로 초기화합니다.
+        client = vision.ImageAnnotatorClient.from_service_account_json(abs_json_path)
+
+        # 7. [확인] 파일이 실제로 존재하는지 다시 한번 확인 (디버깅용)
+        if not os.path.exists(abs_json_path):
+            raise Exception(f"파일을 찾을 수 없습니다 (경로 확인): {abs_json_path}")
+            
+        # ... (이하 코드는 동일)
         with io.open(image_path, 'rb') as image_file:
             content = image_file.read()
         
@@ -57,7 +83,7 @@ def extract_text_from_image(image_path: str) -> Optional[str]:
         
         return response.full_text_annotation.text
     except Exception as e:
-        print(f"OCR 추출 오류: {e}")
+        print(f"OCR 추출 오류: {e}") # <--- 이 부분에 오류가 찍힙니다.
         return None
 
 def validate_cosmetic_image(ocr_text: str) -> Dict[str, Any]:
@@ -102,12 +128,11 @@ class CosmeticAnalyzer:
     
     def analyze_from_text(self, ocr_text: str) -> Optional[Dict[str, Any]]:
         """
-        [수정] OCR 텍스트 기반으로 DB 검색 (FTS 우선, LIKE 차선)
+        [수정] FTS 검색 시 '깨끗한 검색어' (상위 5줄)를 사용하도록 변경
         """
         # 1. 검증
         validation = validate_cosmetic_image(ocr_text)
         if not validation['is_valid']:
-            # 유효하지 않아도, DB에서 못 찾으면 OCR 직접 분석을 시도
             pass
         
         # 2. 제품명 후보 추출 (상위 5줄)
@@ -121,10 +146,16 @@ class CosmeticAnalyzer:
         product_data = None
         
         # 3-1. FTS (전체 텍스트, OCR_streamlit.py 방식)
-        product_data = self._fuzzy_search_product(ocr_text)
+        # [수정] ocr_text 대신 "깨끗한 검색어" (상위 5줄 조합)를 FTS에 전달
+        clean_search_text = " ".join(product_candidates) 
+        
+        if clean_search_text:
+             # [수정] FTS 검증을 위해 '원본 ocr_text'도 함께 전달
+             product_data = self._fuzzy_search_product(clean_search_text, ocr_text)
         
         # 3-2. FTS 실패 시, LIKE (상위 후보, OCR.py 원본 방식)
         if not product_data:
+            print("[DEBUG] FTS Failed. Falling back to LIKE search...") # 디버그 로그 추가
             for candidate in product_candidates:
                 product_data = self._search_product_by_name(candidate, use_fts=False) # LIKE 검색 사용
                 if product_data:
@@ -257,8 +288,10 @@ class CosmeticAnalyzer:
             print(f"DB 검색 오류 (_search_product_by_name): {e}")
             return None
     
-    def _fuzzy_search_product(self, ocr_text: str) -> Optional[Dict[str, Any]]:
-        """[수정] OCR 텍스트에서 제품을 FTS로 찾습니다. (OCR_streamlit.py 방식)"""
+    def _fuzzy_search_product(self, clean_search_text: str, ocr_text: str) -> Optional[Dict[str, Any]]:
+        """
+        [수정] FTS는 '깨끗한 검색어'로 실행, 검증은 '원본 ocr_text'로 수행
+        """
         try:
             with self.engine.connect() as conn:
                 query = text("""
@@ -271,17 +304,21 @@ class CosmeticAnalyzer:
                     LIMIT 1
                 """)
                 
-                result = conn.execute(query, {"text": ocr_text}).fetchone()
+                # [수정] '깨끗한 검색어' (상위 5줄)로 FTS 쿼리 실행
+                result = conn.execute(query, {"text": clean_search_text}).fetchone()
                 
-                if result and result[6] > 0.5: # 관련도 0.5 이상
+                if result:
                     product_name = result[0]
                     product_words = [word for word in product_name.split() if len(word) > 1]
-                    ocr_lower = ocr_text.lower()
+                    
+                    # [수정] 검증은 '원본 ocr_text'와 비교
+                    ocr_lower = ocr_text.lower() 
                     
                     match_count = sum(1 for word in product_words if word.lower() in ocr_lower)
                     match_ratio = match_count / len(product_words) if product_words else 0
                     
-                    if match_ratio >= 0.3: # 제품명 단어 30% 이상 일치
+                    if match_ratio >= 0.4: 
+                        print(f"[DEBUG] FTS Success (Score: {result[6]:.2f}, Ratio: {match_ratio:.0%})")
                         return {
                             'product_name': result[0],
                             'brand': result[1],
@@ -290,6 +327,10 @@ class CosmeticAnalyzer:
                             'capacity': result[4],
                             'ingredients': result[5].split(',') if result[5] else []
                         }
+                    else:
+                        # [수정] 실패 로그에 검색어와 찾은 제품명 표시
+                        print(f"[DEBUG] FTS Failed (Ratio too low: {match_ratio:.0%})")
+                        print(f"       (Search: '{clean_search_text}', Found: '{product_name}')")
                 
                 return None
         except Exception as e:
@@ -374,7 +415,7 @@ class CosmeticAnalyzer:
             return {'official': [], 'ml_predicted': []}
 
 # ============================================
-# 메인 처리 함수 (수정 없음)
+# 메인 처리 함수 (수정 없음 - 기존 코드)
 # ============================================
 
 def process_cosmetic_image(image_path: str) -> Dict[str, Any]:
