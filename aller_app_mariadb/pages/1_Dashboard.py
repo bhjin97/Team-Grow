@@ -238,6 +238,13 @@ else:
 # ─────────────────────────────────────────
 st.subheader("3) 바우만 피부타입 진단 (간단·적응형)")
 
+SCALE_GUIDE = (
+    "응답 기준: **1=전혀 아니다**, **5=매우 그렇다**. "
+    "숫자가 클수록 **‘예(그렇다)’**에 가깝습니다. 애매하면 **‘모름’**을 선택하세요."
+)
+# 상단 전역 안내
+st.caption(SCALE_GUIDE)
+
 @dataclass
 class Item:
     id: str
@@ -273,6 +280,17 @@ TIEBREAKERS = {
 AXES = ["OD","SR","PN","WT"]
 LEFT_LETTER  = {"OD":"D", "SR":"R", "PN":"N", "WT":"T"}
 RIGHT_LETTER = {"OD":"O", "SR":"S", "PN":"P", "WT":"W"}
+
+def _resp_widget(label: str, key: str):
+    # 각 문항에 마우스오버 도움말도 함께 제공
+    choice = st.radio(
+        label,
+        options=[1, 2, 3, 4, 5, "모름"],
+        key=key,
+        horizontal=True,
+        help="1=전혀 아니다 · 5=매우 그렇다 (숫자가 클수록 ‘예’). 애매하면 ‘모름’.",
+    )
+    return None if choice == "모름" else int(choice)
 
 def _apply_reverse(x: int, reverse: bool) -> int: return (6 - x) if reverse else x
 def _axis_items(items: List[Item], axis: str) -> List[Item]: return [it for it in items if it.axis == axis]
