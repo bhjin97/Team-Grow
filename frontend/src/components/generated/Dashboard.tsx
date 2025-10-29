@@ -15,7 +15,6 @@ export default function Dashboard({
   const [selectedPeriod, setSelectedPeriod] = useState("7days");
   const [selectedWeather, setSelectedWeather] = useState("sunny");
   const [selectedMood, setSelectedMood] = useState("fresh");
-  const [baumannType] = useState("DRNT"); // Baumann skin type from analysis
   const [season, setSeason] = useState("summer");
   const [timeOfDay, setTimeOfDay] = useState("morning");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -42,31 +41,36 @@ export default function Dashboard({
     notes: "Sea Salt, Mint, Amber",
     match: "82%"
   }] as any[];
-  const routineProducts = [{
-    step: 1,
-    name: "Gentle Cleanser",
-    time: "AM",
-    image: "🧴",
-    brand: "CeraVe"
-  }, {
-    step: 2,
-    name: "Vitamin C Serum",
-    time: "AM",
-    image: "💧",
-    brand: "The Ordinary"
-  }, {
-    step: 3,
-    name: "Hydrating Moisturizer",
-    time: "AM",
-    image: "🫙",
-    brand: "Cetaphil"
-  }, {
-    step: 4,
-    name: "SPF 50+ Sunscreen",
-    time: "AM",
-    image: "☀️",
-    brand: "La Roche-Posay"
-  }] as any[];
+  const [routineProducts, setRoutineProducts] = useState<any[]>([]);
+  const [baumannType, setBaumannType] = useState("DRNT");
+  
+  const FOCUS_RULES: Record<string, string[]> = {
+    "summer_morning": ["가벼운", "산뜻"],
+    "summer_evening": ["보습", "진정"],
+    "winter_morning": ["보습", "보호막"],
+    "winter_evening": ["영양", "재생"],
+  };
+
+  const allKeywordOptions = Array.from(
+    new Set(Object.values(FOCUS_RULES).flat())
+  );
+
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
+    FOCUS_RULES[`${season}_${timeOfDay}`] || []
+  );
+
+  const toggleKeyword = (kw: string) => {
+    if (selectedKeywords.includes(kw)) {
+      // 이미 있으면 제거
+      setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
+    } else {
+      // 최대 2개까지만 추가
+      if (selectedKeywords.length < 2) {
+        setSelectedKeywords([...selectedKeywords, kw]);
+      }
+    }
+  };
+
   return <div className="min-h-screen w-full pb-16 md:pb-0" style={{
     background: 'linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%)'
   }}>
@@ -482,58 +486,121 @@ export default function Dashboard({
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-600 mb-1 block">타입</label>
-                <div className="w-full px-1.5 sm:px-2 py-2 rounded-lg border-2 border-purple-300 bg-purple-50 text-xs sm:text-sm font-semibold text-purple-700 flex items-center justify-center">
-                  {baumannType}
-                </div>
+                <label className="text-xs text-gray-600 mb-1 block">피부 타입</label>
+                <select
+                  value={baumannType}
+                  onChange={(e) => setBaumannType(e.target.value)}
+                  className="w-full px-1.5 sm:px-2 py-2 rounded-lg border border-gray-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                >
+                  <option value="DRNT">DRNT</option>
+                  <option value="DRNW">DRNW</option>
+                  <option value="DRPT">DRPT</option>
+                  <option value="DRPW">DRPW</option>
+                  <option value="DSPT">DSPT</option>
+                  <option value="DSPW">DSPW</option>
+                  <option value="DSNT">DSNT</option>
+                  <option value="DSNW">DSNW</option>
+                  <option value="ORNT">ORNT</option>
+                  <option value="ORNW">ORNW</option>
+                  <option value="ORPT">ORPT</option>
+                  <option value="ORPW">ORPW</option>
+                  <option value="OSPT">OSPT</option>
+                  <option value="OSPW">OSPW</option>
+                  <option value="OSNT">OSNT</option>
+                  <option value="OSNW">OSNW</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">키워드 선택 (최대 2개)</label>
+              <div className="flex flex-wrap gap-2 items-center">
+                {allKeywordOptions.map((kw) => (
+                  <button
+                    key={kw}
+                    type="button"
+                    onClick={() => toggleKeyword(kw)}
+                    className={`px-2 py-1 rounded-full text-xs sm:text-sm border 
+                      ${selectedKeywords.includes(kw) 
+                        ? "bg-pink-200 border-pink-400 text-pink-700 font-semibold" 
+                        : "bg-gray-100 border-gray-300 text-gray-600"
+                      }`}
+                  >
+                    #{kw}
+                  </button>
+                ))}
+
+                {/* 초기화 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedKeywords([])}
+                  className="px-3 py-1 rounded-full text-xs sm:text-sm bg-gray-200 text-gray-700 hover:bg-gray-300"
+                >
+                  초기화
+                </button>
               </div>
             </div>
 
             {/* Horizontal Product Cards with Images */}
             <div className="overflow-x-auto pb-2">
               <div className="flex gap-3 sm:gap-4 min-w-max">
-                {routineProducts.map((product, index) => <motion.div key={index} initial={{
-                opacity: 0,
-                y: 20
-              }} animate={{
-                opacity: 1,
-                y: 0
-              }} transition={{
-                duration: 0.4,
-                delay: 0.6 + index * 0.1
-              }} className="flex-shrink-0 w-32 sm:w-40 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 hover:shadow-lg transition-shadow cursor-pointer">
-                    {/* Step Number Badge */}
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full text-white flex items-center justify-center font-bold text-xs flex-shrink-0" style={{
-                    background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)'
-                  }}>
-                        {product.step}
-                      </div>
-                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-pink-200 text-pink-700 font-medium">
-                        {product.time}
-                      </span>
+                {routineProducts.map((product, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.6 + index * 0.1 }}
+                    className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 hover:shadow-lg transition-shadow"
+                  >
+                    {/* Step (카테고리) */}
+                    <div className="text-xs sm:text-sm font-semibold text-pink-600 mb-1">
+                      {product.step}
                     </div>
-                    
+
                     {/* Product Image */}
-                    <div className="w-full aspect-square bg-white rounded-lg mb-2 sm:mb-3 flex items-center justify-center text-4xl sm:text-5xl">
-                      {product.image}
+                    <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center">
+                      <img
+                        src={product.image_url}
+                        alt={product.display_name}
+                        className="w-full h-full object-contain rounded-lg"
+                      />
                     </div>
-                    
+
                     {/* Product Info */}
-                    <div className="space-y-1">
-                      <p className="text-xs text-gray-500 font-medium">{product.brand}</p>
-                      <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-tight line-clamp-2">
-                        {product.name}
-                      </p>
-                    </div>
-                  </motion.div>)}
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-tight line-clamp-2">
+                      {product.display_name}
+                    </p>
+                    <p className="text-[11px] text-gray-500">{product.reason}</p>
+                  </motion.div>
+                ))}
               </div>
             </div>
+            <button
+              onClick={async () => {
+                try {
+                  const query = new URLSearchParams({
+                    skin_type: baumannType,
+                    season,
+                    time: timeOfDay,
+                    keywords: selectedKeywords.join(","),
+                  });
 
-            <button className="w-full mt-3 sm:mt-4 py-2.5 sm:py-3 rounded-xl bg-pink-100 text-pink-700 text-sm sm:text-base font-medium hover:bg-pink-200 transition-colors">
-              전체 루틴 계획 받기
+                  const response = await fetch(
+                    `http://127.0.0.1:8000/routine/recommend?${query.toString()}`
+                  );
+                  const data = await response.json();
+                  setRoutineProducts(data);
+                } catch (error) {
+                  console.error("루틴 불러오기 실패:", error);
+                }
+              }}
+              className="w-full mt-3 sm:mt-4 py-2.5 sm:py-3 rounded-xl bg-pink-100 text-pink-700 text-sm sm:text-base font-medium hover:bg-pink-200 transition-colors"
+            >
+              스킨케어 루틴 추천 받기
             </button>
+
+
           </motion.div>
+          
         </div>
       </main>
 
