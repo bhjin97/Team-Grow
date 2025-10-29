@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User, Menu, X, Droplets, Sparkles, LineChart, Camera, Clock, Home, MessageSquare, UserCircle, Settings as SettingsIcon, LayoutDashboard, Bell } from "lucide-react";
 export interface DashboardProps {
@@ -50,6 +50,12 @@ export default function Dashboard({
     "winter_morning": ["보습", "보호막"],
     "winter_evening": ["영양", "재생"],
   };
+
+  useEffect(() => {
+    // 계절 + 시간대 바뀔 때 자동으로 해당 키워드로 업데이트
+    const defaultKeywords = FOCUS_RULES[`${season}_${timeOfDay}`] || [];
+    setSelectedKeywords(defaultKeywords);
+  }, [season, timeOfDay]);
 
   const allKeywordOptions = Array.from(
     new Set(Object.values(FOCUS_RULES).flat())
@@ -513,7 +519,7 @@ export default function Dashboard({
             </div>
             <div>
               <label className="text-xs text-gray-600 mb-1 block">키워드 선택 (최대 2개)</label>
-              <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex flex-wrap gap-2 items-center mb-4">
                 {allKeywordOptions.map((kw) => (
                   <button
                     key={kw}
