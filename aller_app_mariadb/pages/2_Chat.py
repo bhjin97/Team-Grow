@@ -28,7 +28,7 @@ from aller.ui import require_login_redirect, render_app_sidebar
 from utils.OCR import process_cosmetic_image, search_product_by_name, format_analysis_for_chat
 
 # Vector + DB
-from utils.vector_pinecone import pinecone_query_products  # ← 여기 포인트!
+from utils.vector_pinecone import pinecone_query_products  # ← 여기 포인트! ㅁㄴㅇㄹ
 from aller.storage_sql import fetch_products_by_ids
 
 # ============================================
