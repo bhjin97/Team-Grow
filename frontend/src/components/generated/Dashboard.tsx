@@ -41,6 +41,7 @@ export default function Dashboard({
     notes: "Sea Salt, Mint, Amber",
     match: "82%"
   }] as any[];
+
   const [routineProducts, setRoutineProducts] = useState<any[]>([]);
   const [baumannType, setBaumannType] = useState("DRNT");
   
@@ -486,6 +487,7 @@ export default function Dashboard({
                 </select>
               </div>
               <div>
+
                 <label className="text-xs text-gray-600 mb-1 block">피부 타입</label>
                 <select
                   value={baumannType}
@@ -543,6 +545,7 @@ export default function Dashboard({
             {/* Horizontal Product Cards with Images */}
             <div className="overflow-x-auto pb-2">
               <div className="flex gap-3 sm:gap-4 min-w-max">
+
                 {routineProducts.map((product, index) => (
                   <motion.div
                     key={index}
@@ -600,7 +603,6 @@ export default function Dashboard({
 
 
           </motion.div>
-          
         </div>
       </main>
 
