@@ -52,6 +52,7 @@ export default function Dashboard({
     "winter_evening": ["영양", "재생"],
   };
 
+
   useEffect(() => {
     // 계절 + 시간대 바뀔 때 자동으로 해당 키워드로 업데이트
     const defaultKeywords = FOCUS_RULES[`${season}_${timeOfDay}`] || [];
