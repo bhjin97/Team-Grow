@@ -19,6 +19,7 @@ import {
   Bell,
   RefreshCcw,
 } from 'lucide-react';
+import { fetchRoutine } from '../../lib/utils'; 
 // import { API_BASE } from '../../lib/env';
 
 // ─────────────────────────────────────────
@@ -853,20 +854,15 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
             <button
               onClick={async () => {
                 try {
-                  const query = new URLSearchParams({
-                    skin_type: baumannType,
+                  const data = await fetchRoutine(
+                    baumannType,
                     season,
-                    time: timeOfDay,
-                    keywords: selectedKeywords.join(','),
-                  });
-
-                  const response = await fetch(
-                    `http://127.0.0.1:8000/routine/recommend?${query.toString()}`
+                    timeOfDay,
+                    selectedKeywords
                   );
-                  const data = await response.json();
                   setRoutineProducts(data);
-                } catch (error) {
-                  console.error('루틴 불러오기 실패:', error);
+                } catch (err) {
+                  console.error(err);
                 }
               }}
               className="w-full mt-3 sm:mt-4 py-2.5 sm:py-3 rounded-xl bg-pink-100 text-pink-700 text-sm sm:text-base font-medium hover:bg-pink-200 transition-colors"

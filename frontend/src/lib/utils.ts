@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { API_BASE } from './env';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -26,4 +27,24 @@ export function removeDarkClasses(className: string): string {
     .split(' ')
     .filter(cls => !cls.startsWith('dark:'))
     .join(' ');
+}
+
+export async function fetchRoutine(
+  baumannType: string,
+  season: string,
+  timeOfDay: string,
+  keywords: string[]
+) {
+  const query = new URLSearchParams({
+    skin_type: baumannType,
+    season,
+    time: timeOfDay,
+    keywords: keywords.join(','),
+  });
+
+  const res = await fetch(`${API_BASE}/routine/recommend?${query.toString()}`);
+  if (!res.ok) {
+    throw new Error('루틴 API 호출 실패');
+  }
+  return res.json();
 }
