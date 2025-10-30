@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from db import get_db
-from routers import routine
+from routers import routine, analysis
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -21,3 +21,4 @@ def root():
 
 # ✅ 라우터 등록
 app.include_router(routine.router)
+app.include_router(analysis.router)
