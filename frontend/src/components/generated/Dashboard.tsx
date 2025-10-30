@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   User,
@@ -12,38 +12,185 @@ import {
   LineChart,
   Camera,
   Clock,
-  Home,
   MessageSquare,
   UserCircle,
   Settings as SettingsIcon,
   LayoutDashboard,
   Bell,
+  RefreshCcw,
 } from 'lucide-react';
+// import { API_BASE } from '../../lib/env';
+
+// ─────────────────────────────────────────
+// 타입 정의
+// ─────────────────────────────────────────
+type AxisKey = 'OD' | 'SR' | 'PN' | 'WT';
+type AxisBrief = { avg: number; letter: string; confidence: number };
+type AxesJSON = Record<AxisKey, AxisBrief>;
+
 export interface DashboardProps {
   userName?: string;
   onNavigate?: (page: string) => void;
 }
+
 export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardProps) {
+  // ─────────────────────────────────────────
+  // 은영 쪽 상태
+  // ─────────────────────────────────────────
   const [selectedPeriod, setSelectedPeriod] = useState('7days');
   const [selectedWeather, setSelectedWeather] = useState('sunny');
   const [selectedMood, setSelectedMood] = useState('fresh');
   const [season, setSeason] = useState('summer');
   const [timeOfDay, setTimeOfDay] = useState('morning');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const skinConcerns = [
-    {
-      concern: 'Dryness',
-      percentage: 78,
-    },
-    {
-      concern: 'Dark Spots',
-      percentage: 65,
-    },
-    {
-      concern: 'Fine Lines',
-      percentage: 52,
-    },
-  ] as any[];
+
+  const [routineProducts, setRoutineProducts] = useState<any[]>([]);
+
+  // ─────────────────────────────────────────
+  // 바우만 타입/축 동기화
+  // ─────────────────────────────────────────
+  const [baumannType, setBaumannType] = useState<string>('ORNT');
+  const [axes, setAxes] = useState<AxesJSON | null>(null);
+
+  // ─────────────────────────────────────────
+  // “계절+시간대”에 따라 키워드 자동 세팅
+  // ─────────────────────────────────────────
+  const FOCUS_RULES: Record<string, string[]> = {
+    summer_morning: ['가벼운', '산뜻'],
+    summer_evening: ['보습', '진정'],
+    winter_morning: ['보습', '보호막'],
+    winter_evening: ['영양', '재생'],
+  };
+  const allKeywordOptions = Array.from(new Set(Object.values(FOCUS_RULES).flat()));
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
+    FOCUS_RULES[`${season}_${timeOfDay}`] || []
+  );
+
+  useEffect(() => {
+    const defaultKeywords = FOCUS_RULES[`${season}_${timeOfDay}`] || [];
+    setSelectedKeywords(defaultKeywords);
+  }, [season, timeOfDay]);
+
+  const toggleKeyword = (kw: string) => {
+    if (selectedKeywords.includes(kw)) {
+      setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
+    } else {
+      if (selectedKeywords.length < 2) {
+        setSelectedKeywords([...selectedKeywords, kw]);
+      }
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // 진단 결과 동기화
+  // ─────────────────────────────────────────
+  useEffect(() => {
+    // 1) localStorage 먼저
+    const cachedType =
+      typeof window !== 'undefined' ? localStorage.getItem('skin_type_code') : null;
+    const cachedAxes =
+      typeof window !== 'undefined' ? localStorage.getItem('skin_axes_json') : null;
+    if (cachedType) setBaumannType(cachedType);
+    if (cachedAxes) {
+      try {
+        setAxes(JSON.parse(cachedAxes));
+      } catch {}
+    }
+
+    // 2) 서버에서 다시 가져오기
+    const userIdStr = (typeof window !== 'undefined' && localStorage.getItem('user_id')) ?? '1';
+    const userId = Number.parseInt(userIdStr, 10) || 1;
+
+    (async () => {
+      try {
+        if (!API_BASE) return;
+        const res = await fetch(`${API_BASE}/api/profile/${userId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.skin_type_code) {
+          setBaumannType(String(data.skin_type_code));
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('skin_type_code', String(data.skin_type_code));
+          }
+        }
+        if (data?.skin_axes_json) {
+          const json =
+            typeof data.skin_axes_json === 'string'
+              ? data.skin_axes_json
+              : JSON.stringify(data.skin_axes_json);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('skin_axes_json', json);
+          }
+          try {
+            setAxes(JSON.parse(json));
+          } catch {}
+        }
+      } catch {
+        // 서버 없으면 조용히 무시
+      }
+    })();
+
+    // 3) storage 이벤트로 다른 탭 변경도 반영
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'skin_type_code' && e.newValue) setBaumannType(e.newValue);
+      if (e.key === 'skin_axes_json' && e.newValue) {
+        try {
+          setAxes(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', onStorage);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', onStorage);
+      }
+    };
+  }, []);
+
+  // ─────────────────────────────────────────
+  // 바우만 코드 파싱
+  // ─────────────────────────────────────────
+  const code = (baumannType ?? 'ORNT').toUpperCase();
+  const pick = {
+    OD: code[0], // O | D
+    SR: code[1], // S | R
+    PN: code[2], // P | N
+    WT: code[3], // W | T
+  };
+
+  const koAxisWord = {
+    OD: pick.OD === 'O' ? '지성' : '건성',
+    SR: pick.SR === 'R' ? '저항성' : '민감성',
+    PN: pick.PN === 'N' ? '비색소침착' : '색소침착',
+    WT: pick.WT === 'T' ? '탱탱함' : '주름',
+  };
+
+  // 축 기반 “주요 피부 고민” 만들기
+  const concernLabel: Record<AxisKey, string> = {
+    OD: pick.OD === 'O' ? 'OILY' : 'DRY',
+    SR: pick.SR === 'R' ? 'RESISTANCE' : 'SENSITIVE',
+    PN: pick.PN === 'N' ? 'NON-PIGMENTED' : 'PIGMENTED',
+    WT: pick.WT === 'T' ? 'TIGHT' : 'WRINKLED',
+  };
+  const concerns = useMemo(() => {
+    const list = (['OD', 'SR', 'PN', 'WT'] as AxisKey[]).map(ax => ({
+      key: ax,
+      label: concernLabel[ax],
+      value: axes?.[ax]?.confidence ? Math.round(axes![ax].confidence) : 0,
+    }));
+    return list;
+  }, [axes, baumannType]);
+
+  const topIdx = useMemo(() => {
+    if (!concerns.length) return 0;
+    return concerns.map(c => c.value).reduce((best, v, i, arr) => (v > arr[best] ? i : best), 0);
+  }, [concerns]);
+
+  // ─────────────────────────────────────────
+  // 향수 추천 더미
+  // ─────────────────────────────────────────
   const perfumeRecommendations = [
     {
       name: 'Fresh Citrus',
@@ -60,40 +207,28 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
       notes: 'Sea Salt, Mint, Amber',
       match: '82%',
     },
-  ] as any[];
+  ];
 
-  const [routineProducts, setRoutineProducts] = useState<any[]>([]);
-  const [baumannType, setBaumannType] = useState('DRNT');
-
-  const FOCUS_RULES: Record<string, string[]> = {
-    summer_morning: ['가벼운', '산뜻'],
-    summer_evening: ['보습', '진정'],
-    winter_morning: ['보습', '보호막'],
-    winter_evening: ['영양', '재생'],
-  };
-
-  useEffect(() => {
-    // 계절 + 시간대 바뀔 때 자동으로 해당 키워드로 업데이트
-    const defaultKeywords = FOCUS_RULES[`${season}_${timeOfDay}`] || [];
-    setSelectedKeywords(defaultKeywords);
-  }, [season, timeOfDay]);
-
-  const allKeywordOptions = Array.from(new Set(Object.values(FOCUS_RULES).flat()));
-
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
-    FOCUS_RULES[`${season}_${timeOfDay}`] || []
-  );
-
-  const toggleKeyword = (kw: string) => {
-    if (selectedKeywords.includes(kw)) {
-      // 이미 있으면 제거
-      setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
-    } else {
-      // 최대 2개까지만 추가
-      if (selectedKeywords.length < 2) {
-        setSelectedKeywords([...selectedKeywords, kw]);
-      }
-    }
+  // ─────────────────────────────────────────
+  // 공용 pill
+  // ─────────────────────────────────────────
+  const pill = (active: boolean, tone: 'blue' | 'pink' | 'purple' | 'amber', label: string) => {
+    const act = {
+      blue: 'bg-blue-500 text-white border-blue-500',
+      pink: 'bg-pink-500 text-white border-pink-500',
+      purple: 'bg-purple-500 text-white border-purple-500',
+      amber: 'bg-amber-500 text-white border-amber-500',
+    } as const;
+    return (
+      <span
+        className={[
+          'px-3 py-1.5 rounded-lg text-sm font-medium border',
+          active ? act[tone] : 'bg-white text-gray-700 border-gray-200',
+        ].join(' ')}
+      >
+        {label}
+      </span>
+    );
   };
 
   return (
@@ -259,7 +394,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
           }}
         >
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
-            다시 오신 것을 환영합니다, {userName}님! 🌸
+            환영합니다, {userName}님! 🌸
           </h2>
           <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-8">
             당신을 위한 맞춤 뷰티 정보입니다
@@ -303,7 +438,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
             <div className="md:col-span-1">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-600">피부 건강 점수</span>
-                <span className="text-2xl font-bold text-pink-600">85/100</span>
+                <span className="text-2xl font-bold text-pink-600">95/100</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <motion.div
@@ -311,7 +446,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                     width: 0,
                   }}
                   animate={{
-                    width: '85%',
+                    width: '95%',
                   }}
                   transition={{
                     duration: 1,
@@ -320,26 +455,29 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                   className="bg-gradient-to-r from-pink-300 to-purple-300 h-3 rounded-full"
                 />
               </div>
-              <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="mt-4 pt-4 border-t border-gray-100 space-y-1">
                 <div className="flex items-center space-x-2 text-sm">
                   <Droplets className="w-4 h-4 text-blue-500" />
-                  <span className="text-gray-600">피부 타입:</span>
-                  <span className="font-semibold text-gray-800">복합성</span>
+                  <span className="text-gray-600">바우만 타입:</span>
+                  <span className="font-semibold text-gray-800">{code}</span>
+                </div>
+                <div className="text-xs text-gray-500">
+                  ({koAxisWord.OD}, {koAxisWord.SR}, {koAxisWord.PN}, {koAxisWord.WT})
                 </div>
               </div>
             </div>
 
-            {/* Top Concerns Section */}
+            {/* Top Concerns Section*/}
             <div className="md:col-span-2">
               <h4 className="text-sm font-semibold text-gray-700 mb-3">주요 피부 고민</h4>
               <div className="space-y-3">
-                {skinConcerns.map((item, index) => (
-                  <div key={index}>
+                {concerns.map((item, index) => (
+                  <div key={item.key}>
                     <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-gray-600">{item.concern}</span>
-                      <span className="text-sm font-semibold text-purple-600">
-                        {item.percentage}%
+                      <span className="text-sm text-gray-600 flex items-center gap-1">
+                        {item.label}
                       </span>
+                      <span className="text-sm font-semibold text-purple-600">{item.value}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <motion.div
@@ -347,7 +485,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                           width: 0,
                         }}
                         animate={{
-                          width: `${item.percentage}%`,
+                          width: `${item.value}%`,
                         }}
                         transition={{
                           duration: 0.8,
@@ -445,7 +583,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
             </div>
           </motion.div>
 
-          {/* 3. Baumann Skin Type Test */}
+          {/* 3. Baumann Skin Type Test*/}
           <motion.div
             initial={{
               opacity: 0,
@@ -476,12 +614,8 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                   <span className="text-xs sm:text-sm font-semibold text-gray-700">수분</span>
                 </div>
                 <div className="flex justify-center space-x-1 sm:space-x-2">
-                  <button className="px-2 sm:px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs sm:text-sm font-medium">
-                    건성
-                  </button>
-                  <button className="px-2 sm:px-3 py-1.5 rounded-lg bg-white text-gray-600 text-xs sm:text-sm font-medium hover:bg-gray-50">
-                    지성
-                  </button>
+                  {pill(pick.OD === 'D', 'blue', '건성')}
+                  {pill(pick.OD === 'O', 'blue', '지성')}
                 </div>
               </div>
 
@@ -490,12 +624,8 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                   <span className="text-xs sm:text-sm font-semibold text-gray-700">민감도</span>
                 </div>
                 <div className="flex justify-center space-x-1 sm:space-x-2">
-                  <button className="px-2 sm:px-3 py-1.5 rounded-lg bg-white text-gray-600 text-xs sm:text-sm font-medium hover:bg-gray-50">
-                    민감성
-                  </button>
-                  <button className="px-2 sm:px-3 py-1.5 rounded-lg bg-pink-500 text-white text-xs sm:text-sm font-medium">
-                    저항성
-                  </button>
+                  {pill(pick.SR !== 'R', 'pink', '민감성')}
+                  {pill(pick.SR === 'R', 'pink', '저항성')}
                 </div>
               </div>
 
@@ -504,12 +634,8 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                   <span className="text-xs sm:text-sm font-semibold text-gray-700">색소침착</span>
                 </div>
                 <div className="flex justify-center space-x-1 sm:space-x-2">
-                  <button className="px-2 sm:px-3 py-1.5 rounded-lg bg-white text-gray-600 text-xs sm:text-sm font-medium hover:bg-gray-50">
-                    색소침착
-                  </button>
-                  <button className="px-2 sm:px-3 py-1.5 rounded-lg bg-purple-500 text-white text-xs sm:text-sm font-medium">
-                    비색소
-                  </button>
+                  {pill(pick.PN === 'P', 'purple', '색소침착')}
+                  {pill(pick.PN === 'N', 'purple', '비색소')}
                 </div>
               </div>
 
@@ -518,23 +644,25 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                   <span className="text-xs sm:text-sm font-semibold text-gray-700">주름</span>
                 </div>
                 <div className="flex justify-center space-x-1 sm:space-x-2">
-                  <button className="px-2 sm:px-3 py-1.5 rounded-lg bg-white text-gray-600 text-xs sm:text-sm font-medium hover:bg-gray-50">
-                    주름
-                  </button>
-                  <button className="px-2 sm:px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs sm:text-sm font-medium">
-                    탄력
-                  </button>
+                  {pill(pick.WT === 'W', 'amber', '주름')}
+                  {pill(pick.WT === 'T', 'amber', '탄력')}
                 </div>
               </div>
             </div>
 
-            <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-purple-100 rounded-xl">
-              <p className="text-center text-xs sm:text-sm">
-                <span className="font-semibold text-purple-700">당신의 타입: DRNT</span>
+            <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-purple-100 rounded-xl flex items-center justify-between gap-3">
+              <p className="text-xs sm:text-sm">
+                <span className="font-semibold text-purple-700">당신의 타입: {code}</span>
                 <span className="text-gray-600 block sm:inline sm:ml-2 mt-1 sm:mt-0">
-                  (건성, 저항성, 비색소침착, 탄력)
+                  ({koAxisWord.OD}, {koAxisWord.SR}, {koAxisWord.PN}, {koAxisWord.WT})
                 </span>
               </p>
+              <button
+                onClick={() => onNavigate?.('diagnosis')}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm border border-purple-200 text-purple-700 hover:bg-purple-50"
+              >
+                <RefreshCcw className="w-4 h-4" /> 다시 진단
+              </button>
             </div>
           </motion.div>
 
