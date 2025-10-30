@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { Container, Theme } from './settings/types';
-import { BeautyAILogin } from './components/generated/BeautyAILogin';
-import SignupForm from './components/generated/SignupForm';
-import Dashboard from './components/generated/Dashboard';
-import ChatInterface from './components/generated/ChatInterface';
-import UserProfile from './components/generated/UserProfile';
-import Settings from './components/generated/Settings';
+import { BeautyAILogin } from './components/BeautyAILogin';
+import SignupForm from './components/SignupForm';
+import Dashboard from './components/dashboard/Dashboard';
+import ChatInterface from './components/ChatInterface';
+import UserProfile from './components/UserProfile';
+import Settings from './components/Settings';
 
 let theme: Theme = 'light';
 // only use 'centered' container for standalone components, never for full page apps or websites.
