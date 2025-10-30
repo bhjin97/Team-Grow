@@ -1,3 +1,4 @@
+// BaumannAnalysis
 'use client';
 
 import { motion } from 'framer-motion';
@@ -12,11 +13,7 @@ interface BaumannAnalysisProps {
 }
 
 // 공용 pill 버튼
-const pill = (
-  active: boolean,
-  tone: 'blue' | 'pink' | 'purple' | 'amber',
-  label: string
-) => {
+const pill = (active: boolean, tone: 'blue' | 'pink' | 'purple' | 'amber', label: string) => {
   const act = {
     blue: 'bg-blue-500 text-white border-blue-500',
     pink: 'bg-pink-500 text-white border-pink-500',
@@ -112,7 +109,7 @@ export default function BaumannAnalysis({
           onClick={() => onNavigate?.('diagnosis')}
           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm border border-purple-200 text-purple-700 hover:bg-purple-50"
         >
-          <RefreshCcw className="w-4 h-4" /> 다시 진단
+          <LineChart className="w-4 h-4" /> 진단하기
         </button>
       </div>
     </motion.div>
