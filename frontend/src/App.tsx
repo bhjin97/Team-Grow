@@ -6,12 +6,21 @@ import Dashboard from './components/dashboard/Dashboard';
 import ChatInterface from './components/ChatInterface';
 import UserProfile from './components/UserProfile';
 import Settings from './components/Settings';
+import SkinDiagnosis from './components/dashboard/SkinDiagnosis';
+import Survey from './components/dashboard/Survey'; // ← 여기! 설문으로
 
 let theme: Theme = 'light';
-// only use 'centered' container for standalone components, never for full page apps or websites.
 let container: Container = 'none';
 
-type PageType = 'login' | 'signup' | 'dashboard' | 'chat' | 'profile' | 'settings';
+type PageType =
+  | 'login'
+  | 'signup'
+  | 'dashboard'
+  | 'chat'
+  | 'profile'
+  | 'settings'
+  | 'diagnosis'
+  | 'survey'; // ← 설문 페이지 이름은 이걸로 고정
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('login');
@@ -25,16 +34,12 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
   }
-
   setTheme(theme);
 
   const handleLogin = (email: string, password: string) => {
-    // Simulate login - in real app, this would call an API
     console.log('Logging in with:', email);
     setIsLoggedIn(true);
     setCurrentPage('dashboard');
-    
-    // Extract name from email for demo purposes
     const name = email.split('@')[0];
     setUserName(name.charAt(0).toUpperCase() + name.slice(1));
   };
@@ -46,18 +51,22 @@ function App() {
     phone: string;
     birthday: string;
   }) => {
-    // Simulate signup - in real app, this would call an API
     console.log('Signing up with:', userData);
     setIsLoggedIn(true);
     setCurrentPage('dashboard');
-    
-    // Use full name from signup data
     const firstName = userData.fullName.split(' ')[0];
     setUserName(firstName);
   };
 
   const handleNavigate = (page: string) => {
-    if (page === 'dashboard' || page === 'chat' || page === 'profile' || page === 'settings') {
+    if (
+      page === 'dashboard' ||
+      page === 'chat' ||
+      page === 'profile' ||
+      page === 'settings' ||
+      page === 'diagnosis' ||
+      page === 'survey' // ← 정확히 소문자 survey
+    ) {
       setCurrentPage(page as PageType);
     }
   };
@@ -77,7 +86,7 @@ function App() {
   };
 
   const generatedComponent = useMemo(() => {
-    // THIS IS WHERE THE TOP LEVEL GENRATED COMPONENT WILL BE RETURNED!
+    // 로그인 전
     if (!isLoggedIn) {
       if (currentPage === 'signup') {
         return <SignupForm onSignup={handleSignup} onNavigateLogin={handleNavigateLogin} />;
@@ -85,9 +94,21 @@ function App() {
       return <BeautyAILogin onLogin={handleLogin} onNavigateSignup={handleNavigateSignup} />;
     }
 
+    // 로그인 후
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard userName={userName} onNavigate={handleNavigate} />;
+      case 'diagnosis':
+        // 1단계: 설명 화면
+        return (
+          <SkinDiagnosis
+            onBack={() => setCurrentPage('dashboard')}
+            onStart={() => setCurrentPage('survey')} // ← 여기! 설문으로
+          />
+        );
+      case 'survey':
+        // 2단계: 설문 화면
+        return <Survey onDone={() => setCurrentPage('dashboard')} />;
       case 'chat':
         return <ChatInterface userName={userName} onNavigate={handleNavigate} />;
       case 'profile':

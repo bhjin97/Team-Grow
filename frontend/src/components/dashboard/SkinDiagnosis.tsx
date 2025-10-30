@@ -1,11 +1,11 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { TestTube2, RefreshCcw, ExternalLink } from 'lucide-react';
+import { TestTube2, RefreshCcw } from 'lucide-react';
 
 export interface SkinDiagnosisProps {
   onBack?: () => void;
-  onStart?: () => void; // 내부 설문(React Survey) 실행
+  onStart?: () => void; // 설문 실행
 }
 
 export default function SkinDiagnosis({ onBack, onStart }: SkinDiagnosisProps) {
@@ -17,7 +17,6 @@ export default function SkinDiagnosis({ onBack, onStart }: SkinDiagnosisProps) {
       }}
     >
       <div className="w-full max-w-3xl bg-white/90 backdrop-blur-md shadow-lg rounded-2xl p-6 sm:p-10">
-        {/* 상단 헤더 */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 flex items-center gap-2">
             <TestTube2 className="w-6 h-6 text-purple-500" />
@@ -33,7 +32,6 @@ export default function SkinDiagnosis({ onBack, onStart }: SkinDiagnosisProps) {
           )}
         </div>
 
-        {/* 소개 섹션 */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -50,9 +48,7 @@ export default function SkinDiagnosis({ onBack, onStart }: SkinDiagnosisProps) {
           </p>
         </motion.div>
 
-        {/* 버튼 영역 */}
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-          {/* 내부 설문용 버튼 */}
           <button
             onClick={onStart}
             className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white font-semibold shadow-md hover:shadow-lg text-base transition-all"
@@ -65,7 +61,6 @@ export default function SkinDiagnosis({ onBack, onStart }: SkinDiagnosisProps) {
           </button>
         </div>
 
-        {/* 하단 안내 */}
         <div className="mt-8 text-center text-sm text-gray-500">
           모든 데이터는 보안 저장되며,{' '}
           <span className="text-purple-600 font-medium">언제든 다시 진단</span>할 수 있습니다.
