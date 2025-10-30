@@ -5,14 +5,12 @@ import { useState, useMemo } from 'react';
 import DashboardHeader from './DashboardHeader';
 import DashboardBottomNav from './DashboardBottomNav';
 
-// 기능 컴포넌트
 import SkinSummary from './SkinSummary';
 import PerfumeRecommendations from './PerfumeRecommendations';
 import BaumannAnalysis from './BaumannAnalysis';
 import VirtualSkinModel from './VirtualSkinModel';
 import CustomRoutine from './CustomRoutine';
 
-// 타입 정의
 type AxisKey = 'OD' | 'SR' | 'PN' | 'WT';
 type AxisBrief = { avg: number; letter: string; confidence: number };
 type AxesJSON = Record<AxisKey, AxisBrief>;
@@ -32,7 +30,6 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   const [axes, setAxes] = useState<AxesJSON | null>(null);
   const [routineProducts, setRoutineProducts] = useState<any[]>([]);
 
-  // 키워드 규칙
   const FOCUS_RULES: Record<string, string[]> = {
     summer_morning: ['가벼운', '산뜻'],
     summer_evening: ['보습', '진정'],
@@ -40,7 +37,9 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     winter_evening: ['영양', '재생'],
   };
   const allKeywordOptions = Array.from(new Set(Object.values(FOCUS_RULES).flat()));
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>(FOCUS_RULES[`${season}_${timeOfDay}`] || []);
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
+    FOCUS_RULES[`${season}_${timeOfDay}`] || []
+  );
   const toggleKeyword = (kw: string) => {
     if (selectedKeywords.includes(kw)) {
       setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
@@ -49,7 +48,6 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     }
   };
 
-  // 바우만 타입 파싱
   const code = (baumannType ?? 'ORNT').toUpperCase();
   const pick = { OD: code[0], SR: code[1], PN: code[2], WT: code[3] };
   const koAxisWord = {
@@ -72,7 +70,6 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     }));
   }, [axes, baumannType]);
 
-  // 향수 추천 더미
   const perfumeRecommendations = [
     { name: 'Fresh Citrus', notes: 'Bergamot, Lemon, White Tea', match: '95%' },
     { name: 'Spring Garden', notes: 'Jasmine, Rose, Green Leaves', match: '88%' },
@@ -80,13 +77,12 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   ];
 
   return (
-    <div className="min-h-screen w-full pb-16 md:pb-0"
-         style={{ background: 'linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%)' }}>
-      
-      {/* ✅ 상단 헤더 */}
+    <div
+      className="min-h-screen w-full pb-16 md:pb-0"
+      style={{ background: 'linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%)' }}
+    >
       <DashboardHeader userName={userName} onNavigate={onNavigate} />
 
-      {/* ✅ 메인 콘텐츠 */}
       <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl">
         <SkinSummary
           code={code}
@@ -103,7 +99,12 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
             setSelectedMood={setSelectedMood}
             perfumeRecommendations={perfumeRecommendations}
           />
-          <BaumannAnalysis pick={pick} code={code} koAxisWord={koAxisWord} onNavigate={onNavigate} />
+          <BaumannAnalysis
+            pick={pick}
+            code={code}
+            koAxisWord={koAxisWord}
+            onNavigate={onNavigate}
+          />
           <VirtualSkinModel />
           <CustomRoutine
             baumannType={baumannType}
@@ -122,7 +123,6 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
         </div>
       </main>
 
-      {/* ✅ 하단 네비게이션 */}
       <DashboardBottomNav onNavigate={onNavigate} />
     </div>
   );
