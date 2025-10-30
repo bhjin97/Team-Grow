@@ -1,188 +1,220 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { API_BASE } from "../lib/env";
+
 type BeautyAILoginProps = {
   onLogin?: (email: string, password: string) => void;
   onNavigateSignup?: () => void;
 };
 
-// @component: BeautyAILogin
-export const BeautyAILogin = (props: BeautyAILoginProps) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const handleSubmit = (e: React.FormEvent) => {
+export default function BeautyAILogin({ onLogin, onNavigateSignup }: BeautyAILoginProps) {
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (props.onLogin) {
-      props.onLogin(email, password);
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert("로그인 실패: " + (err.detail || "알 수 없는 오류"));
+        setLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      console.log("로그인 성공:", data);
+
+      onLogin?.(formData.email, formData.password);
+    } catch (err) {
+      console.error(err);
+      alert("서버와 연결할 수 없습니다.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // @return
-  return <div className="min-h-screen w-full flex flex-col lg:flex-row">
-      {/* Left Side - Beautiful Bubble Background */}
-      <div className="w-full lg:w-1/2 relative overflow-hidden flex items-center justify-center p-8 lg:p-12 min-h-[40vh] lg:min-h-screen" style={{
-      background: 'linear-gradient(135deg, #f8d7e6 0%, #dac4e8 50%, #c4d4f0 100%)'
-    }}>
-        {/* Animated Bubbles */}
+  return (
+    <div className="min-h-screen w-full flex flex-col lg:flex-row">
+      {/* Left Side - Brand Section */}
+      <div
+        className="w-full lg:w-1/2 relative overflow-hidden flex items-center justify-center p-6 sm:p-8 lg:p-12 min-h-[30vh] lg:min-h-screen"
+        style={{
+          background:
+            "linear-gradient(135deg, #f8d7e6 0%, #dac4e8 50%, #c4d4f0 100%)",
+        }}
+      >
         <div className="absolute inset-0 overflow-hidden">
-          {/* Large bubble */}
-          <motion.div className="absolute rounded-full" style={{
-          width: '350px',
-          height: '350px',
-          background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.3) 40%, rgba(255,255,255,0.1) 70%, transparent 100%)',
-          border: '2px solid rgba(255,255,255,0.4)',
-          boxShadow: 'inset 0 0 80px rgba(255,255,255,0.3), 0 8px 40px rgba(255,255,255,0.2)',
-          top: '10%',
-          left: '15%'
-        }} animate={{
-          y: [0, 30, 0],
-          x: [0, 10, 0],
-          scale: [1, 1.03, 1]
-        }} transition={{
-          duration: 10,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}>
-            {/* Inner highlight for bubble effect */}
-            <div className="absolute rounded-full" style={{
-            width: '80px',
-            height: '80px',
-            background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.3) 100%)',
-            top: '15%',
-            left: '20%',
-            filter: 'blur(8px)'
-          }} />
-          </motion.div>
-
-          {/* Medium bubble */}
-          <motion.div className="absolute rounded-full" style={{
-          width: '200px',
-          height: '200px',
-          background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.25) 40%, rgba(255,255,255,0.08) 70%, transparent 100%)',
-          border: '2px solid rgba(255,255,255,0.35)',
-          boxShadow: 'inset 0 0 60px rgba(255,255,255,0.25), 0 8px 30px rgba(255,255,255,0.15)',
-          bottom: '25%',
-          left: '25%'
-        }} animate={{
-          y: [0, -25, 0],
-          x: [0, 15, 0],
-          scale: [1, 1.05, 1]
-        }} transition={{
-          duration: 8,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 1
-        }}>
-            <div className="absolute rounded-full" style={{
-            width: '50px',
-            height: '50px',
-            background: 'radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.2) 100%)',
-            top: '18%',
-            left: '22%',
-            filter: 'blur(6px)'
-          }} />
-          </motion.div>
-
-          {/* Small bubble with extra shine */}
-          <motion.div className="absolute rounded-full" style={{
-          width: '120px',
-          height: '120px',
-          background: 'radial-gradient(circle at 35% 25%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.35) 30%, rgba(255,255,255,0.1) 60%, transparent 100%)',
-          border: '2px solid rgba(255,255,255,0.45)',
-          boxShadow: 'inset 0 0 50px rgba(255,255,255,0.35), 0 6px 25px rgba(255,255,255,0.2)',
-          bottom: '15%',
-          left: '12%'
-        }} animate={{
-          y: [0, 20, 0],
-          x: [0, -8, 0],
-          scale: [1, 1.08, 1]
-        }} transition={{
-          duration: 7,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 2
-        }}>
-            <div className="absolute rounded-full" style={{
-            width: '35px',
-            height: '35px',
-            background: 'radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.4) 100%)',
-            top: '20%',
-            left: '25%',
-            filter: 'blur(4px)'
-          }} />
-            {/* Small shine spot */}
-            <div className="absolute rounded-full" style={{
-            width: '12px',
-            height: '12px',
-            background: 'rgba(255,255,255,0.9)',
-            bottom: '30%',
-            right: '30%',
-            filter: 'blur(2px)'
-          }} />
+          <motion.div
+            className="absolute w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 50%, transparent 70%)",
+              backdropFilter: "blur(60px)",
+              border: "2px solid rgba(255,255,255,0.3)",
+              boxShadow:
+                "0 8px 32px 0 rgba(255,255,255,0.2), inset 0 0 60px rgba(255,255,255,0.1)",
+              top: "5%",
+              left: "10%",
+            }}
+            animate={{ y: [0, 30, 0], scale: [1, 1.05, 1] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="absolute w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 50%, transparent 70%)",
+              backdropFilter: "blur(40px)",
+              border: "2px solid rgba(255,255,255,0.2)",
+              boxShadow:
+                "0 8px 32px 0 rgba(255,255,255,0.15), inset 0 0 40px rgba(255,255,255,0.1)",
+              bottom: "20%",
+              left: "25%",
+            }}
+            animate={{ y: [0, -20, 0], scale: [1, 1.08, 1] }}
+            transition={{
+              duration: 6,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 1,
+            }}
+          />
+          <motion.div
+            className="absolute w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.2) 50%, transparent 70%)",
+              backdropFilter: "blur(30px)",
+              border: "1px solid rgba(255,255,255,0.3)",
+              boxShadow: "0 4px 16px 0 rgba(255,255,255,0.2)",
+              bottom: "10%",
+              left: "15%",
+            }}
+            animate={{ y: [0, 15, 0], x: [0, 10, 0], scale: [1, 1.1, 1] }}
+            transition={{
+              duration: 5,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 2,
+            }}
+          />
+        </div>
+        <div className="relative z-10 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <h1
+              className="text-4xl sm:text-5xl lg:text-6xl"
+              style={{
+                fontFamily: "'Poiret One', 'Quicksand', 'Nunito', sans-serif",
+                fontStyle: "italic",
+                fontWeight: "300",
+                letterSpacing: "0.05em",
+                background:
+                  "linear-gradient(135deg, #9b87f5 0%, #7e69e0 50%, #c084fc 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              alerre
+            </h1>
           </motion.div>
         </div>
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 bg-[#faf9f7] flex items-center justify-center p-8 lg:p-12">
-        <motion.div className="w-full max-w-md" initial={{
-        opacity: 0,
-        x: 20
-      }} animate={{
-        opacity: 1,
-        x: 0
-      }} transition={{
-        duration: 0.6,
-        delay: 0.2
-      }}>
-          {/* Header */}
-          <div className="mb-10">
-            <h2 className="text-5xl font-bold text-gray-900 mb-3">로그인</h2>
-            <p className="text-gray-400 text-base">당신의 뷰티 여정으로 다시 돌아오세요</p>
+      <div className="w-full lg:w-1/2 bg-white flex items-center justify-center p-6 sm:p-8 lg:p-12">
+        <motion.div
+          className="w-full max-w-md"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 sm:mb-3">
+              로그인
+            </h2>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* E-mail Field */}
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-gray-900 mb-2">
+              <label
+                htmlFor="email"
+                className="block text-sm font-semibold text-gray-900 mb-2"
+              >
                 이메일
               </label>
-              <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="이메일을 입력하세요" className="w-full px-5 py-4 rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-transparent transition-all text-base shadow-sm" required />
+              <input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleChange("email", e.target.value)}
+                placeholder="이메일을 입력하세요"
+                className="w-full px-4 py-3 sm:py-3.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all text-base"
+                required
+              />
             </div>
 
-            {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-gray-900 mb-2">
+              <label
+                htmlFor="password"
+                className="block text-sm font-semibold text-gray-900 mb-2"
+              >
                 비밀번호
               </label>
-              <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="비밀번호를 입력하세요" className="w-full px-5 py-4 rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-transparent transition-all text-base shadow-sm" required />
+              <input
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => handleChange("password", e.target.value)}
+                placeholder="비밀번호를 입력하세요"
+                className="w-full px-4 py-3 sm:py-3.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all text-base"
+                required
+              />
             </div>
 
-            {/* Login Button - Matching the image's pink color */}
-            <motion.button type="submit" className="w-full py-4 rounded-2xl font-medium text-white shadow-md hover:shadow-lg transition-all text-base mt-8" style={{
-            background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)'
-          }} whileHover={{
-            scale: 1.01
-          }} whileTap={{
-            scale: 0.99
-          }}>
-              로그인
+            <motion.button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 sm:py-4 rounded-xl font-medium text-white shadow-lg hover:shadow-xl transition-all text-base sm:text-lg disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{
+                background: "linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)",
+              }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {loading ? "로그인 중..." : "로그인"}
             </motion.button>
           </form>
 
-          {/* Links */}
-          <div className="mt-8 text-center space-y-3">
-            <a href="#" className="block text-indigo-400 hover:text-indigo-500 transition-colors text-sm">
-              아이디 또는 비밀번호를 잊으셨나요?
-            </a>
-            <p className="text-gray-600 text-sm">
-              계정이 없으신가요?{' '}
-              <button onClick={() => props.onNavigateSignup?.()} className="text-indigo-400 font-semibold hover:text-indigo-500 transition-colors">
+          <div className="mt-6 sm:mt-8 text-center">
+            <p className="text-gray-600 text-sm sm:text-base">
+              계정이 없으신가요?{" "}
+              <button
+                onClick={() => onNavigateSignup?.()}
+                className="text-pink-400 font-semibold hover:text-pink-500 transition-colors"
+              >
                 회원가입
               </button>
             </p>
           </div>
         </motion.div>
       </div>
-    </div>;
-};
+    </div>
+  );
+}
