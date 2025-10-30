@@ -6,22 +6,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Ensures light mode is always used by removing the dark class from the document element.
- * This can be called from any component that needs to ensure light mode.
- */
 export function ensureLightMode() {
   if (typeof document !== 'undefined') {
-    // Always set dark mode to false
     document.documentElement.classList.toggle('dark', false);
   }
 }
 
-/**
- * Removes any dark mode classes from a className string
- * @param className The class string to process
- * @returns The class string with dark mode classes removed
- */
 export function removeDarkClasses(className: string): string {
   return className
     .split(' ')
@@ -49,14 +39,6 @@ export async function fetchRoutine(
   return res.json();
 }
 
-// --- [★★★ 4단계: 새로 추가된 함수 ★★★] ---
-
-/**
- * 백엔드 /api/analyze 엔드포인트를 호출하여 제품 분석 결과를 가져옵니다.
- * @param product_name - 분석할 제품의 전체 이름
- * @param skin_type - 사용자의 바우만 피부 타입 (예: "OSNT")
- * @returns {Promise<any>} - 백엔드에서 반환된 전체 분석 JSON 객체
- */
 export async function fetchSimulation(product_name: string, skin_type: string) {
   if (!API_BASE) {
     console.error('API_BASE is not defined. Check frontend/lib/env.ts');
@@ -76,10 +58,54 @@ export async function fetchSimulation(product_name: string, skin_type: string) {
   });
 
   if (!res.ok) {
-    // 404, 500 등 오류가 발생하면 서버가 보낸 오류 메시지를 throw
     const errorData = await res.json();
     throw new Error(errorData.detail || '제품 분석에 실패했습니다.');
   }
 
   return res.json();
+}
+
+// --- [★★★ 2단계-A: 새로 추가된 함수 2개 ★★★] ---
+
+/**
+ * 백엔드 /api/categories 엔드포인트를 호출하여 카테고리 목록을 가져옵니다.
+ * @returns {Promise<string[]>} - 카테고리 이름 문자열 배열
+ */
+export async function fetchCategories(): Promise<string[]> {
+  if (!API_BASE) {
+    console.error('API_BASE is not defined. Check frontend/lib/env.ts');
+    throw new Error('API_BASE is not defined');
+  }
+
+  const res = await fetch(`${API_BASE}/api/categories`);
+  
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.detail || '카테고리 목록을 불러오는 데 실패했습니다.');
+  }
+
+  return res.json(); // 예: ["스킨/토너", "크림", "선크림"]
+}
+
+/**
+ * 백엔드 /api/products-by-category 엔드포인트를 호출하여 제품 목록을 가져옵니다.
+ * @param category - 조회할 카테고리 이름
+ * @returns {Promise<{product_name: string}[]>} - 제품 객체 배열
+ */
+export async function fetchProductsByCategory(category: string): Promise<{ product_name: string }[]> {
+  if (!API_BASE) {
+    console.error('API_BASE is not defined. Check frontend/lib/env.ts');
+    throw new Error('API_BASE is not defined');
+  }
+
+  // URLSearchParams를 사용해 쿼리 파라미터를 안전하게 인코딩합니다.
+  const query = new URLSearchParams({ category: category });
+  const res = await fetch(`${API_BASE}/api/products-by-category?${query.toString()}`);
+
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.detail || '제품 목록을 불러오는 데 실패했습니다.');
+  }
+
+  return res.json(); // 예: [{"product_name": "A토너"}, {"product_name": "B토너"}]
 }

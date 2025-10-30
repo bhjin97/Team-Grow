@@ -1,15 +1,17 @@
 # --- Imports ---
-import json # 여전히 JSON 반환을 위해 필요
+import json
 import math
 import os
 from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-# [수정] SQLAlchemy 관련 import 추가
 from sqlalchemy.orm import Session, declarative_base
+# [수정] text 함수 임포트
 from sqlalchemy import create_engine, Column, Integer, String, Float, Text, Index, text
 from sqlalchemy.dialects.mysql import JSON as MySQL_JSON
-from db import get_db # 팀원이 만든 DB 세션 의존성 import
+# [수정] ..db -> db로 변경
+from db import get_db 
+from typing import List # [★] List 타입 힌트를 위해 추가
 
 # --- SQLAlchemy Models (migrate_json_to_db.py 에서 복사) ---
 Base = declarative_base()
@@ -44,13 +46,26 @@ class Ingredients6Keyword(Base):
     kr_name = Column(Text)
     description = Column(Text)
 
+# --- [★] product_data 테이블 모델 추가 ---
+# (DB 마이그레이션엔 없었지만, 쿼리 시 ORM을 사용하기 위해 정의)
+class ProductData(Base):
+    __tablename__ = "product_data"
+    pid = Column(Integer, primary_key=True)
+    product_name = Column(Text)
+    category = Column(Text)
+    p_ingredients = Column(Text)
+    # ... (다른 컬럼이 있다면 추가)
+
 # --- Pydantic Models ---
 class AnalysisRequest(BaseModel):
     product_name: str
     skin_type: str
 
+# [★] 제품 목록 반환을 위한 Pydantic 모델
+class ProductResponse(BaseModel):
+    product_name: str
+
 # --- Constants ---
-# [기존과 동일]
 KEYWORD_KOR_TO_ENG = {
     '보습': 'moisturizing', '진정': 'soothing', '피지': 'sebum_control',
     '주름': 'anti_aging', '미백': 'brightening', '보호': 'protection'
@@ -58,25 +73,21 @@ KEYWORD_KOR_TO_ENG = {
 KEYWORD_ENG_TO_KOR = {v: k for k, v in KEYWORD_KOR_TO_ENG.items()}
 
 # --- Helper Functions ---
-# [기존과 동일]
 def normalize_name(name):
-    """성분명 정규화 (모든 파일에서 공통)"""
     if not name: return None
     return name.strip().lower().replace(' ', '').replace('-', '')
 
-# --- DB Helper (기존 get_product_from_db는 유지) ---
+# --- DB Helper (get_product_from_db 수정) ---
 def get_product_from_db(product_name: str, db: Session):
-    """DB에서 제품 조회 (SQLAlchemy 적용 - 기존과 동일)"""
+    """DB에서 제품 조회 (ORM 사용)"""
     try:
-        # [수정] SELECT * 대신 필요한 컬럼만 명시 (성능 향상)
-        query = text("""
-            SELECT product_name, category, p_ingredients 
-            FROM product_data 
-            WHERE product_name = :name
-        """)
-        result = db.execute(query, {"name": product_name}).fetchone()
-        if result:
-            return dict(result._mapping)
+        # [수정] Raw SQL 대신 ORM 쿼리로 변경 (더 안전하고 명확함)
+        product = db.query(ProductData).filter(ProductData.product_name == product_name).first()
+        
+        if product:
+            # SQLAlchemy 모델 객체를 dict로 변환 (주의: 이 방식은 lazy loading을 유발할 수 있으나,
+            # ProductData 모델이 간단하므로 여기서는 사용)
+            return {c.name: getattr(product, c.name) for c in product.__table__.columns}
         else:
             return None
     except Exception as e:
@@ -85,9 +96,6 @@ def get_product_from_db(product_name: str, db: Session):
 
 # --- Matching Logic (DB 조회 방식으로 수정) ---
 def match_ingredients(ingredients_str: str, db: Session):
-    """
-    성분 매칭 + 배합목적 추가 (DB 조회 버전)
-    """
     if not ingredients_str:
         return [], {}, [], 0
 
@@ -97,7 +105,6 @@ def match_ingredients(ingredients_str: str, db: Session):
     matched_stats = defaultdict(list)
     unmatched = []
     
-    # 성능 최적화: 모든 필요한 성분 정보를 DB에서 한 번에 가져오기 위한 준비
     normalized_names = list(set(normalize_name(ing) for ing in ingredients_list if normalize_name(ing)))
     
     # 1. ingredients_6keyword 테이블에서 필요한 정보 조회
@@ -108,7 +115,6 @@ def match_ingredients(ingredients_str: str, db: Session):
         Ingredients6Keyword.name_normalized.in_(normalized_names)
     ).all()
     
-    # 조회 결과를 name_normalized 기준으로 그룹화 (빠른 조회를 위해)
     keyword_map = defaultdict(set)
     for norm_name, kw in keyword_results:
         keyword_map[norm_name].add(kw)
@@ -121,27 +127,25 @@ def match_ingredients(ingredients_str: str, db: Session):
         KCIAIngredients.name_normalized.in_(normalized_names)
     ).all()
     
-    # 조회 결과를 name_normalized 기준으로 딕셔너리화
     purpose_map = {norm_name: purp for norm_name, purp in kcia_results}
 
     # 3. 성분 리스트 순회하며 매칭 수행
     for ingredient in ingredients_list:
         normalized = normalize_name(ingredient)
-        if not normalized: continue # 정규화 결과가 없으면 스킵
+        if not normalized: continue
 
-        keywords = keyword_map.get(normalized) # 미리 조회한 결과에서 키워드 가져오기
-        purpose = purpose_map.get(normalized, '미확인') # 미리 조회한 결과에서 배합목적 가져오기
+        keywords = keyword_map.get(normalized)
+        purpose = purpose_map.get(normalized, '미확인')
         
         if keywords:
             for keyword in keywords:
-                # DB에서 가져온 영문 keyword를 한글로 변환
                 kor_keyword = KEYWORD_ENG_TO_KOR.get(keyword, keyword) 
                 matched_details.append({
                     '성분명': ingredient,
                     '배합목적': purpose,
                     '효능': kor_keyword
                 })
-                matched_stats[keyword].append(ingredient) # 키워드별 성분 리스트 (영문 키 사용)
+                matched_stats[keyword].append(ingredient)
         else:
             unmatched.append({
                 '성분명': ingredient,
@@ -152,6 +156,10 @@ def match_ingredients(ingredients_str: str, db: Session):
     return matched_details, dict(matched_stats), unmatched, len(ingredients_list)
 
 # --- Score Logic (기존 skin_simulate.py v3.2/v3.1 로직 - 변경 없음) ---
+# (calculate_keyword_ratios, calculate_fit_score, 
+#  calculate_contribution, calculate_score_final 함수들은
+# 와 동일하므로 생략하지 않고 모두 포함)
+
 def calculate_keyword_ratios(matched_stats, total_matched_count):
     if total_matched_count == 0: return {}
     ratios = {}
@@ -177,6 +185,7 @@ def calculate_fit_score(percent, target_range, importance=1.0):
         else:
             soft_max = max_ideal * 1.5
             if percent <= soft_max:
+                # [수정] 0으로 나누기 방지
                 ratio = (percent - max_ideal) / (soft_max - max_ideal) if (soft_max - max_ideal) != 0 else 0
                 return max(0.2, 1.0 - ratio * 0.8)
             else:
@@ -186,8 +195,8 @@ def calculate_fit_score(percent, target_range, importance=1.0):
 
 def calculate_contribution(percent, target_range, importance):
     if importance < 0:
-        if not target_range or len(target_range) != 2: # target_range 유효성 검사 추가
-             fit_score = 0.0 # 기본값 또는 오류 처리
+        if not target_range or len(target_range) != 2:
+             fit_score = 0.0
              contribution = 0.0
         elif percent <= target_range[1]:
             fit_score = 1.0
@@ -200,7 +209,7 @@ def calculate_contribution(percent, target_range, importance):
         contribution = fit_score * importance
     return fit_score, contribution
 
-def calculate_score_final(product_ratios, user_weights_dict): # 인자 이름 명확화
+def calculate_score_final(product_ratios, user_weights_dict):
     if not isinstance(product_ratios, dict): return 0, {}
     if not isinstance(user_weights_dict, dict): return 0, {}
     
@@ -211,7 +220,6 @@ def calculate_score_final(product_ratios, user_weights_dict): # 인자 이름 �
     
     for effect_eng in ['moisturizing', 'soothing', 'sebum_control', 'anti_aging', 'brightening', 'protection']:
         effect_kor = KEYWORD_ENG_TO_KOR[effect_eng]
-        # user_weights_dict 구조 변경: 키가 한글('보습')임
         effect_settings = user_weights_dict.get(effect_kor) 
         importance = 0
         target_range = [0, 100]
@@ -254,8 +262,7 @@ def generate_analysis_text(skin_type, final_score, breakdown):
     for effect_eng, data in breakdown.items():
         effect_kor = KEYWORD_ENG_TO_KOR[effect_eng]
         if data['contribution'] > 0.5:
-            target_min, target_max = data.get('target_range', [0,0]) # get으로 안전하게 접근
-            # percent 키 존재 확인 추가
+            target_min, target_max = data.get('target_range', [0,0])
             percent_val = data.get('percent', 0) 
             if target_min <= percent_val <= target_max:
                 good_points.append(f"**{effect_kor}**: {percent_val}% (타겟 범위 {target_min}-{target_max}% 만족)")
@@ -271,7 +278,8 @@ def generate_analysis_text(skin_type, final_score, breakdown):
             if percent_val < target_min:
                 deficit = target_min - percent_val
                 weak_points.append(f"**{effect_kor}**: {percent_val}% (타겟 최소 {target_min}% 필요, {deficit:.1f}% 부족)")
-            elif percent_val > target_max and target_max != 0: # target_max가 0이 아닌 경우에만 초과 비교
+            # [수정] target_max가 0이 아닌 경우(예: [0, 100])만 초과 비교
+            elif percent_val > target_max and target_max != 100 and target_max != 0: 
                 excess = percent_val - target_max
                 weak_points.append(f"**{effect_kor}**: {percent_val}% (타겟 최대 {target_max}% 권장, {excess:.1f}% 초과)")
     
@@ -288,6 +296,47 @@ def generate_analysis_text(skin_type, final_score, breakdown):
 # --- API Router ---
 router = APIRouter()
 
+# --- [★★★ 1단계: 신규 API 엔드포인트 2개 추가 ★★★] ---
+
+@router.get("/api/categories", response_model=List[str])
+def get_categories(db: Session = Depends(get_db)):
+    """
+    프론트엔드에 카테고리 목록을 반환하는 API
+    (분석 가능한 제품이 있는 카테고리만)
+    """
+    try:
+        categories_query = db.query(ProductData.category).filter(
+            ProductData.p_ingredients.is_not(None),
+            ProductData.category.is_not(None)
+        ).distinct().order_by(ProductData.category)
+        
+        # 쿼리 결과는 (value,) 형태의 튜플 리스트이므로, 리스트로 변환
+        categories = [row[0] for row in categories_query.all() if row[0]]
+        return categories
+    except Exception as e:
+        print(f"❌ /api/categories 서버 오류: {e}")
+        raise HTTPException(status_code=500, detail="카테고리 조회 중 오류가 발생했습니다.")
+
+@router.get("/api/products-by-category", response_model=List[ProductResponse])
+def get_products_by_category(category: str, db: Session = Depends(get_db)):
+    """
+    특정 카테고리에 속하는 제품 목록을 반환하는 API
+    """
+    try:
+        products_query = db.query(ProductData.product_name).filter(
+            ProductData.category == category,
+            ProductData.p_ingredients.is_not(None) # 분석 가능한 제품만
+        ).order_by(ProductData.product_name)
+        
+        products = [{"product_name": row[0]} for row in products_query.all()]
+        return products
+    except Exception as e:
+        print(f"❌ /api/products-by-category 서버 오류: {e}")
+        raise HTTPException(status_code=500, detail="제품 목록 조회 중 오류가 발생했습니다.")
+
+# --- [★★★ --------------------------------- ★★★] ---
+
+
 @router.post("/api/analyze")
 def analyze_product_api(request: AnalysisRequest, db: Session = Depends(get_db)):
     """React에서 호출할 메인 분석 API 엔드포인트 (DB 조회 버전)"""
@@ -296,22 +345,20 @@ def analyze_product_api(request: AnalysisRequest, db: Session = Depends(get_db))
         product = get_product_from_db(request.product_name, db)
         if not product:
             raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
-        # [수정] p_ingredients 컬럼 존재 확인 및 None 처리
         ingredients_str = product.get('p_ingredients')
         if not ingredients_str:
              raise HTTPException(status_code=400, detail="제품에 분석 가능한 성분 정보(p_ingredients)가 없습니다.")
 
         # 2. 성분 매칭 (DB 조회)
         matched_details, matched_stats, unmatched, total_count = match_ingredients(
-            ingredients_str, # None이 아님을 보장
-            db # DB 세션 전달
+            ingredients_str,
+            db
         )
 
-        # [기존과 동일] 매칭 성분 7개 미만 필터링
         if len(matched_details) < 7:
              raise HTTPException(status_code=400, detail=f"분석 불가: 매칭된 성분이 {len(matched_details)}개로 너무 적습니다. (최소 7개 필요)")
         
-        # 3. 비율 계산 (v3.2) - 기존 로직 사용
+        # 3. 비율 계산 (v3.2)
         total_matched_count = len(matched_details) 
         ratios = calculate_keyword_ratios(matched_stats, total_matched_count)
 
@@ -320,25 +367,23 @@ def analyze_product_api(request: AnalysisRequest, db: Session = Depends(get_db))
         if not weights_from_db:
              raise HTTPException(status_code=404, detail="피부 타입 가중치를 DB에서 찾을 수 없습니다.")
         
-        # [수정] DB 조회 결과를 calculate_score_final이 요구하는 dict 형태로 변환
         user_weights_dict = {}
         for w in weights_from_db:
-            # 키는 한글('보습'), 값은 importance와 target_range를 포함하는 dict
             user_weights_dict[w.keyword] = { 
                 "importance": w.importance,
                 "target_range": [w.target_min, w.target_max]
             }
 
-        # 5. 점수 계산 (v3.1) - 기존 로직 사용
-        final_score, breakdown = calculate_score_final(ratios, user_weights_dict) # 수정된 가중치 dict 전달
+        # 5. 점수 계산 (v3.1)
+        final_score, breakdown = calculate_score_final(ratios, user_weights_dict)
         
-        # 6. 텍스트 분석 - 기존 로직 사용
+        # 6. 텍스트 분석
         analysis_texts = generate_analysis_text(request.skin_type, final_score, breakdown)
         
-        # 7. React에 필요한 모든 정보를 JSON으로 반환 (기존과 동일)
+        # 7. React에 필요한 모든 정보를 JSON으로 반환
         return {
             "product_info": {
-                "name": product.get('product_name', 'N/A'), # get으로 안전하게 접근
+                "name": product.get('product_name', 'N/A'),
                 "category": product.get('category', 'N/A'),
                 "total_count": total_count,
                 "matched_count": len(matched_details)
@@ -354,7 +399,6 @@ def analyze_product_api(request: AnalysisRequest, db: Session = Depends(get_db))
         raise he
     except Exception as e:
         print(f"❌ /api/analyze 서버 오류: {e}")
-        # [수정] 좀 더 상세한 오류 로깅 추가 (디버깅용)
         import traceback
         traceback.print_exc() 
         raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
