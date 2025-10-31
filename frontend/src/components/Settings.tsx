@@ -26,12 +26,14 @@ import {
   Sparkles,
   LayoutDashboard,
 } from 'lucide-react';
+
 export interface SettingsProps {
   userName?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
+  onChangePassword?: () => void;
 }
-export default function Settings({ userName = 'Sarah', onNavigate, onLogout }: SettingsProps) {
+export default function Settings({ userName = 'Sarah', onNavigate, onLogout, onChangePassword, }: SettingsProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // 알림 설정
@@ -409,7 +411,10 @@ export default function Settings({ userName = 'Sarah', onNavigate, onLogout }: S
               </div>
 
               <div className="space-y-3">
-                <button className="w-full flex items-center justify-between py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors">
+                <button
+                  onClick={() => onChangePassword?.()} // ForgotPassword 연결
+                  className="w-full flex items-center justify-between py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex items-center space-x-3">
                     <Lock className="w-5 h-5 text-gray-500" />
                     <span className="text-sm sm:text-base font-medium text-gray-800">
