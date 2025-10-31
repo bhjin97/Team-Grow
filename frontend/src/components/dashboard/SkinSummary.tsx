@@ -47,7 +47,7 @@ export default function SkinSummary({
                 <Droplets size={18} />
               </span>
               <p className="text-lg sm:text-xl font-semibold text-gray-800">
-                바우만 피부 타입 {code}
+                바우만 피부 타입 <span className="text-pink-500">{code}</span>
               </p>
             </div>
             {/* 설명 텍스트 아이콘 라인 기준 정렬 */}
