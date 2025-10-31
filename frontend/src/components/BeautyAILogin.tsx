@@ -41,6 +41,10 @@ export default function BeautyAILogin({
       const data = await res.json();
       console.log("로그인 성공:", data);
 
+      localStorage.setItem('user_id', data.user.id.toString());
+      localStorage.setItem('user_email', data.user.email);
+      localStorage.setItem('user_name', data.user.name);
+
       onLogin?.(formData.email, formData.password);
     } catch (err) {
       console.error(err);
