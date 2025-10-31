@@ -111,7 +111,7 @@ export default function ForgotPassword({ onNavigateLogin }: ForgotPasswordProps)
             transition={{ duration: 0.8 }}
             className="text-4xl sm:text-5xl lg:text-6xl"
             style={{
-              fontFamily: "'Poiret One', 'Quicksand', 'Nunito', sans-serif",
+              fontFamily: "'Italianno', cursive",
               fontStyle: "italic",
               fontWeight: "300",
               letterSpacing: "0.05em",

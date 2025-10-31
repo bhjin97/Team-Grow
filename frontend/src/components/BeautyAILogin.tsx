@@ -129,7 +129,7 @@ export default function BeautyAILogin({
             <h1
               className="text-4xl sm:text-5xl lg:text-6xl"
               style={{
-                fontFamily: "'Poiret One', 'Quicksand', 'Nunito', sans-serif",
+                fontFamily: "'Italianno', cursive",
                 fontStyle: "italic",
                 fontWeight: "300",
                 letterSpacing: "0.05em",
@@ -200,7 +200,7 @@ export default function BeautyAILogin({
             <motion.button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 sm:py-4 rounded-xl font-medium text-white shadow-lg hover:shadow-xl transition-all text-base sm:text-lg disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-3.5 rounded-xl font-medium text-white shadow-lg hover:shadow-xl transition-all text-base disabled:opacity-60 disabled:cursor-not-allowed"
               style={{
                 background: "linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)",
               }}
