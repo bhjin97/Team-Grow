@@ -2,6 +2,49 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { API_BASE } from "../lib/env";
 
+// [★] 회원가입용 대형 비눗방울 애니메이션 컴포넌트
+const SignupBubbleAnimation = () => {
+  const bubbles = Array.from({ length: 30 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    delay: Math.random() * 0.8,
+    duration: 3 + Math.random() * 2,
+    size: 60 + Math.random() * 60, // [★] 60-120px (더 크게!)
+  }));
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+      {bubbles.map((bubble) => (
+        <motion.div
+          key={bubble.id}
+          className="absolute rounded-full"
+          style={{
+            left: `${bubble.left}%`,
+            bottom: '-150px',
+            width: `${bubble.size}px`,
+            height: `${bubble.size}px`,
+            background: 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(218, 196, 232, 0.8), rgba(192, 212, 240, 0.6))',
+            boxShadow: 'inset -15px -15px 40px rgba(255, 255, 255, 0.9), inset 8px 8px 25px rgba(218, 196, 232, 0.6), 0 0 40px rgba(218, 196, 232, 0.5)',
+            border: '4px solid rgba(255, 255, 255, 0.6)',
+            backdropFilter: 'blur(3px)',
+          }}
+          animate={{
+            y: [0, -1300],
+            x: [0, (Math.random() - 0.5) * 180],
+            opacity: [0, 1, 1, 0.9, 0],
+            scale: [0.6, 1.3, 1.1, 1, 0.7],
+          }}
+          transition={{
+            duration: bubble.duration,
+            delay: bubble.delay,
+            ease: [0.43, 0.13, 0.23, 0.96],
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 export interface SignupFormProps {
   onSignup?: (userData: {
     email: string;
@@ -62,20 +105,31 @@ export default function SignupForm({
       if (!res.ok) {
         const err = await res.json();
         alert("회원가입 실패: " + (err.detail || "알 수 없는 오류"));
+        setLoading(false); // [★] 실패 시 loading false
         return;
       }
 
       const data = await res.json();
       console.log("회원가입 성공:", data);
 
-      // ✅ 회원가입 완료 후 바로 로그인 페이지로 이동
+      // [★] 일단 loading 종료
+      setLoading(false);
+      
+      // [★] alert 확인 (사용자가 버튼 누를 때까지 대기)
       alert("회원가입 완료! 로그인 페이지로 이동합니다.");
+      
+      // [★] alert 확인 후 비눗방울 애니메이션 시작
+      setLoading(true);
+      
+      // 3초 대기 (비눗방울 애니메이션 시간)
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      setLoading(false);
       onNavigateLogin?.();
     } catch (err) {
       console.error(err);
       alert("서버와 연결할 수 없습니다.");
-    } finally {
-      setLoading(false);
+      setLoading(false); // [★] 에러 시에만 loading false
     }
   };
 
@@ -88,6 +142,9 @@ export default function SignupForm({
 
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row">
+      {/* [★] 회원가입 중 비눗방울 애니메이션 */}
+      {loading && <SignupBubbleAnimation />}
+      
       {/* ✅ 왼쪽 면 디자인 (로그인과 동일) */}
       <div
         className="w-full lg:w-1/2 relative overflow-hidden flex items-center justify-center p-6 sm:p-8 lg:p-12 min-h-[30vh] lg:min-h-screen"
