@@ -1,4 +1,3 @@
-# backend/routers/routine.py
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -29,13 +28,18 @@ def recommend_routine(
     스킨케어 루틴 추천 API
     - 제품 목록은 skincare_routine_product에서 가져옴
     - 리뷰 수는 product_data.review_count 기준
+    - [수정] product_pid 및 상세 정보(가격, 용량, URL, rag_text) 반환
     """
 
-    # DB에서 제품 + 리뷰수 + 이미지 같이 가져오기
+    # DB에서 상세 정보 추가 조회 (price_krw, capacity, product_url, rag_text)
+    # rag_text는 이미 srp에 포함되어 있습니다.
     products = db.execute(text("""
         SELECT 
             srp.product_pid, srp.hash_id, srp.brand, srp.product_name, srp.rag_text, srp.category, srp.skin_type,
-            pd.image_url, pd.review_count
+            pd.image_url, pd.review_count,
+            pd.price_krw,      -- 가격
+            pd.capacity,       -- 용량
+            pd.product_url     -- 구매 URL
         FROM skincare_routine_product srp
         LEFT JOIN product_data pd 
             ON srp.product_name = pd.product_name
@@ -44,9 +48,9 @@ def recommend_routine(
 
     products = [dict(p) for p in products]
 
-    # ✅ 키워드 결정
+    # 키워드 결정 (기존 로직 동일)
     if keywords:
-        focus = [k.strip() for k in keywords.split(",") if k.strip()][:2]  # 최대 2개
+        focus = [k.strip() for k in keywords.split(",") if k.strip()][:2]
     else:
         focus = FOCUS_RULES.get((season, time), [])
 
@@ -58,31 +62,33 @@ def recommend_routine(
         for c in candidates:
             c["matched_keywords"] = [f for f in focus if f in str(c["rag_text"])]
 
-        # 키워드 매칭된 후보 먼저
         filtered = [c for c in candidates if len(c["matched_keywords"]) > 0]
         if not filtered:
             filtered = candidates
 
-        # ✅ review_count 높은 순 정렬
         top = sorted(
-            filtered, 
-            key=lambda x: x["review_count"] if x["review_count"] is not None else 0, 
+            filtered,
+            key=lambda x: x["review_count"] if x["review_count"] is not None else 0,
             reverse=True
         )[:top_n]
 
         for r in top:
             if r["matched_keywords"]:
-                # ✅ 매칭 키워드 + 리뷰 수
                 reason = f"{', '.join(r['matched_keywords'])} | 리뷰 {r['review_count']}개"
             else:
-                # ✅ 리뷰 수만
                 reason = f"리뷰 {r['review_count']}개"
 
+            # ✅ [수정] 반환 데이터에 description (srp.rag_text) 추가
             results.append({
                 "step": step,
+                "product_pid": r["product_pid"],
                 "display_name": f"{r['brand']} - {r['product_name']}",
                 "image_url": r["image_url"],
-                "reason": reason
+                "reason": reason,
+                "price_krw": r.get("price_krw"),
+                "capacity": r.get("capacity"),
+                "product_url": r.get("product_url"),
+                "description": r.get("rag_text")  # ✅ 한줄 요약 (rag_text)
             })
 
     return results
