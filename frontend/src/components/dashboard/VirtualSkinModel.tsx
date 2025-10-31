@@ -177,13 +177,13 @@ export default function VirtualSkinModel({
         transition={{ duration: 0.5, delay: 0.4 }}
         className="bg-white rounded-2xl shadow-lg p-4 sm:p-6"
       >
-        <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center">
+        <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
           <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 mr-2" />
           가상 피부 시뮬레이션
         </h3>
         
         {/* '얼굴 모델' 영역 (기존과 동일) */}
-        <div className="aspect-square bg-purple-50 rounded-xl mb-3 sm:mb-4 flex items-center justify-center relative overflow-hidden p-4">
+        <div className="h-48 sm:h-56 bg-purple-50 rounded-xl mb-3 flex items-center justify-center relative overflow-hidden p-4">
           {/* ... (로딩/에러/결과 UI 동일) ... */}
           {isSimLoading && (<div className="flex flex-col items-center text-purple-600"><Loader2 className="w-12 h-12 animate-spin" /><span className="mt-3 text-sm font-medium">분석 중입니다...</span></div>)}
           {!isSimLoading && simError && (<div className="flex flex-col items-center text-red-600 text-center"><AlertTriangle className="w-12 h-12 mb-2" /><span className="text-sm font-semibold">오류 발생</span><span className="text-xs mt-1">{simError}</span></div>)}
@@ -192,7 +192,7 @@ export default function VirtualSkinModel({
         </div>
 
         {/* 버튼 영역 (기존과 동일) */}
-        <div className="space-y-2 sm:space-y-3">
+        <div className="space-y-2">
           <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full py-2.5 sm:py-3 pl-4 pr-10 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-purple-300 focus:ring-2 focus:outline-none text-sm sm:text-base">
             <option value="">📂 카테고리 선택...</option>
             {categories.map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
