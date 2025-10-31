@@ -141,7 +141,7 @@ def reset_password(req: ResetPasswordRequest):
                 UPDATE users
                 SET pw_hash = :pw_hash,
                     pw_plain = :pw_plain,   -- ⚠️ 원본 비밀번호도 갱신
-                    updated_at = NOW()
+                    updated_at = NOW()  
                 WHERE email = :email
             """),
             {"pw_hash": new_hash, "pw_plain": req.newPassword, "email": req.email}
