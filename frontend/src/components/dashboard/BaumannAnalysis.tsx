@@ -51,7 +51,7 @@ export default function BaumannAnalysis({
       </h3>
 
       <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
-        16가지 과학적 분류 기반 당신의 고유한 피부 타입을 발견하세요
+        16가지 과학적 분류 기반 당신의 고유한 피부 타입을 발견하세요.
       </p>
 
       {/* 축별 판정 */}
