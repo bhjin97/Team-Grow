@@ -4,12 +4,12 @@ import { API_BASE } from "../lib/env";
 
 // [★] 회원가입용 대형 비눗방울 애니메이션 컴포넌트
 const SignupBubbleAnimation = () => {
-  const bubbles = Array.from({ length: 30 }, (_, i) => ({
+  const bubbles = Array.from({ length: 20 }, (_, i) => ({
     id: i,
     left: Math.random() * 100,
-    delay: Math.random() * 0.8,
-    duration: 3 + Math.random() * 2,
-    size: 60 + Math.random() * 60, // [★] 60-120px (더 크게!)
+    delay: Math.random() * 1.5,
+    duration: 4 + Math.random() * 2,
+    size: 80 + Math.random() * 140, // [★] 80-360px (랜덤하게 다양한 크기!)
   }));
 
   return (
@@ -20,19 +20,19 @@ const SignupBubbleAnimation = () => {
           className="absolute rounded-full"
           style={{
             left: `${bubble.left}%`,
-            bottom: '-150px',
+            bottom: '-500px', // [★] 맨 밑에서 시작
             width: `${bubble.size}px`,
             height: `${bubble.size}px`,
             background: 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(218, 196, 232, 0.8), rgba(192, 212, 240, 0.6))',
-            boxShadow: 'inset -15px -15px 40px rgba(255, 255, 255, 0.9), inset 8px 8px 25px rgba(218, 196, 232, 0.6), 0 0 40px rgba(218, 196, 232, 0.5)',
-            border: '4px solid rgba(255, 255, 255, 0.6)',
-            backdropFilter: 'blur(3px)',
+            boxShadow: 'inset -20px -20px 60px rgba(255, 255, 255, 0.9), inset 12px 12px 40px rgba(218, 196, 232, 0.6), 0 0 60px rgba(218, 196, 232, 0.5)',
+            border: '5px solid rgba(255, 255, 255, 0.6)',
+            backdropFilter: 'blur(4px)',
           }}
           animate={{
-            y: [0, -1300],
-            x: [0, (Math.random() - 0.5) * 180],
-            opacity: [0, 1, 1, 0.9, 0],
-            scale: [0.6, 1.3, 1.1, 1, 0.7],
+            y: [0, -1800], // [★] 더 높이 올라감
+            x: [0, (Math.random() - 0.5) * 200],
+            opacity: [0, 1, 1, 1, 0.9, 0],
+            scale: [0.5, 1.4, 1.2, 1.1, 1, 0.8],
           }}
           transition={{
             duration: bubble.duration,
@@ -41,6 +41,68 @@ const SignupBubbleAnimation = () => {
           }}
         />
       ))}
+    </div>
+  );
+};
+
+// [★] 회원가입 성공 모달 컴포넌트
+const SuccessModal = ({ onClose }: { onClose: () => void }) => {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* 배경 오버레이 */}
+      <motion.div
+        className="absolute inset-0 bg-black bg-opacity-50"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        onClick={onClose}
+      />
+      
+      {/* 모달 */}
+      <motion.div
+        className="relative bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full"
+        initial={{ scale: 0.5, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", duration: 0.5 }}
+      >
+        {/* 성공 아이콘 */}
+        <div className="flex justify-center mb-6">
+          <motion.div
+            className="w-24 h-24 rounded-full flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+            }}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          >
+            <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          </motion.div>
+        </div>
+
+        {/* 메시지 */}
+        <h2 className="text-3xl font-bold text-center mb-3 bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+          축하합니다! 🎉
+        </h2>
+        <p className="text-gray-600 text-center mb-8">
+          회원가입이 완료되었습니다.<br />
+          로그인 페이지로 이동합니다.
+        </p>
+
+        {/* 확인 버튼 */}
+        <motion.button
+          onClick={onClose}
+          className="w-full py-4 rounded-xl font-bold text-white text-lg shadow-lg hover:shadow-xl transition-all"
+          style={{
+            background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+          }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          확인
+        </motion.button>
+      </motion.div>
     </div>
   );
 };
@@ -71,6 +133,7 @@ export default function SignupForm({
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false); // [★] 성공 모달 표시 상태
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,25 +175,29 @@ export default function SignupForm({
       const data = await res.json();
       console.log("회원가입 성공:", data);
 
-      // [★] 일단 loading 종료
+      // [★] loading 종료하고 성공 모달 표시
       setLoading(false);
+      setShowSuccessModal(true);
       
-      // [★] alert 확인 (사용자가 버튼 누를 때까지 대기)
-      alert("회원가입 완료! 로그인 페이지로 이동합니다.");
-      
-      // [★] alert 확인 후 비눗방울 애니메이션 시작
-      setLoading(true);
-      
-      // 3초 대기 (비눗방울 애니메이션 시간)
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      setLoading(false);
-      onNavigateLogin?.();
     } catch (err) {
       console.error(err);
       alert("서버와 연결할 수 없습니다.");
-      setLoading(false); // [★] 에러 시에만 loading false
+      setLoading(false);
     }
+  };
+
+  // [★] 모달 확인 후 비눗방울 애니메이션 시작
+  const handleModalClose = async () => {
+    setShowSuccessModal(false);
+    
+    // 비눗방울 애니메이션 시작
+    setLoading(true);
+    
+    // 5초 대기 (비눗방울 애니메이션 시간)
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    setLoading(false);
+    onNavigateLogin?.();
   };
 
   const handleChange = (field: string, value: string) => {
@@ -144,6 +211,9 @@ export default function SignupForm({
     <div className="min-h-screen w-full flex flex-col lg:flex-row">
       {/* [★] 회원가입 중 비눗방울 애니메이션 */}
       {loading && <SignupBubbleAnimation />}
+      
+      {/* [★] 회원가입 성공 모달 */}
+      {showSuccessModal && <SuccessModal onClose={handleModalClose} />}
       
       {/* ✅ 왼쪽 면 디자인 (로그인과 동일) */}
       <div
@@ -219,7 +289,7 @@ export default function SignupForm({
               className="text-4xl sm:text-5xl lg:text-6xl"
               style={{
                 fontFamily:
-                  "'Italianno', cursive",
+                  "'Poiret One', 'Quicksand', 'Nunito', sans-serif",
                 fontStyle: "italic",
                 fontWeight: "300",
                 letterSpacing: "0.05em",
