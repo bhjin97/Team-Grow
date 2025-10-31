@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
 import { API_BASE } from "../lib/env";
 
 export interface SignupFormProps {
@@ -13,16 +13,19 @@ export interface SignupFormProps {
   onNavigateLogin?: () => void;
 }
 
-export default function SignupForm({ onSignup, onNavigateLogin }: SignupFormProps) {
+export default function SignupForm({
+  onSignup,
+  onNavigateLogin,
+}: SignupFormProps) {
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
   });
   const [errors, setErrors] = useState({
-    password: '',
-    confirmPassword: ''
+    password: "",
+    confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -30,11 +33,17 @@ export default function SignupForm({ onSignup, onNavigateLogin }: SignupFormProp
     e.preventDefault();
 
     if (formData.password.length < 6) {
-      setErrors(prev => ({ ...prev, password: '비밀번호는 6자 이상이어야 합니다' }));
+      setErrors((prev) => ({
+        ...prev,
+        password: "비밀번호는 6자 이상이어야 합니다",
+      }));
       return;
     }
     if (formData.password !== formData.confirmPassword) {
-      setErrors(prev => ({ ...prev, confirmPassword: '비밀번호가 일치하지 않습니다' }));
+      setErrors((prev) => ({
+        ...prev,
+        confirmPassword: "비밀번호가 일치하지 않습니다",
+      }));
       return;
     }
 
@@ -59,18 +68,9 @@ export default function SignupForm({ onSignup, onNavigateLogin }: SignupFormProp
       const data = await res.json();
       console.log("회원가입 성공:", data);
 
-      // 부모(App.tsx)로 전달
-      onSignup?.({
-        email: formData.email,
-        password: formData.password,
-        fullName: formData.fullName,
-        phone: '',
-        birthday: ''
-      });
-
-      alert("회원가입 완료! 로그인 페이지로 이동해주세요.");
+      // ✅ 회원가입 완료 후 바로 로그인 페이지로 이동
+      alert("회원가입 완료! 로그인 페이지로 이동합니다.");
       onNavigateLogin?.();
-
     } catch (err) {
       console.error(err);
       alert("서버와 연결할 수 없습니다.");
@@ -80,33 +80,97 @@ export default function SignupForm({ onSignup, onNavigateLogin }: SignupFormProp
   };
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field as keyof typeof errors]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row">
-      {/* Left Side - 기존 디자인 (버블 + 브랜드 로고) */}
+      {/* ✅ 왼쪽 면 디자인 (로그인과 동일) */}
       <div
         className="w-full lg:w-1/2 relative overflow-hidden flex items-center justify-center p-6 sm:p-8 lg:p-12 min-h-[30vh] lg:min-h-screen"
-        style={{ background: 'linear-gradient(135deg, #f8d7e6 0%, #dac4e8 50%, #c4d4f0 100%)' }}
+        style={{
+          background:
+            "linear-gradient(135deg, #f8d7e6 0%, #dac4e8 50%, #c4d4f0 100%)",
+        }}
       >
-        {/* 기존 버블 애니메이션 그대로 유지 */}
+        <div className="absolute inset-0 overflow-hidden">
+          <motion.div
+            className="absolute w-64 h-64 sm:w-80 sm:h-80 lg:w-96 lg:h-96 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 50%, transparent 70%)",
+              backdropFilter: "blur(60px)",
+              border: "2px solid rgba(255,255,255,0.3)",
+              boxShadow:
+                "0 8px 32px 0 rgba(255,255,255,0.2), inset 0 0 60px rgba(255,255,255,0.1)",
+              top: "5%",
+              left: "10%",
+            }}
+            animate={{ y: [0, 30, 0], scale: [1, 1.05, 1] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="absolute w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 50%, transparent 70%)",
+              backdropFilter: "blur(40px)",
+              border: "2px solid rgba(255,255,255,0.2)",
+              boxShadow:
+                "0 8px 32px 0 rgba(255,255,255,0.15), inset 0 0 40px rgba(255,255,255,0.1)",
+              bottom: "20%",
+              left: "25%",
+            }}
+            animate={{ y: [0, -20, 0], scale: [1, 1.08, 1] }}
+            transition={{
+              duration: 6,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 1,
+            }}
+          />
+          <motion.div
+            className="absolute w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.2) 50%, transparent 70%)",
+              backdropFilter: "blur(30px)",
+              border: "1px solid rgba(255,255,255,0.3)",
+              boxShadow: "0 4px 16px 0 rgba(255,255,255,0.2)",
+              bottom: "10%",
+              left: "15%",
+            }}
+            animate={{ y: [0, 15, 0], x: [0, 10, 0], scale: [1, 1.1, 1] }}
+            transition={{
+              duration: 5,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 2,
+            }}
+          />
+        </div>
         <div className="relative z-10 text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
             <h1
               className="text-4xl sm:text-5xl lg:text-6xl"
               style={{
-                fontFamily: "'Poiret One', 'Quicksand', 'Nunito', sans-serif",
-                fontStyle: 'italic',
-                fontWeight: '300',
-                letterSpacing: '0.05em',
-                background: 'linear-gradient(135deg, #9b87f5 0%, #7e69e0 50%, #c084fc 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
+                fontFamily:
+                  "'Poiret One', 'Quicksand', 'Nunito', sans-serif",
+                fontStyle: "italic",
+                fontWeight: "300",
+                letterSpacing: "0.05em",
+                background:
+                  "linear-gradient(135deg, #9b87f5 0%, #7e69e0 50%, #c084fc 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
               }}
             >
               alerre
@@ -115,7 +179,7 @@ export default function SignupForm({ onSignup, onNavigateLogin }: SignupFormProp
         </div>
       </div>
 
-      {/* Right Side - 회원가입 폼 */}
+      {/* ✅ 오른쪽 면은 기존 회원가입 폼 그대로 유지 */}
       <div className="w-full lg:w-1/2 bg-white flex items-center justify-center p-6 sm:p-8 lg:p-12">
         <motion.div
           className="w-full max-w-md"
@@ -124,17 +188,24 @@ export default function SignupForm({ onSignup, onNavigateLogin }: SignupFormProp
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <div className="mb-6 sm:mb-8">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 sm:mb-3">회원가입</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 sm:mb-3">
+              회원가입
+            </h2>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             <div>
-              <label htmlFor="fullName" className="block text-sm font-semibold text-gray-900 mb-2">이름</label>
+              <label
+                htmlFor="fullName"
+                className="block text-sm font-semibold text-gray-900 mb-2"
+              >
+                이름
+              </label>
               <input
                 id="fullName"
                 type="text"
                 value={formData.fullName}
-                onChange={(e) => handleChange('fullName', e.target.value)}
+                onChange={(e) => handleChange("fullName", e.target.value)}
                 placeholder="이름을 입력하세요"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900"
                 required
@@ -142,12 +213,17 @@ export default function SignupForm({ onSignup, onNavigateLogin }: SignupFormProp
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-gray-900 mb-2">이메일</label>
+              <label
+                htmlFor="email"
+                className="block text-sm font-semibold text-gray-900 mb-2"
+              >
+                이메일
+              </label>
               <input
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => handleChange('email', e.target.value)}
+                onChange={(e) => handleChange("email", e.target.value)}
                 placeholder="이메일을 입력하세요"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900"
                 required
@@ -155,38 +231,59 @@ export default function SignupForm({ onSignup, onNavigateLogin }: SignupFormProp
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-gray-900 mb-2">비밀번호</label>
+              <label
+                htmlFor="password"
+                className="block text-sm font-semibold text-gray-900 mb-2"
+              >
+                비밀번호
+              </label>
               <input
                 id="password"
                 type="password"
                 value={formData.password}
-                onChange={(e) => handleChange('password', e.target.value)}
+                onChange={(e) => handleChange("password", e.target.value)}
                 placeholder="비밀번호 (6자 이상)"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900"
                 required
               />
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
+              {errors.password && (
+                <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-900 mb-2">비밀번호 확인</label>
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-semibold text-gray-900 mb-2"
+              >
+                비밀번호 확인
+              </label>
               <input
                 id="confirmPassword"
                 type="password"
                 value={formData.confirmPassword}
-                onChange={(e) => handleChange('confirmPassword', e.target.value)}
+                onChange={(e) =>
+                  handleChange("confirmPassword", e.target.value)
+                }
                 placeholder="비밀번호를 다시 입력하세요"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900"
                 required
               />
-              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
+              {errors.confirmPassword && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.confirmPassword}
+                </p>
+              )}
             </div>
 
             <motion.button
               type="submit"
               disabled={loading}
               className="w-full py-3.5 rounded-xl font-medium text-white shadow-lg hover:shadow-xl transition-all text-base disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+              style={{
+                background:
+                  "linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)",
+              }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -196,7 +293,7 @@ export default function SignupForm({ onSignup, onNavigateLogin }: SignupFormProp
 
           <div className="mt-6 text-center">
             <p className="text-gray-600 text-sm">
-              이미 계정이 있으신가요?{' '}
+              이미 계정이 있으신가요?{" "}
               <button
                 onClick={() => onNavigateLogin?.()}
                 className="text-pink-400 font-semibold hover:text-pink-500"
