@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Container, Theme } from './settings/types';
-import { BeautyAILogin } from './components/BeautyAILogin';
+import BeautyAILogin from './components/BeautyAILogin';
 import SignupForm from './components/SignupForm';
 import Dashboard from './components/dashboard/Dashboard';
 import ChatInterface from './components/ChatInterface';
