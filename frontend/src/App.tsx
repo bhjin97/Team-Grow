@@ -8,6 +8,7 @@ import UserProfile from './components/UserProfile';
 import Settings from './components/Settings';
 import SkinDiagnosis from './components/dashboard/SkinDiagnosis';
 import Survey from './components/dashboard/Survey'; // ← 여기! 설문으로
+import ForgotPassword from './components/ForgotPassword'; 
 
 let theme: Theme = 'light';
 let container: Container = 'none';
@@ -20,7 +21,8 @@ type PageType =
   | 'profile'
   | 'settings'
   | 'diagnosis'
-  | 'survey'; // ← 설문 페이지 이름은 이걸로 고정
+  | 'survey'
+  | 'forgotPassword'; // ✅ 추가
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('login');
@@ -79,6 +81,10 @@ function App() {
     setCurrentPage('login');
   };
 
+  const handleNavigateForgotPassword = () => {
+    setCurrentPage('forgotPassword');
+  };
+
   const handleLogout = () => {
     setIsLoggedIn(false);
     setCurrentPage('login');
@@ -86,14 +92,27 @@ function App() {
   };
 
   const generatedComponent = useMemo(() => {
-    // 로그인 전
-    if (!isLoggedIn) {
-      if (currentPage === 'signup') {
-        return <SignupForm onSignup={handleSignup} onNavigateLogin={handleNavigateLogin} />;
-      }
-      return <BeautyAILogin onLogin={handleLogin} onNavigateSignup={handleNavigateSignup} />;
+  // 로그인 전
+  if (!isLoggedIn) {
+    if (currentPage === 'signup') {
+      return <SignupForm onSignup={handleSignup} onNavigateLogin={handleNavigateLogin} />;
     }
 
+    // ✅ 비밀번호 찾기 페이지 추가
+    if (currentPage === 'forgotPassword') {
+      return <ForgotPassword onNavigateLogin={handleNavigateLogin} />;
+    }
+
+    // ✅ 로그인 화면 (비밀번호 찾기 포함)
+    return (
+      <BeautyAILogin
+        onLogin={handleLogin}
+        onNavigateSignup={handleNavigateSignup}
+        onNavigateForgotPassword={handleNavigateForgotPassword} // ← 이 줄 추가
+      />
+    );
+  }
+  
     // 로그인 후
     switch (currentPage) {
       case 'dashboard':
