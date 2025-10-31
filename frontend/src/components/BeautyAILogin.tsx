@@ -5,9 +5,14 @@ import { API_BASE } from "../lib/env";
 type BeautyAILoginProps = {
   onLogin?: (email: string, password: string) => void;
   onNavigateSignup?: () => void;
+  onNavigateForgotPassword?: () => void; // ✅ 비밀번호 찾기용 prop 추가
 };
 
-export default function BeautyAILogin({ onLogin, onNavigateSignup }: BeautyAILoginProps) {
+export default function BeautyAILogin({
+  onLogin,
+  onNavigateSignup,
+  onNavigateForgotPassword,
+}: BeautyAILoginProps) {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
 
@@ -202,7 +207,8 @@ export default function BeautyAILogin({ onLogin, onNavigateSignup }: BeautyAILog
             </motion.button>
           </form>
 
-          <div className="mt-6 sm:mt-8 text-center">
+          {/* 하단 안내 영역 */}
+          <div className="mt-6 sm:mt-8 text-center space-y-3">
             <p className="text-gray-600 text-sm sm:text-base">
               계정이 없으신가요?{" "}
               <button
@@ -212,6 +218,14 @@ export default function BeautyAILogin({ onLogin, onNavigateSignup }: BeautyAILog
                 회원가입
               </button>
             </p>
+
+            {/* ✅ 비밀번호 찾기 버튼 추가 */}
+            <button
+              onClick={() => onNavigateForgotPassword?.()}
+              className="text-gray-500 text-sm hover:text-pink-400 transition-colors underline"
+            >
+              비밀번호를 잊으셨나요?
+            </button>
           </div>
         </motion.div>
       </div>
