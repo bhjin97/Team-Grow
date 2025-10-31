@@ -1,15 +1,13 @@
-// 파일: src/components/generated/Survey.tsx
 import { useMemo, useState } from 'react';
-import { API_BASE } from '../../lib/env'; // generated/에서 두 단계 상위
+import { API_BASE } from '../../lib/env';
 
-// -------------------- 타입/상수 --------------------
 type Axis = 'OD' | 'SR' | 'PN' | 'WT';
 
 interface Item {
   id: string;
   axis: Axis;
   text: string;
-  reverse: boolean; // true면 점수 반전(6 - x)
+  reverse: boolean;
   rightLetter: 'O' | 'S' | 'P' | 'W';
 }
 
@@ -174,17 +172,15 @@ const AXES: Axis[] = ['OD', 'SR', 'PN', 'WT'];
 const LEFT_LETTER: Record<Axis, 'D' | 'R' | 'N' | 'T'> = { OD: 'D', SR: 'R', PN: 'N', WT: 'T' };
 const RIGHT_LETTER: Record<Axis, 'O' | 'S' | 'P' | 'W'> = { OD: 'O', SR: 'S', PN: 'P', WT: 'W' };
 
-// -------------------- 유틸 --------------------
 function applyReverse(x: number, reverse: boolean) {
   return reverse ? 6 - x : x;
 }
-
 function avgAndStats(values: (number | null)[], items: Item[]) {
   let unknown = 0;
   const scored = values.map((v, i) => {
     if (v == null) {
       unknown += 1;
-      v = 3; // 모름은 3점
+      v = 3;
     }
     return applyReverse(v, items[i].reverse);
   });
@@ -194,19 +190,16 @@ function avgAndStats(values: (number | null)[], items: Item[]) {
   const stdev = Math.sqrt(variance);
   return { avg, unknown, stdev, scored };
 }
-
 function decideLetter(avg: number, axis: Axis): string | null {
   if (avg <= 2.6) return LEFT_LETTER[axis];
   if (avg >= 3.4) return RIGHT_LETTER[axis];
   return null;
 }
-
 function confidence(stdev: number, unknownCnt: number, usedTb: boolean) {
   const base = 100;
   const penalty = stdev * 10 + unknownCnt * 5 + (usedTb ? 5 : 0);
   return Math.max(0, Math.min(100, Math.round(base - penalty)));
 }
-
 function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
@@ -269,36 +262,15 @@ function evaluate(resps: Responses, tbResps: Responses) {
   return result;
 }
 
-// -------------------- 컴포넌트 --------------------
 export default function Survey({ onDone }: { onDone: () => void }) {
-  // 1) 기본 12문항 응답
   const [responses, setResponses] = useState<Responses>(() =>
     Object.fromEntries(SURVEY_V1.map(i => [i.id, null]))
   );
-  // 2) 타이브레이커 응답
   const [tbResponses, setTbResponses] = useState<Responses>({});
-  // 3) 1차 결과/필요한 타이브레이커
   const [neededTB, setNeededTB] = useState<{ axis: Axis; item: Item }[]>([]);
   const [final, setFinal] = useState<null | ReturnType<typeof evaluate>>(null);
-  // 4) 저장 상태
   const [saving, setSaving] = useState(false);
 
-  const axisTitle: Record<Axis, string> = {
-    OD: '지성↔건성 (OD)',
-    SR: '민감↔저항 (SR)',
-    PN: '색소↔비색소 (PN)',
-    WT: '주름↔탄탄 (WT)',
-  };
-
-  const grouped = useMemo(() => {
-    return AXES.map(axis => ({
-      axis,
-      title: axisTitle[axis],
-      items: SURVEY_V1.filter(i => i.axis === axis),
-    }));
-  }, []);
-
-  // 라디오 버튼 공통
   const Radio = (v: number | null, onChange: (x: number | null) => void) => (
     <div className="flex gap-2 flex-wrap">
       {[1, 2, 3, 4, 5].map(n => (
@@ -352,7 +324,6 @@ export default function Survey({ onDone }: { onDone: () => void }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 저장 + 이동
   const handleSaveAndGo = async () => {
     if (!final?.typeCode) return;
 
@@ -363,44 +334,46 @@ export default function Survey({ onDone }: { onDone: () => void }) {
       })
     );
 
-    // user_id는 백엔드에서 int로 받도록 되어 있음
     const userIdStr = localStorage.getItem('user_id') ?? '1';
     const user_id = Number.parseInt(userIdStr, 10) || 1;
-
     const nickname = localStorage.getItem('nickname') ?? null;
-    const birthYearStr = localStorage.getItem('birth_year') ?? '';
-    const birth_year = birthYearStr ? Number(birthYearStr) : undefined;
+    const birth_year_str = localStorage.getItem('birth_year') ?? '';
+    const birth_year = birth_year_str ? Number(birth_year_str) : undefined;
     const gender = localStorage.getItem('gender') ?? 'na';
+
+    localStorage.setItem('skin_type_code', final.typeCode);
+    localStorage.setItem('skin_axes_json', JSON.stringify(axesPayload));
+
+    if (!API_BASE) {
+      onDone();
+      return;
+    }
 
     try {
       setSaving(true);
-
       const res = await fetch(`${API_BASE}/api/profile/skin-diagnosis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id, // number
-          skin_type_code: final.typeCode, // string(예: ORNT)
-          skin_axes_json: JSON.stringify(axesPayload), // ✅ 백엔드가 str로 받으므로 문자열화
+          user_id,
+          skin_type_code: final.typeCode,
+          skin_axes_json: JSON.stringify(axesPayload),
           nickname,
-          birth_year, // number | undefined
+          birth_year,
           gender,
         }),
       });
 
       if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} ${detail}`);
+        alert('서버 저장은 실패했어요. 화면만 대시보드로 돌아갈게요.');
+        onDone();
+        return;
       }
-
-      // 로컬 캐시 → 대시보드에서 즉시 반영
-      localStorage.setItem('skin_type_code', final.typeCode);
-      localStorage.setItem('skin_axes_json', JSON.stringify(axesPayload));
 
       onDone();
     } catch (err) {
-      console.error('save error:', err);
-      alert('저장에 실패했어요. 콘솔 로그를 확인해주세요.');
+      alert('서버 저장은 실패했어요. 화면만 대시보드로 돌아갈게요.');
+      onDone();
     } finally {
       setSaving(false);
     }
@@ -411,8 +384,18 @@ export default function Survey({ onDone }: { onDone: () => void }) {
       className="min-h-screen w-full"
       style={{ background: 'linear-gradient(135deg,#fce7f3 0%,#f3e8ff 50%,#ddd6fe 100%)' }}
     >
-      <div className="container mx-auto max-w-3xl px-4 py-10">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">바우만 피부타입 설문</h1>
+      {/* 이 컨테이너 폭에 맞춰서 버튼도 정렬 */}
+      <div className="max-w-3xl mx-auto px-4 pt-8">
+        {/* 제목 + 버튼 한 줄 */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">바우만 피부타입 설문</h1>
+          <button
+            onClick={onDone}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 border border-gray-300 bg-white/80 hover:bg-white shadow-sm transition-all"
+          >
+            돌아가기
+          </button>
+        </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-violet-100 p-5 mb-6">
           <p className="text-gray-700">
@@ -421,49 +404,43 @@ export default function Survey({ onDone }: { onDone: () => void }) {
           </p>
         </div>
 
-        {/* 12문항 리스트 */}
-        {useMemo(
-          () =>
-            AXES.map(axis => {
-              const titleMap: Record<Axis, string> = {
-                OD: '지성↔건성 (OD)',
-                SR: '민감↔저항 (SR)',
-                PN: '색소↔비색소 (PN)',
-                WT: '주름↔탄탄 (WT)',
-              };
-              const items = SURVEY_V1.filter(i => i.axis === axis);
-              return (
-                <div
-                  key={axis}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-5"
-                >
-                  <h2 className="font-semibold text-gray-800 mb-3">{titleMap[axis]}</h2>
-                  <ul className="space-y-4">
-                    {items.map(it => (
-                      <li key={it.id} className="flex flex-col gap-2">
-                        <div className="text-gray-800">{it.text}</div>
-                        {Radio(responses[it.id] ?? null, x =>
-                          setResponses(prev => ({ ...prev, [it.id]: x }))
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            }),
-          [responses]
-        )}
+        {/* 문항들 */}
+        {AXES.map(axis => {
+          const titleMap: Record<Axis, string> = {
+            OD: '지성↔건성 (OD)',
+            SR: '민감↔저항 (SR)',
+            PN: '색소↔비색소 (PN)',
+            WT: '주름↔탄탄 (WT)',
+          };
+          const items = SURVEY_V1.filter(i => i.axis === axis);
+          return (
+            <div
+              key={axis}
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-5"
+            >
+              <h2 className="font-semibold text-gray-800 mb-3">{titleMap[axis]}</h2>
+              <ul className="space-y-4">
+                {items.map(it => (
+                  <li key={it.id} className="flex flex-col gap-2">
+                    <div className="text-gray-800">{it.text}</div>
+                    {Radio(responses[it.id] ?? null, x =>
+                      setResponses(prev => ({ ...prev, [it.id]: x }))
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
 
         {/* 1차 채점 */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <button
             onClick={scoreOnce}
             className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-purple-600 text-white font-semibold hover:opacity-95"
-            title="타이브레이커 필요 여부까지 계산"
           >
             결과 보기
           </button>
-
           {final?.typeCode && (
             <span className="text-gray-700">
               예비 타입: <b>{final.typeCode}</b> (확신도 {final.confOverall})
@@ -487,12 +464,10 @@ export default function Survey({ onDone }: { onDone: () => void }) {
                 </li>
               ))}
             </ul>
-
             <div className="mt-4 flex justify-center">
               <button
                 onClick={scoreFinal}
                 className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:opacity-95"
-                title="타이브레이커 포함 최종 결과 계산"
               >
                 최종 결과 보기
               </button>
@@ -514,8 +489,8 @@ export default function Survey({ onDone }: { onDone: () => void }) {
                   right = RIGHT_LETTER[ax];
                 return (
                   <li key={ax}>
-                    - <b>{ax}</b>: 평균 {a.avg} / 판정 <b>{a.letter}</b> (신뢰도 {a.conf})
-                    &nbsp;·&nbsp; {left} ← {((a.avg - 1) / 4).toFixed(2)} → {right}
+                    - <b>{ax}</b>: 평균 {a.avg} / 판정 <b>{a.letter}</b> (신뢰도 {a.conf}) · {left}{' '}
+                    ← {((a.avg - 1) / 4).toFixed(2)} → {right}
                     {a.usedTb ? ' · 타이브레이커 반영' : ''}
                   </li>
                 );
@@ -525,20 +500,17 @@ export default function Survey({ onDone }: { onDone: () => void }) {
         )}
 
         {/* 하단 버튼 */}
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center justify-center gap-3 mb-10">
           <button
             onClick={resetAll}
             className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-800 font-semibold hover:bg-gray-50"
-            title="처음부터 다시"
           >
             다시하기
           </button>
-
           <button
             onClick={handleSaveAndGo}
             disabled={saving || !final?.typeCode}
             className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-pink-600 text-white font-semibold hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
-            title="진단 결과 저장 후 대시보드로 이동"
           >
             {saving ? '저장 중...' : '저장하고 대시보드로'}
           </button>
