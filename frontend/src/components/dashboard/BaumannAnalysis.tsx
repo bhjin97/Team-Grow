@@ -98,16 +98,16 @@ export default function BaumannAnalysis({
       </div>
 
       {/* 타입 결과 */}
-      <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-purple-100 rounded-xl flex items-center justify-between gap-3">
-        <p className="text-xs sm:text-sm">
-          <span className="font-semibold text-purple-700">당신의 타입: {code}</span>
+      <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-xl bg-pink-100 text-pink-700 flex items-center justify-between gap-3">
+        <p className="text-xs sm:text-xs">
+          <span className="font-semibold text-pink-700">당신의 타입: {code}</span>
           <span className="text-gray-600 block sm:inline sm:ml-2 mt-1 sm:mt-0">
             ({koAxisWord.OD}, {koAxisWord.SR}, {koAxisWord.PN}, {koAxisWord.WT})
           </span>
         </p>
         <button
           onClick={() => onNavigate?.('diagnosis')}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm border border-purple-200 text-purple-700 hover:bg-purple-50"
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm border border-purple-200 text-pink-700 hover:bg-pink-200 transition-colors"
         >
           <LineChart className="w-4 h-4" /> 진단하기
         </button>
