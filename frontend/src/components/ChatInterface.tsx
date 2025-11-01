@@ -20,6 +20,7 @@ import {
   Settings as SettingsIcon,
   Bell,
 } from 'lucide-react';
+import { useUserStore } from '@/stores/auth/store';
 export interface ChatInterfaceProps {
   userName?: string;
   onNavigate?: (page: string) => void;
@@ -59,6 +60,9 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
       behavior: 'smooth',
     });
   };
+
+  const name = useUserStore(state => state.name);
+
   React.useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -247,7 +251,7 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
                   background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
                 }}
               >
-                {userName.charAt(0).toUpperCase()}
+                {name.charAt(0).toUpperCase()}
               </button>
             </div>
 

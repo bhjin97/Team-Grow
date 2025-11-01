@@ -26,6 +26,7 @@ import {
   Sparkles,
   LayoutDashboard,
 } from 'lucide-react';
+import { useUserStore } from '@/stores/auth/store';
 
 export interface SettingsProps {
   userName?: string;
@@ -33,7 +34,9 @@ export interface SettingsProps {
   onLogout?: () => void;
   onChangePassword?: () => void;
 }
-export default function Settings({ userName = 'Sarah', onNavigate, onLogout, onChangePassword, }: SettingsProps) {
+export default function Settings({ onNavigate, onLogout, onChangePassword }: SettingsProps) {
+  const name = useUserStore(state => state.name);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // 알림 설정
@@ -123,7 +126,7 @@ export default function Settings({ userName = 'Sarah', onNavigate, onLogout, onC
                   background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
                 }}
               >
-                {userName.charAt(0).toUpperCase()}
+                {name.charAt(0).toUpperCase()}
               </button>
             </div>
 

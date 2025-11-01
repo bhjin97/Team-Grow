@@ -9,6 +9,7 @@ import Settings from './components/Settings';
 import SkinDiagnosis from './components/dashboard/SkinDiagnosis';
 import Survey from './components/dashboard/Survey';
 import ForgotPassword from './components/ForgotPassword';
+import { useUserStore } from './stores/auth';
 
 let theme: Theme = 'light';
 let container: Container = 'none';
@@ -25,6 +26,8 @@ type PageType =
   | 'forgotPassword';
 
 function App() {
+  // TODO: LocalStrorage 에도 저장해야 한다.
+  const { login, logout } = useUserStore();
   const [currentPage, setCurrentPage] = useState<PageType>('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('Sarah');
@@ -58,12 +61,16 @@ function App() {
   setTheme(theme);
 
   // ✅ 로그인 처리
-  const handleLogin = (email: string, password: string) => {
+  const handleLogin = (name: string, email: string) => {
     console.log('Logging in with:', email);
     setIsLoggedIn(true);
     setCurrentPage('dashboard');
-    const name = email.split('@')[0];
-    setUserName(name.charAt(0).toUpperCase() + name.slice(1));
+    // const name = email.split('@')[0];
+
+    login({ name: name, email: email });
+
+    // TODO: 삭제 예정 - 상태 관리로 대체
+    // setUserName(name.charAt(0).toUpperCase() + name.slice(1));
   };
 
   // ✅ 회원가입 처리
@@ -126,11 +133,13 @@ function App() {
       }
 
       return (
-        <BeautyAILogin
-          onLogin={handleLogin}
-          onNavigateSignup={handleNavigateSignup}
-          onNavigateForgotPassword={handleNavigateForgotPassword}
-        />
+        <>
+          <BeautyAILogin
+            onLogin={handleLogin}
+            onNavigateSignup={handleNavigateSignup}
+            onNavigateForgotPassword={handleNavigateForgotPassword}
+          />
+        </>
       );
     }
 

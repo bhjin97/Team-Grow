@@ -29,7 +29,7 @@ import {
   Heart,
 } from 'lucide-react';
 import { fetchUserProfile, updateUserProfile } from '../lib/utils';
-import { API_BASE } from '../lib/env';
+import { useUserStore } from '@/stores/auth/store';
 
 export interface UserProfileProps {
   onNavigate?: (page: string) => void;
@@ -110,6 +110,8 @@ const BubbleAnimation = () => {
 };
 
 export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) {
+  const name = useUserStore(state => state.name);
+
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -125,7 +127,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     gender: 'na',
     skinType: '',
   });
-  
+
   useEffect(() => {
     const userIdStr = localStorage.getItem('user_id');
     const currentUserId = Number.parseInt(userIdStr || '0', 10);
@@ -202,7 +204,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
   const getSeverityColor = (severity: string) => '';
   const getSeverityBadge = (severity: string) => '';
 
-
   return (
     <div
       className="min-h-screen w-full pb-16 md:pb-0"
@@ -263,7 +264,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
                 style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
               >
-                {(userData.email || userData.name || 'U').charAt(0).toUpperCase()}
+                {name.charAt(0).toUpperCase()}
               </button>
             </div>
             <button
@@ -469,7 +470,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                         <button
                           onClick={() => onNavigate?.('diagnosis')}
                           className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-sm font-semibold sm:text-base font-small hover:bg-pink-200 transition-colors"
-
                         >
                           다시 진단
                         </button>
@@ -677,7 +677,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-pink-100 z-50">
         <div className="flex items-center justify-around py-3">
-
           <button
             onClick={() => onNavigate?.('dashboard')}
             className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors"
