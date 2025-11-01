@@ -32,6 +32,7 @@ interface CustomRoutineProps {
   setSelectedKeywords: (v: string[]) => void;
   routineProducts: Product[];
   setRoutineProducts: (v: Product[]) => void;
+  onFetchRoutine: () => Promise<void>;
 }
 
 export default function CustomRoutine({
@@ -47,6 +48,7 @@ export default function CustomRoutine({
   setSelectedKeywords,
   routineProducts,
   setRoutineProducts,
+  onFetchRoutine,
 }: CustomRoutineProps) {
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(
     null
