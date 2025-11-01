@@ -1,8 +1,8 @@
 'use client';
 
-// [★] useEffect, useState, useMemo만 필요
 import * as React from 'react';
 import { useState, useMemo, useEffect } from 'react';
+
 import DashboardHeader from './DashboardHeader';
 import DashboardBottomNav from './DashboardBottomNav';
 
@@ -11,17 +11,14 @@ import PerfumeRecommendations from './PerfumeRecommendations';
 import BaumannAnalysis from './BaumannAnalysis';
 import VirtualSkinModel from './VirtualSkinModel';
 import CustomRoutine from './CustomRoutine';
+import TrendsSection from './TrendsSection';
 
-// [★] 'fetchSimulation'은 VirtualSkinModel로 이동
 import { fetchRoutine } from '../../lib/utils'; 
-import { API_BASE } from '../../lib/env'; 
-
+// ⚠️ API_BASE는 여기서 안 쓰이므로 import 제거
 
 type AxisKey = 'OD' | 'SR' | 'PN' | 'WT';
 type AxisBrief = { avg: number; letter: string; confidence: number };
 type AxesJSON = Record<AxisKey, AxisBrief>;
-
-// [★] AnalysisResult 타입 제거 (VirtualSkinModel로 이동)
 
 export interface DashboardProps {
   userName?: string;
@@ -29,27 +26,18 @@ export interface DashboardProps {
 }
 
 export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardProps) {
-  // --- 기존 상태 ---
+  // --- 대시보드 상태 ---
   const [selectedPeriod, setSelectedPeriod] = useState('7days');
   const [selectedWeather, setSelectedWeather] = useState('sunny');
   const [selectedMood, setSelectedMood] = useState('fresh');
   const [season, setSeason] = useState('summer');
   const [timeOfDay, setTimeOfDay] = useState('morning');
-  const [baumannType, setBaumannType] = useState<string>('ORNT'); // [★] 이 상태는 공유되므로 유지
+
+  const [baumannType, setBaumannType] = useState<string>('ORNT');
   const [axes, setAxes] = useState<AxesJSON | null>(null);
   const [routineProducts, setRoutineProducts] = useState<any[]>([]);
-  const [isReset, setIsReset] = useState(false);
-  const [isManualKeywordChange, setIsManualKeywordChange] = useState(false);
-  
-  // --- [★] VirtualSkinModel 관련 상태 4개 모두 제거 ---
-  // const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  // const [isSimLoading, setIsSimLoading] = useState(false);
-  // const [simError, setSimError] = useState<string | null>(null);
-  // const [selectedProduct, setSelectedProduct] = useState('');
-  // const [showFullReport, setShowFullReport] = useState(false);
-  // --- [★] --------------------------------------- ---
 
-  // --- 기존 로직들 (FOCUS_RULES, toggleKeyword, code, pick 등) ---
+  // --- 키워드 룰 ---
   const FOCUS_RULES: Record<string, string[]> = {
     summer_morning: ['가벼운', '산뜻'],
     summer_evening: ['보습', '진정'],
@@ -61,20 +49,6 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     FOCUS_RULES[`${season}_${timeOfDay}`] || []
   );
 
-  useEffect(() => {
-    const key = `${season}_${timeOfDay}`;
-    const defaultKeywords = FOCUS_RULES[key] || [];
-
-    const isDifferent =
-      JSON.stringify(selectedKeywords) !== JSON.stringify(defaultKeywords);
-
-    if (isReset || (!isManualKeywordChange && isDifferent)) {
-      setSelectedKeywords(defaultKeywords);
-      setIsReset(false);
-    }
-  }, [season, timeOfDay, baumannType]);
-
-  
   const toggleKeyword = (kw: string) => {
     if (selectedKeywords.includes(kw)) {
       setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
@@ -83,6 +57,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     }
   };
 
+  // --- 축/라벨 계산 ---
   const code = (baumannType ?? 'ORNT').toUpperCase();
   const pick = { OD: code[0], SR: code[1], PN: code[2], WT: code[3] };
   const koAxisWord = {
@@ -110,28 +85,23 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     { name: 'Spring Garden', notes: 'Jasmine, Rose, Green Leaves', match: '88%' },
     { name: 'Ocean Breeze', notes: 'Sea Salt, Mint, Amber', match: '82%' },
   ];
-  // --- 기존 로직 끝 ---
 
-
-  // [★] 서버에서 피부 타입/축 가져오는 로직 (유지)
+  // --- 프로필/축 로드 ---
   useEffect(() => {
-    // 1) localStorage 먼저
     const cachedType = localStorage.getItem('skin_type_code');
     const cachedAxes = localStorage.getItem('skin_axes_json');
     if (cachedType) setBaumannType(cachedType);
     if (cachedAxes) try { setAxes(JSON.parse(cachedAxes)); } catch {}
 
-    // 2) 서버에서 다시 가져오기 (User ID 하드코딩)
     const userIdStr = localStorage.getItem('user_id') ?? '1';
     const userId = Number.parseInt(userIdStr, 10) || 1;
 
     (async () => {
       try {
-        if (!API_BASE) {
-          console.warn("API_BASE is not defined, skipping profile fetch.");
-          return;
-        }
-        const res = await fetch(`${API_BASE}/api/profile/${userId}`);
+        // 백엔드에서 /api/profile/{id} 제공 중(프로젝트 기존 로직)
+        const base = (await import('../../lib/env')).API_BASE;
+        if (!base) return;
+        const res = await fetch(`${base}/api/profile/${userId}`);
         if (!res.ok) return;
         const data = await res.json();
         if (data?.skin_type_code) {
@@ -140,17 +110,17 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
           localStorage.setItem('skin_type_code', newType);
         }
         if (data?.skin_axes_json) {
-          const json = typeof data.skin_axes_json === 'string' ? data.skin_axes_json : JSON.stringify(data.skin_axes_json);
+          const json = typeof data.skin_axes_json === 'string'
+            ? data.skin_axes_json
+            : JSON.stringify(data.skin_axes_json);
           localStorage.setItem('skin_axes_json', json);
           try { setAxes(JSON.parse(json)); } catch {}
         }
       } catch (err) {
-        console.error("Failed to fetch profile (server might be down):", err);
+        console.error('Failed to fetch profile:', err);
       }
     })();
   }, []);
-
-  // --- [★] handleSimulation 함수 제거 (VirtualSkinModel로 이동) ---
 
   return (
     <div
@@ -160,6 +130,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
       <DashboardHeader userName={userName} onNavigate={onNavigate} />
 
       <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl">
+        {/* 상단 요약 */}
         <SkinSummary
           code={code}
           koAxisWord={koAxisWord}
@@ -167,6 +138,8 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
           selectedPeriod={selectedPeriod}
           setSelectedPeriod={setSelectedPeriod}
         />
+
+        {/* 2열 그리드 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <PerfumeRecommendations
             selectedWeather={selectedWeather}
@@ -175,50 +148,29 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
             setSelectedMood={setSelectedMood}
             perfumeRecommendations={perfumeRecommendations}
           />
+
           <BaumannAnalysis
             pick={pick}
             code={code}
             koAxisWord={koAxisWord}
             onNavigate={onNavigate}
           />
-          
-          {/* --- [★] VirtualSkinModel에 skinType만 전달 --- */}
-          <VirtualSkinModel
-            skinType={baumannType}
-          />
 
+          {/* 시뮬레이터 */}
+          <VirtualSkinModel skinType={baumannType} />
+
+          {/* 맞춤 루틴 */}
           <CustomRoutine
             baumannType={baumannType}
             setBaumannType={setBaumannType}
             season={season}
-            setSeason={(v) => {
-              setSeason(v);
-              setIsManualKeywordChange(false); // 계절 바꾸면 자동키워드 모드 복귀
-            }}
+            setSeason={setSeason}
             timeOfDay={timeOfDay}
-            setTimeOfDay={(v) => {
-              setTimeOfDay(v);
-              setIsManualKeywordChange(false); // 시간대 바꾸면 자동키워드 모드 복귀
-            }}
+            setTimeOfDay={setTimeOfDay}
             allKeywordOptions={allKeywordOptions}
             selectedKeywords={selectedKeywords}
-            toggleKeyword={(kw) => {
-              // 사용자가 직접 키워드 클릭 → 수동 모드로 전환
-              setIsManualKeywordChange(true);
-              if (selectedKeywords.includes(kw)) {
-                setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
-              } else if (selectedKeywords.length < 2) {
-                setSelectedKeywords([...selectedKeywords, kw]);
-              }
-            }}
-            // ✅ 초기화 버튼 눌렀을 때
-            setSelectedKeywords={(v) => {
-              setSelectedKeywords(v);
-              if (Array.isArray(v) && v.length === 0) {
-                setIsReset(true); // 초기화 트리거
-                setIsManualKeywordChange(false); // 자동 모드 복귀
-              }
-            }}
+            toggleKeyword={toggleKeyword}
+            setSelectedKeywords={setSelectedKeywords}
             routineProducts={routineProducts}
             setRoutineProducts={setRoutineProducts}
             onFetchRoutine={async () => {
@@ -231,17 +183,19 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                 );
                 setRoutineProducts(data);
               } catch (err) {
-                console.error("Failed to fetch routine:", err);
+                console.error('Failed to fetch routine:', err);
               }
             }}
           />
         </div>
+
+        {/* ▼ 신규 섹션: 지금 뜨는 제품 랭킹 (두 카드 폭) */}
+        <div className="mt-6">
+          <TrendsSection />
+        </div>
       </main>
 
       <DashboardBottomNav onNavigate={onNavigate} />
-      
-      {/* --- [★] 전체보기 모달 제거 (VirtualSkinModel로 이동) --- */}
-      
     </div>
   );
 }
