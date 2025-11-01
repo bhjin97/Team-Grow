@@ -46,7 +46,7 @@ def fetch_user_profile(user_id: int):
     """사용자 정보 조회 (allergies_json 포함)"""
     sql = """
       SELECT u.id, u.email, u.name, u.last_login_at,
-             p.nickname, p.birth_year, p.gender,
+             p.nickname, p.birth_date, p.gender,
              p.skin_type_code, p.skin_axes_json,
              p.preferences_json,
              p.allergies_json,
@@ -62,16 +62,16 @@ def fetch_user_profile(user_id: int):
 # ============================================
 # 프로필 업데이트 함수
 # ============================================
-def update_user_profile(user_id: int, nickname: str, birth_year: int, gender: str):
+def update_user_profile(user_id: int, nickname: str, birth_date: int, gender: str):
     """user_profiles 테이블 업데이트 (INSERT ... ON DUPLICATE KEY UPDATE)"""
     sql = text("""
     INSERT INTO user_profiles
-      (user_id, nickname, birth_year, gender, updated_at)
+      (user_id, nickname, birth_date, gender, updated_at)
     VALUES
       (:uid, :nickname, :byear, :gender, NOW())
     ON DUPLICATE KEY UPDATE
       nickname = VALUES(nickname),
-      birth_year = VALUES(birth_year),
+      birth_date = VALUES(birth_date),
       gender = VALUES(gender),
       updated_at = NOW()
     """)
@@ -81,7 +81,7 @@ def update_user_profile(user_id: int, nickname: str, birth_year: int, gender: st
             conn.execute(sql, {
                 "uid": user_id,
                 "nickname": nickname,
-                "byear": birth_year,
+                "byear": birth_date,
                 "gender": gender
             })
         return True
@@ -93,7 +93,7 @@ def update_user_profile(user_id: int, nickname: str, birth_year: int, gender: st
 # 프로필 편집 모달 (Streamlit 1.31+)
 # ============================================
 @st.dialog("⚙️ 개인 프로필 설정")
-def profile_edit_modal(current_nickname, current_birth_year, current_gender):
+def profile_edit_modal(current_nickname, current_birth_date, current_gender):
     """프로필 편집 모달 창"""
     st.write("기본 정보를 입력해주세요.")
     
@@ -111,9 +111,9 @@ def profile_edit_modal(current_nickname, current_birth_year, current_gender):
         min_date = datetime(current_time.year - 100, 1, 1).date()
         max_date = current_time.date()
         
-        if current_birth_year:
+        if current_birth_date:
             try:
-                default_date = datetime(current_birth_year, 1, 1).date()
+                default_date = datetime(current_birth_date, 1, 1).date()
             except ValueError:
                 default_date = datetime(2000,1,1).date()
         else:
@@ -185,11 +185,11 @@ if not user_row:
     st.stop()
     
 # 정수 나이(년) 계산
-birth_year = user_row.get("birth_year") 
+birth_date = user_row.get("birth_date") 
 age_years = None
-if birth_year:
+if birth_date:
     try:
-        age_years = datetime.now().year - int(birth_year)
+        age_years = datetime.now().year - int(birth_date)
     except Exception:
         age_years = None
 
@@ -210,13 +210,13 @@ def _pill(label: str, bg: str = "#6C7FED", fg: str = "#fff") -> str:
 name = user_row["name"] or "사용자"
 email = user_row["email"] or "example@abcd.com"
 nickname = user_row["nickname"] or name
-birth_year = user_row["birth_year"]
+birth_date = user_row["birth_date"]
 gender_map = {"male": "남성", "female": "여성", "na": "미설정", "other": "기타"}
 gender = gender_map.get(user_row["gender"], "미설정")
 skin_type_code = user_row["skin_type_code"] or "미설정"
 
 # 나이 계산
-age = datetime.now().year - birth_year if birth_year else None
+age = datetime.now().year - birth_date if birth_date else None
 if age:
     if age < 20:
         age_group = "10대"
@@ -343,7 +343,7 @@ with col2:
 with col3:
     # ✅ 프로필 편집 버튼
     if st.button("⚙️ 개인 프로필 설정 및 입력", use_container_width=True):
-        profile_edit_modal(nickname, birth_year, user_row["gender"])
+        profile_edit_modal(nickname, birth_date, user_row["gender"])
 
 st.markdown("---")
 
@@ -462,7 +462,7 @@ with st.expander("🔧 개발자 정보 (디버그용)"):
         "name": name,
         "nickname": nickname,
         "email": email,
-        "birth_year": birth_year,
+        "birth_date": birth_date,
         "age_group": age_group,
         "gender": gender,
         "skin_type_code": skin_type_code,

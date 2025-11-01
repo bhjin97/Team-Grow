@@ -53,7 +53,7 @@ ENGINE = get_engine()
 def fetch_user_by_id(user_id: int):
     sql = """
       SELECT u.id, u.email, u.name, u.last_login_at,
-             p.nickname, p.birth_year, p.gender,
+             p.nickname, p.birth_date, p.gender,
              p.skin_type_code, p.skin_axes_json, p.last_quiz_at
       FROM users u
       LEFT JOIN user_profiles p ON p.user_id = u.id
@@ -63,16 +63,16 @@ def fetch_user_by_id(user_id: int):
     with ENGINE.connect() as conn:
         return conn.execute(text(sql), {"uid": user_id}).mappings().fetchone()
 
-def upsert_profile(user_id: int, nickname=None, birth_year=None, gender="na",
+def upsert_profile(user_id: int, nickname=None, birth_date=None, gender="na",
                    skin_type_code=None, skin_axes_json=None):
     sql = text("""
     INSERT INTO user_profiles
-      (user_id, nickname, birth_year, gender, skin_type_code, skin_axes_json, last_quiz_at)
+      (user_id, nickname, birth_date, gender, skin_type_code, skin_axes_json, last_quiz_at)
     VALUES
       (:uid, :nickname, :byear, :gender, :code, :axes, NOW())
     ON DUPLICATE KEY UPDATE
       nickname=VALUES(nickname),
-      birth_year=VALUES(birth_year),
+      birth_date=VALUES(birth_date),
       gender=VALUES(gender),
       skin_type_code=VALUES(skin_type_code),
       skin_axes_json=VALUES(skin_axes_json),
@@ -83,7 +83,7 @@ def upsert_profile(user_id: int, nickname=None, birth_year=None, gender="na",
         conn.execute(sql, {
             "uid": user_id,
             "nickname": nickname or None,
-            "byear": int(birth_year) if birth_year else None,
+            "byear": int(birth_date) if birth_date else None,
             "gender": gender or "na",
             "code": skin_type_code or None,
             "axes": skin_axes_json
@@ -479,7 +479,7 @@ if r and r["type_code"]:
             upsert_profile(
                 user_id=user_row["id"],
                 nickname=user_row["nickname"] or None,
-                birth_year=user_row["birth_year"] or None,
+                birth_date=user_row["birth_date"] or None,
                 gender=user_row["gender"] or "na",
                 skin_type_code=r["type_code"],
                 skin_axes_json=json.dumps(axes_payload, ensure_ascii=False),
