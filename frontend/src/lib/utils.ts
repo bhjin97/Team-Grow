@@ -194,3 +194,37 @@ export async function updateUserProfile(userId: number, data: UserProfileUpdateD
 
   return res.json();
 }
+// ============================================
+// [신규] OCR 이미지 분석 함수
+// ============================================
+
+/**
+ * 이미지 OCR을 통한 제품 분석
+ * 
+ * @param file 업로드한 이미지 파일
+ * @param skin_type 피부 타입
+ * @returns 분석 결과 (fetchSimulation과 동일한 형식)
+ */
+export async function fetchOcrAnalysis(file: File, skin_type: string) {
+  if (!API_BASE) {
+    console.error('API_BASE is not defined. Check frontend/lib/env.ts');
+    throw new Error('API_BASE is not defined');
+  }
+  
+  // FormData 생성
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('skin_type', skin_type);
+  
+  const res = await fetch(`${API_BASE}/api/analyze-ocr`, {
+    method: 'POST',
+    body: formData,  // Content-Type은 자동 설정됨 (multipart/form-data)
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.detail || 'OCR 분석에 실패했습니다.');
+  }
+
+  return res.json();
+}
