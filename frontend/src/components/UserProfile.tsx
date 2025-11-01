@@ -11,8 +11,10 @@ import {
   Save,
   Menu,
   X,
+  Home,
   MessageSquare,
   UserCircle,
+  Star,
   Clock,
   Bookmark,
   Plus,
@@ -114,7 +116,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
   const [activeTab, setActiveTab] = useState<TabType>('activity');
   const [newIngredient, setNewIngredient] = useState('');
   const [newIngredientType, setNewIngredientType] = useState<'preferred' | 'caution'>('preferred');
-
   const [userData, setUserData] = useState({
     id: 0,
     name: '',
@@ -124,7 +125,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     gender: 'na',
     skinType: '',
   });
-
+  
   useEffect(() => {
     const userIdStr = localStorage.getItem('user_id');
     const currentUserId = Number.parseInt(userIdStr || '0', 10);
@@ -201,6 +202,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
   const getSeverityColor = (severity: string) => '';
   const getSeverityBadge = (severity: string) => '';
 
+
   return (
     <div
       className="min-h-screen w-full pb-16 md:pb-0"
@@ -271,6 +273,16 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
+
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="md:hidden mt-4 pb-4 space-y-3"
+            >
+              {/* (모바일 메뉴 버튼들 ... 생략) */}
+            </motion.div>
+          )}
         </div>
       </header>
 
@@ -457,6 +469,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                         <button
                           onClick={() => onNavigate?.('diagnosis')}
                           className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-sm font-semibold sm:text-base font-small hover:bg-pink-200 transition-colors"
+
                         >
                           다시 진단
                         </button>
@@ -468,10 +481,203 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
             </div>
           </div>
         </motion.div>
+
+        {/* --- (Tabs, Tab Content (나의 활동, 성분 관리)는 기존과 동일) --- */}
+        <div className="bg-white rounded-t-2xl shadow-lg mb-0">
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('activity')}
+              className={`flex-1 py-3 sm:py-4 px-4 sm:px-6 text-sm sm:text-base font-semibold transition-colors ${activeTab === 'activity' ? 'text-pink-600 border-b-2 border-pink-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              나의 활동
+            </button>
+            <button
+              onClick={() => setActiveTab('ingredients')}
+              className={`flex-1 py-3 sm:py-4 px-4 sm:px-6 text-sm sm:text-base font-semibold transition-colors ${activeTab === 'ingredients' ? 'text-pink-600 border-b-2 border-pink-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              성분 관리
+            </button>
+          </div>
+        </div>
+
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="bg-white rounded-b-2xl shadow-lg p-4 sm:p-6"
+        >
+          {activeTab === 'activity' ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                {/* (나의 활동 UI ... 생략) */}
+                <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <Clock className="w-5 h-5 text-purple-500 mr-2" />
+                    최근 찾아본 성분
+                  </h3>
+                  <div className="space-y-3">
+                    {recentIngredients.map((ingredient, index) => (
+                      <div key={index} className="bg-white rounded-lg p-3 shadow-sm">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">
+                          {ingredient.name}
+                        </h4>
+                        <p className="text-xs text-gray-600">{ingredient.effect}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <Bookmark className="w-5 h-5 text-blue-500 mr-2" />
+                    즐겨찾기 제품
+                  </h3>
+                  <div className="space-y-3">
+                    {favoriteProducts.map(product => (
+                      <div key={product.id} className="bg-white rounded-lg p-3 shadow-sm">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">{product.name}</h4>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-600">{product.brand}</p>
+                          <p className="text-xs font-bold text-pink-600">{product.price}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-pink-50 rounded-xl p-4 border border-pink-100">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <TrendingUp className="w-5 h-5 text-pink-500 mr-2" />
+                    최근 추천받은 제품
+                  </h3>
+                  <div className="space-y-3">
+                    {recentRecommendations.map(recommendation => (
+                      <div key={recommendation.id} className="bg-white rounded-lg p-3 shadow-sm">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">
+                          {recommendation.productName}
+                        </h4>
+                        <p className="text-xs text-gray-500 mb-1">{recommendation.brand}</p>
+                        <p className="text-xs text-gray-600">{recommendation.recommendedFor}</p>
+                        <p className="text-xs text-gray-400 mt-2">{recommendation.date}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* (성분 관리 UI ... 생략) */}
+              <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4 sm:p-6 border border-pink-200">
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
+                  <Plus className="w-5 h-5 text-pink-500 mr-2" />
+                  성분 추가하기
+                </h3>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={newIngredient}
+                    onChange={e => setNewIngredient(e.target.value)}
+                    placeholder="성분 이름을 입력하세요"
+                    className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                  />
+                  <select
+                    value={newIngredientType}
+                    onChange={e => setNewIngredientType(e.target.value as 'preferred' | 'caution')}
+                    className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                  >
+                    <option value="preferred">선호 성분</option>
+                    <option value="caution">주의 성분</option>
+                  </select>
+                  <button
+                    onClick={handleAddIngredient}
+                    className="px-6 py-2 rounded-lg text-white font-medium hover:shadow-lg transition-all text-sm"
+                    style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+                  >
+                    추가
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div className="bg-green-50 rounded-xl p-4 sm:p-6 border border-green-200">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <Sparkles className="w-5 h-5 text-green-500 mr-2" />
+                    선호 성분 ({preferredIngredients.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {preferredIngredients.map((ingredient, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className="bg-white rounded-lg p-3 sm:p-4 border-2 border-green-200 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm sm:text-base font-bold text-gray-800 mb-1">
+                              {ingredient.name}
+                            </h4>
+                            <p className="text-xs sm:text-sm text-gray-600">{ingredient.benefit}</p>
+                          </div>
+                          <button
+                            onClick={() => removePreferredIngredient(index)}
+                            className="ml-3 text-red-500 hover:text-red-700 transition-colors flex-shrink-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-red-50 rounded-xl p-4 sm:p-6 border border-red-200">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
+                    주의 성분 ({cautionIngredients.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {cautionIngredients.map((ingredient, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className={`rounded-lg p-3 sm:p-4 border-2 hover:shadow-md transition-shadow ${getSeverityColor(ingredient.severity)}`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <h4 className="text-sm sm:text-base font-bold text-gray-800">
+                                {ingredient.name}
+                              </h4>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${getSeverityBadge(ingredient.severity)}`}
+                              >
+                                {ingredient.severity}
+                              </span>
+                            </div>
+                            <p className="text-xs sm:text-sm">{ingredient.reason}</p>
+                          </div>
+                          <button
+                            onClick={() => removeCautionIngredient(index)}
+                            className="ml-3 text-red-500 hover:text-red-700 transition-colors flex-shrink-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.div>
       </main>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-pink-100 z-50">
         <div className="flex items-center justify-around py-3">
+
           <button
             onClick={() => onNavigate?.('dashboard')}
             className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors"
