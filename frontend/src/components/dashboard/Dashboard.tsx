@@ -38,6 +38,8 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   const [baumannType, setBaumannType] = useState<string>('ORNT'); // [★] 이 상태는 공유되므로 유지
   const [axes, setAxes] = useState<AxesJSON | null>(null);
   const [routineProducts, setRoutineProducts] = useState<any[]>([]);
+  const [isReset, setIsReset] = useState(false);
+  const [isManualKeywordChange, setIsManualKeywordChange] = useState(false);
   
   // --- [★] VirtualSkinModel 관련 상태 4개 모두 제거 ---
   // const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -58,6 +60,20 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
     FOCUS_RULES[`${season}_${timeOfDay}`] || []
   );
+
+  useEffect(() => {
+    const key = `${season}_${timeOfDay}`;
+    const defaultKeywords = FOCUS_RULES[key] || [];
+
+    const isDifferent =
+      JSON.stringify(selectedKeywords) !== JSON.stringify(defaultKeywords);
+
+    if (isReset || (!isManualKeywordChange && isDifferent)) {
+      setSelectedKeywords(defaultKeywords);
+      setIsReset(false);
+    }
+  }, [season, timeOfDay, baumannType]);
+
   
   const toggleKeyword = (kw: string) => {
     if (selectedKeywords.includes(kw)) {
@@ -175,17 +191,36 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
             baumannType={baumannType}
             setBaumannType={setBaumannType}
             season={season}
-            setSeason={setSeason}
+            setSeason={(v) => {
+              setSeason(v);
+              setIsManualKeywordChange(false); // 계절 바꾸면 자동키워드 모드 복귀
+            }}
             timeOfDay={timeOfDay}
-            setTimeOfDay={setTimeOfDay}
+            setTimeOfDay={(v) => {
+              setTimeOfDay(v);
+              setIsManualKeywordChange(false); // 시간대 바꾸면 자동키워드 모드 복귀
+            }}
             allKeywordOptions={allKeywordOptions}
             selectedKeywords={selectedKeywords}
-            toggleKeyword={toggleKeyword}
-            setSelectedKeywords={setSelectedKeywords}
+            toggleKeyword={(kw) => {
+              // 사용자가 직접 키워드 클릭 → 수동 모드로 전환
+              setIsManualKeywordChange(true);
+              if (selectedKeywords.includes(kw)) {
+                setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
+              } else if (selectedKeywords.length < 2) {
+                setSelectedKeywords([...selectedKeywords, kw]);
+              }
+            }}
+            // ✅ 초기화 버튼 눌렀을 때
+            setSelectedKeywords={(v) => {
+              setSelectedKeywords(v);
+              if (Array.isArray(v) && v.length === 0) {
+                setIsReset(true); // 초기화 트리거
+                setIsManualKeywordChange(false); // 자동 모드 복귀
+              }
+            }}
             routineProducts={routineProducts}
             setRoutineProducts={setRoutineProducts}
-            
-            // fetchRoutine을 위한 핸들러
             onFetchRoutine={async () => {
               try {
                 const data = await fetchRoutine(
