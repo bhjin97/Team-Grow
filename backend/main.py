@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from db import get_db
-from routers import profile, analysis, auth, routine, perfume, user
+from routers import profile, analysis, auth, routine, perfume, user, trends
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -27,3 +27,4 @@ app.include_router(auth.router)
 app.include_router(routine.router)
 app.include_router(perfume.router)
 app.include_router(user.router)
+app.include_router(trends.router)
