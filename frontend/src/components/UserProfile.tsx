@@ -1,6 +1,5 @@
 'use client';
 
-// [★] useEffect, fetchUserProfile, updateUserProfile, Loader2 임포트
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -27,10 +26,8 @@ import {
   Bell,
   LayoutDashboard,
   TrendingUp,
-  Loader2, // [★] 저장 로딩 아이콘
-  Heart, // [★] 성별 아이콘 (선택)
+  Heart,
 } from 'lucide-react';
-// [★] 경로 수정: ../lib/utils
 import { fetchUserProfile, updateUserProfile } from '../lib/utils';
 import { API_BASE } from '../lib/env';
 
@@ -41,7 +38,7 @@ export interface UserProfileProps {
 
 type TabType = 'activity' | 'ingredients';
 
-// [★] "물방울" 로딩 효과 (CSS)
+// 물방울 로더
 const WaterDropletLoader = () => (
   <>
     <style>{`
@@ -67,14 +64,14 @@ const WaterDropletLoader = () => (
   </>
 );
 
-// [★] 비눗방울 애니메이션 컴포넌트
+// 비눗방울
 const BubbleAnimation = () => {
   const bubbles = Array.from({ length: 40 }, (_, i) => ({
     id: i,
-    left: Math.random() * 100, // 0-100% 랜덤 위치
-    delay: Math.random() * 0.8, // 0-0.8초 랜덤 딜레이
-    duration: 3 + Math.random() * 2, // 3-5초 랜덤 지속시간
-    size: 40 + Math.random() * 60, // 40-100px 랜덤 크기
+    left: Math.random() * 100,
+    delay: Math.random() * 0.8,
+    duration: 3 + Math.random() * 2,
+    size: 40 + Math.random() * 60,
   }));
 
   return (
@@ -113,52 +110,42 @@ const BubbleAnimation = () => {
 };
 
 export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) {
-  // --- [★] 상태 관리 (isEditing, isSaving, userData 등) ---
   const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // [★] "물방울" 로딩 상태
+  const [isSaving, setIsSaving] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('activity');
   const [newIngredient, setNewIngredient] = useState('');
   const [newIngredientType, setNewIngredientType] = useState<'preferred' | 'caution'>('preferred');
-
-  // [★] DB 스키마에 맞춘 UserData 상태 (초기값은 공백)
   const [userData, setUserData] = useState({
-    id: 0, // [★] 초기 ID 0으로 설정
-    name: '', // users.name
-    nickname: '', // user_profiles.nickname
-    email: '', // users.email
-    birthDate: '', // [★] 생년월일 (YYYY-MM-DD) - DATE 타입
-    gender: 'na', // user_profiles.gender (na: Not Applicable/선택안함)
-    skinType: '', // user_profiles.skin_type_code (OSNT 등)
+    id: 0,
+    name: '',
+    nickname: '',
+    email: '',
+    birthDate: '',
+    gender: 'na',
+    skinType: '',
   });
-
-  // --- [★★★ 오류 수정 ★★★] ---
-  // [★] 컴포넌트 로드 시 DB에서 프로필 데이터 1회 조회
+  
   useEffect(() => {
-    // [★] 'user_id'를 localStorage에서 동적으로 가져옵니다.
     const userIdStr = localStorage.getItem('user_id');
-
-    // user_id가 없거나 숫자가 아니면 0 또는 기본값으로 설정 (오류 방지)
     const currentUserId = Number.parseInt(userIdStr || '0', 10);
 
     if (currentUserId === 0) {
       console.error('UserProfile: localStorage에서 user_id를 찾을 수 없습니다.');
-      // (선택) 여기서 로그인 페이지로 리다이렉트할 수도 있습니다.
       return;
     }
 
-    setUserData(prev => ({ ...prev, id: currentUserId })); // [★] 찾은 ID로 상태 설정
+    setUserData(prev => ({ ...prev, id: currentUserId }));
 
     const loadData = async () => {
       try {
-        // [★] 동적으로 찾은 ID로 API 호출
         const data = await fetchUserProfile(currentUserId);
         setUserData({
           id: data.id,
           name: data.name || '',
           nickname: data.nickname || '',
           email: data.email || '',
-          birthDate: data.birthDate || '', // [★] birthDate 전체 날짜
+          birthDate: data.birthDate || '',
           gender: data.gender || 'na',
           skinType: data.skinType || '진단 필요',
         });
@@ -168,22 +155,18 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     };
 
     loadData();
-  }, []); // 빈 배열 = 마운트 시 1회 실행
-  // --- [★★★ 수정 완료 ★★★] ---
+  }, []);
 
-  // [★] DB에 저장 (API 호출)
   const handleSave = async () => {
     setIsSaving(true);
-
-    // [★] 비눗방울 애니메이션을 위해 최소 2초 대기
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     try {
       const updateData = {
         name: userData.name,
         email: userData.email,
-        nickname: userData.nickname || userData.name, // [★] nickname 없으면 name 사용
-        birthDate: userData.birthDate || null, // [★] 전체 생년월일 전송
+        nickname: userData.nickname || userData.name,
+        birthDate: userData.birthDate || null,
         gender: userData.gender || 'na',
         skinTypeCode: userData.skinType === '진단 필요' ? null : userData.skinType,
       };
@@ -193,9 +176,9 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
       setUserData({
         id: updatedData.id,
         name: updatedData.name || '',
-        nickname: updatedData.nickname || userData.name, // [★] 닉네임 없으면 이름으로 설정
+        nickname: updatedData.nickname || userData.name,
         email: updatedData.email || '',
-        birthDate: updatedData.birthDate || '', // [★] 전체 생년월일
+        birthDate: updatedData.birthDate || '',
         gender: updatedData.gender || 'na',
         skinType: updatedData.skinType || '진단 필요',
       });
@@ -208,38 +191,17 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     }
   };
 
-  // --- (나머지 '나의 활동', '성분 관리' 로직은 기존과 동일) ---
-  const recentRecommendations = [
-    /* ... */
-  ];
-  const recentIngredients = [
-    /* ... */
-  ];
-  const favoriteProducts = [
-    /* ... */
-  ];
-  const [preferredIngredients, setPreferredIngredients] = useState([
-    /* ... */
-  ]);
-  const [cautionIngredients, setCautionIngredients] = useState([
-    /* ... */
-  ]);
-  const handleAddIngredient = () => {
-    /* ... */
-  };
-  const removePreferredIngredient = (index: number) => {
-    /* ... */
-  };
-  const removeCautionIngredient = (index: number) => {
-    /* ... */
-  };
-  const getSeverityColor = (severity: string) => {
-    /* ... */
-  };
-  const getSeverityBadge = (severity: string) => {
-    /* ... */
-  };
-  // --- (여기까지 동일) ---
+  const recentRecommendations: any[] = [];
+  const recentIngredients: any[] = [];
+  const favoriteProducts: any[] = [];
+  const [preferredIngredients, setPreferredIngredients] = useState<any[]>([]);
+  const [cautionIngredients, setCautionIngredients] = useState<any[]>([]);
+  const handleAddIngredient = () => {};
+  const removePreferredIngredient = (index: number) => {};
+  const removeCautionIngredient = (index: number) => {};
+  const getSeverityColor = (severity: string) => '';
+  const getSeverityBadge = (severity: string) => '';
+
 
   return (
     <div
@@ -248,10 +210,8 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         background: 'linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%)',
       }}
     >
-      {/* [★] 저장 중 비눗방울 애니메이션 */}
       {isSaving && <BubbleAnimation />}
 
-      {/* Header (기존과 동일) */}
       <header className="bg-white/80 backdrop-blur-lg border-b border-pink-100 sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
@@ -303,7 +263,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
                 style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
               >
-                {/* [★] 'Sarah' -> 'userData.nickname' (공백이면 이름, 이름도 공백이면 'U') */}
                 {(userData.email || userData.name || 'U').charAt(0).toUpperCase()}
               </button>
             </div>
@@ -314,6 +273,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
+
           {mobileMenuOpen && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -326,9 +286,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl">
-        {/* 개인 정보 영역 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -337,6 +295,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">개인 정보</h2>
+
             {!isEditing ? (
               <button
                 onClick={() => setIsEditing(true)}
@@ -346,20 +305,30 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                 <Edit2 className="w-4 h-4" /> <span>프로필 수정</span>
               </button>
             ) : (
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors text-sm sm:text-base w-full sm:w-auto justify-center min-w-[140px] disabled:opacity-70"
-              >
-                {isSaving ? (
-                  <WaterDropletLoader />
-                ) : (
-                  <>
-                    {' '}
-                    <Save className="w-4 h-4" /> <span>변경사항 저장</span>{' '}
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-pink-100 text-pink-700 text-sm sm:text-base font-medium hover:bg-pink-200 transition-colors"
+                >
+                  {isSaving ? (
+                    <WaterDropletLoader />
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>변경사항 저장</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-pink-100 text-purple-700 text-sm sm:text-base font-medium hover:bg-pink-200 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  <span>취소</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -394,7 +363,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                 )}
               </div>
 
-              {/* 개인 정보 폼 */}
               <div className="flex-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -425,7 +393,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                     )}
                   </div>
 
-                  {/* [★] 생년월일 (Birth Date) 수정 */}
                   <div>
                     <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
                       <Calendar className="w-4 h-4 mr-2" /> 생년월일
@@ -434,12 +401,12 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                       <input
                         type="date"
                         value={userData.birthDate || ''}
-                        onChange={e => {
+                        onChange={e =>
                           setUserData({
                             ...userData,
                             birthDate: e.target.value,
-                          });
-                        }}
+                          })
+                        }
                         className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
                       />
                     ) : (
@@ -449,7 +416,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                     )}
                   </div>
 
-                  {/* [★] 성별 (Gender) 추가 */}
                   <div>
                     <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
                       <Heart className="w-4 h-4 mr-2" /> 성별
@@ -478,22 +444,20 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                     )}
                   </div>
 
-                  {/* [★] 피부 타입 수정 */}
+                  {/* ★ 여기 수정됨 */}
                   <div className="sm:col-span-2">
                     <label className="text-sm font-semibold text-gray-700 mb-2 block">
                       피부 타입 (바우만)
                     </label>
-                    <div className="flex flex-wrap gap-2 px-4 py-2 bg-gray-50 rounded-lg min-h-[44px] items-center">
+                    <div className="flex flex-wrap gap-2 px-1 py-2 bg-gray-50 rounded-lg min-h-[44px] items-center">
                       {isEditing ? (
                         <input
                           type="text"
                           value={userData.skinType || ''}
-                          onChange={e =>
-                            setUserData({ ...userData, skinType: e.target.value.toUpperCase() })
-                          }
+                          readOnly
                           placeholder="예: OSNT"
                           maxLength={4}
-                          className="w-24 px-3 py-1 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className="w-18 px-3 py-1 text-purple-700 rounded-full text-md font-semibold focus:outline-none text-center cursor-default pointer-events-none select-none"
                         />
                       ) : (
                         <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-base font-semibold">
@@ -503,10 +467,11 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
 
                       {isEditing && (
                         <button
-                          onClick={() => onNavigate?.('diagnosis')} // (가정) 진단 페이지로 이동
-                          className="text-xs text-blue-600 hover:underline ml-2"
+                          onClick={() => onNavigate?.('diagnosis')}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-sm font-semibold sm:text-base font-small hover:bg-pink-200 transition-colors"
+
                         >
-                          (피부 타입 재진단하기)
+                          다시 진단
                         </button>
                       )}
                     </div>
@@ -710,9 +675,9 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         </motion.div>
       </main>
 
-      {/* Mobile Bottom Navigation (기존과 동일) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-pink-100 z-50">
-        <div className="flex items-center justify-around px-4 py-3">
+        <div className="flex items-center justify-around py-3">
+
           <button
             onClick={() => onNavigate?.('dashboard')}
             className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors"
