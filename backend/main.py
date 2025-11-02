@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from db import get_db
 from routers import profile, analysis, auth, routine, perfume, user, trends
+from routers.chat import router as chat_router
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,3 +29,4 @@ app.include_router(routine.router)
 app.include_router(perfume.router)
 app.include_router(user.router)
 app.include_router(trends.router)
+app.include_router(chat_router)
