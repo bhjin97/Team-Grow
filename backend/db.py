@@ -3,6 +3,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 from urllib.parse import quote_plus
+from openai import OpenAI
+from pinecone import Pinecone
 
 load_dotenv()
 
@@ -27,3 +29,20 @@ def get_db():
         
 def get_engine():
     return engine
+
+# ── OpenAI ──
+oai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+EMBED_MODEL = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-large")
+
+# ── Pinecone ──
+pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+INDEX_PRODUCT = os.getenv("PINECONE_INDEX", "rag-product")
+
+# backend/db.py 맨 위쪽 (임시 디버그)
+import os
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv(".env", raise_error_if_not_found=False) or ".env")
+print("[dotenv] OPENAI?", bool(os.getenv("OPENAI_API_KEY")))
+print("[dotenv] PINECONE?", bool(os.getenv("PINECONE_API_KEY")))
