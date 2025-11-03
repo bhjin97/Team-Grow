@@ -43,6 +43,30 @@ interface Message {
   products?: RecProduct[];
 }
 
+/* ─────────────────────────────
+   세션 저장 관련 유틸
+   ───────────────────────────── */
+const SS_KEY = 'aller_chat_session_v1';
+
+type PersistMsg = {
+  id: number;
+  type: 'user' | 'ai';
+  content: string;
+  ts: number; // Date 직렬화용 timestamp
+};
+
+let saveTimer: any = null;
+function scheduleSessionSave(payload: { messages: PersistMsg[]; savedProducts: number[]; draft: string }) {
+  try {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try {
+        sessionStorage.setItem(SS_KEY, JSON.stringify(payload));
+      } catch {}
+    }, 200);
+  } catch {}
+}
+
 export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -64,10 +88,53 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
 
   const name = useUserStore(state => state.name);
 
+  /* ─────────────────────────────
+     세션에서 복원 (마운트 시 1회)
+     ───────────────────────────── */
+  React.useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SS_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw) as { messages: PersistMsg[]; savedProducts: number[]; draft: string };
+      const restored = (parsed.messages || []).map(m => ({
+        id: m.id,
+        type: m.type as 'user' | 'ai',
+        content: m.content,
+        timestamp: new Date(m.ts),
+      }));
+
+      if (restored.length) setMessages(restored);
+      if (Array.isArray(parsed.savedProducts)) setSavedProducts(parsed.savedProducts);
+      if (typeof parsed.draft === 'string') setInputValue(parsed.draft);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* 스크롤 하단 고정 */
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
   React.useEffect(() => { scrollToBottom(); }, [messages]);
+
+  /* ─────────────────────────────
+     상태 변경 시 세션 저장
+     ───────────────────────────── */
+  React.useEffect(() => {
+    try {
+      const payload: PersistMsg[] = messages.map(m => ({
+        id: m.id,
+        type: m.type,
+        content: m.content,
+        ts: m.timestamp.getTime(),
+      }));
+      scheduleSessionSave({
+        messages: payload,
+        savedProducts,
+        draft: inputValue,
+      });
+    } catch {}
+  }, [messages, savedProducts, inputValue]);
 
   // ⬇️ 핵심: 스트리밍 + 추천 카드 호출
   const handleSendMessage = async () => {
