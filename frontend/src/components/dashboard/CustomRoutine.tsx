@@ -1,12 +1,12 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Clock, Heart } from 'lucide-react';
 import * as React from 'react';
 import { fetchRoutine } from '../../lib/utils';
-import ProductDetailModal from './ProductDetailModal';
+import { API_BASE } from '../../lib/env';
 
-// Product 인터페이스 (description 포함)
+// Product 인터페이스
 interface Product {
   step: string;
   product_pid: string;
@@ -16,7 +16,7 @@ interface Product {
   price_krw?: number;
   capacity?: string;
   product_url?: string;
-  description?: string; // 한줄 요약 (rag_text)
+  description?: string;
 }
 
 interface CustomRoutineProps {
@@ -50,16 +50,84 @@ export default function CustomRoutine({
   setRoutineProducts,
   onFetchRoutine,
 }: CustomRoutineProps) {
-  const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(
-    null
-  );
+  const [favorites, setFavorites] = React.useState<number[]>([]);
+  const [toastMsg, setToastMsg] = React.useState<string | null>(null); // ✅ 토스트 상태 추가
+  const userId = localStorage.getItem('user_id');
+
+  // ✅ 즐겨찾기 목록 불러오기
+  React.useEffect(() => {
+    const loadFavorites = async () => {
+      if (!userId) return;
+      try {
+        const res = await fetch(`${API_BASE}/favorite_products/${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setFavorites(data.map((item: any) => Number(item.product_id)));
+        }
+      } catch (err) {
+        console.error('즐겨찾기 불러오기 실패:', err);
+      }
+    };
+    loadFavorites();
+  }, [userId]);
+
+  // ✅ 토스트 표시 함수
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2000);
+  };
+
+  // ✅ 즐겨찾기 토글
+  const toggleFavorite = async (productId: number) => {
+    if (!userId) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    const isFavorited = favorites.includes(productId);
+
+    try {
+      if (isFavorited) {
+        const res = await fetch(
+          `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
+          { method: 'DELETE' }
+        );
+        if (res.ok) {
+          setFavorites(prev => prev.filter(id => id !== productId));
+          showToast('즐겨찾기에서 제거되었습니다 💔');
+        }
+      } else {
+        const res = await fetch(
+          `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
+          { method: 'POST' }
+        );
+        if (res.ok) {
+          setFavorites(prev => [...prev, productId]);
+          showToast('즐겨찾기에 추가되었습니다 💗');
+        }
+      }
+    } catch (err) {
+      console.error('즐겨찾기 토글 실패:', err);
+      showToast('처리 중 오류가 발생했습니다 ❗');
+    }
+  };
 
   return (
     <>
-      <ProductDetailModal
-        product={selectedProduct}
-        onClose={() => setSelectedProduct(null)}
-      />
+      {/* ✅ 토스트 메시지 표시 */}
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.3 }}
+            className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2 rounded-full shadow-lg z-[999]"
+          >
+            {toastMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -103,23 +171,12 @@ export default function CustomRoutine({
               onChange={e => setBaumannType(e.target.value)}
               className="w-full px-1.5 sm:px-2 py-2 rounded-lg border border-gray-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
             >
-              <option value="DRNT">DRNT</option>
-              <option value="DRNW">DRNW</option>
-              <option value="DRPT">DRPT</option>
-              <option value="DRPW">DRPW</option>
-              <option value="DSPT">DSPT</option>
-              <option value="DSPW">DSPW</option>
-              <option value="DSNT">DSNT</option>
-              <option value="DSNW">DSNW</option>
-              <option value="ORNT">ORNT</option>
-              <option value="ORNW">ORNW</option>
-              <option value="ORPT">ORPT</option>
-              <option value="ORPW">ORPW</option>
-              <option value="OSPT">OSPT</option>
-              <option value="OSPW">OSPW</option>
-              {/* ✅ [수정] </Foption> -> </option> 오타 수정 */}
-              <option value="OSNT">OSNT</option>
-              <option value="OSNW">OSNW</option>
+              {[
+                'DRNT', 'DRNW', 'DRPT', 'DRPW', 'DSPT', 'DSPW', 'DSNT', 'DSNW',
+                'ORNT', 'ORNW', 'ORPT', 'ORPW', 'OSPT', 'OSPW', 'OSNT', 'OSNW'
+              ].map(type => (
+                <option key={type} value={type}>{type}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -164,9 +221,26 @@ export default function CustomRoutine({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.6 + index * 0.1 }}
-                className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setSelectedProduct(product)}
+                className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 hover:shadow-lg transition-shadow relative"
               >
+                {/* ❤️ 하트 버튼 */}
+                <button
+                  onClick={() => toggleFavorite(Number(product.product_pid))}
+                  className={`absolute top-2 right-2 p-1.5 rounded-full transition ${
+                    favorites.includes(Number(product.product_pid))
+                      ? 'bg-pink-500 text-white'
+                      : 'bg-white text-pink-500 hover:bg-pink-100'
+                  }`}
+                >
+                  <Heart
+                    className={`w-4 h-4 ${
+                      favorites.includes(Number(product.product_pid))
+                        ? 'fill-white'
+                        : 'fill-none'
+                    }`}
+                  />
+                </button>
+
                 <div className="text-xs sm:text-sm font-semibold text-pink-600 mb-1">
                   {product.step}
                 </div>
@@ -186,7 +260,7 @@ export default function CustomRoutine({
           </div>
         </div>
 
-        {/* 버튼 */}
+        {/* 추천 버튼 */}
         <button
           onClick={async () => {
             try {
