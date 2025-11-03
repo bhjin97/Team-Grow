@@ -28,6 +28,8 @@ import {
   TrendingUp,
   Heart,
 } from 'lucide-react';
+import { API_BASE } from '../lib/env';
+import { AnimatePresence } from 'framer-motion';
 import { fetchUserProfile, updateUserProfile } from '../lib/utils';
 import { useUserStore } from '@/stores/auth/store';
 
@@ -127,6 +129,60 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     gender: 'na',
     skinType: '',
   });
+  // ==================== 즐겨찾기 관련 추가 ====================
+  interface FavoriteProduct {
+  product_id: number;
+  product_name: string;
+  brand: string;
+  category: string;
+  image_url: string;
+  price_krw?: number;
+  review_count?: number;
+}
+
+  const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const userId = localStorage.getItem('user_id');
+
+  // 토스트 메시지 표시 함수
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2000);
+  };
+
+  // 즐겨찾기 불러오기
+  useEffect(() => {
+    const loadFavorites = async () => {
+      if (!userId) return;
+      try {
+        const res = await fetch(`${API_BASE}/favorite_products/${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setFavorites(data);
+        }
+      } catch (err) {
+        console.error('❌ 즐겨찾기 불러오기 실패:', err);
+      }
+    };
+    loadFavorites();
+  }, [userId]);
+
+  // 즐겨찾기 삭제 함수
+  const removeFavorite = async (productId: number) => {
+    if (!userId) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
+        { method: 'DELETE' }
+      );
+      if (res.ok) {
+        setFavorites(prev => prev.filter(f => f.product_id !== productId));
+        showToast('즐겨찾기에서 제거되었습니다 💔');
+      }
+    } catch (err) {
+      console.error('❌ 즐겨찾기 삭제 실패:', err);
+    }
+  };
 
   useEffect(() => {
     const userIdStr = localStorage.getItem('user_id');
@@ -508,62 +564,113 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
           className="bg-white rounded-b-2xl shadow-lg p-4 sm:p-6"
         >
           {activeTab === 'activity' ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-                {/* (나의 활동 UI ... 생략) */}
-                <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
-                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
-                    <Clock className="w-5 h-5 text-purple-500 mr-2" />
-                    최근 찾아본 성분
-                  </h3>
-                  <div className="space-y-3">
-                    {recentIngredients.map((ingredient, index) => (
+            <div className="flex flex-col space-y-6">
+              {/* 1️⃣ 최근 찾아본 성분 */}
+              <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
+                  <Clock className="w-5 h-5 text-purple-500 mr-2" />
+                  최근 찾아본 성분
+                </h3>
+                <div className="space-y-3">
+                  {recentIngredients.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-6">아직 조회한 성분이 없습니다.</p>
+                  ) : (
+                    recentIngredients.map((ingredient, index) => (
                       <div key={index} className="bg-white rounded-lg p-3 shadow-sm">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-1">
-                          {ingredient.name}
-                        </h4>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">{ingredient.name}</h4>
                         <p className="text-xs text-gray-600">{ingredient.effect}</p>
                       </div>
-                    ))}
-                  </div>
+                    ))
+                  )}
                 </div>
-                <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
-                    <Bookmark className="w-5 h-5 text-blue-500 mr-2" />
-                    즐겨찾기 제품
-                  </h3>
-                  <div className="space-y-3">
-                    {favoriteProducts.map(product => (
-                      <div key={product.id} className="bg-white rounded-lg p-3 shadow-sm">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-1">{product.name}</h4>
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-600">{product.brand}</p>
-                          <p className="text-xs font-bold text-pink-600">{product.price}</p>
-                        </div>
-                      </div>
-                    ))}
+              </div>
+
+              {/* 2️⃣ 즐겨찾기 제품 */}
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
+                  <Heart className="w-5 h-5 text-pink-500 mr-2" />
+                  즐겨찾기 제품
+                </h3>
+                <AnimatePresence>
+                  {toastMsg && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 40 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 40 }}
+                      transition={{ duration: 0.3 }}
+                      className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2 rounded-full shadow-lg z-[999]"
+                    >
+                      {toastMsg}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {favorites.length === 0 ? (
+                  <p className="text-gray-500 text-sm text-center py-6">
+                    아직 즐겨찾기한 제품이 없습니다.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto pb-2">
+                    <div className="flex gap-3 sm:gap-4 min-w-max">
+                      {favorites.map((product, index) => (
+                        <motion.div
+                          key={product.product_id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: 0.1 * index }}
+                          className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border border-pink-100 hover:shadow-md relative"
+                        >
+                          <button
+                            onClick={() => removeFavorite(product.product_id)}
+                            className="absolute top-2 right-2 p-1.5 bg-white rounded-full text-gray-500 hover:text-red-500 shadow-sm"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+
+                          <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center">
+                            <img
+                              src={product.image_url}
+                              alt={product.product_name}
+                              className="w-full h-full object-contain rounded-lg"
+                            />
+                          </div>
+
+                          <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-tight line-clamp-2">
+                            {product.product_name}
+                          </p>
+                          <p className="text-[11px] text-gray-500">{product.category}</p>
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="bg-pink-50 rounded-xl p-4 border border-pink-100">
-                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
-                    <TrendingUp className="w-5 h-5 text-pink-500 mr-2" />
-                    최근 추천받은 제품
-                  </h3>
-                  <div className="space-y-3">
-                    {recentRecommendations.map(recommendation => (
+                )}
+              </div>
+
+              {/* 3️⃣ 최근 추천받은 제품 */}
+              <div className="bg-pink-50 rounded-xl p-4 border border-pink-100">
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
+                  <TrendingUp className="w-5 h-5 text-pink-500 mr-2" />
+                  최근 추천받은 제품
+                </h3>
+                <div className="space-y-3">
+                  {recentRecommendations.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-6">
+                      아직 추천받은 제품이 없습니다.
+                    </p>
+                  ) : (
+                    recentRecommendations.map(recommendation => (
                       <div key={recommendation.id} className="bg-white rounded-lg p-3 shadow-sm">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-1">
-                          {recommendation.productName}
-                        </h4>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">{recommendation.productName}</h4>
                         <p className="text-xs text-gray-500 mb-1">{recommendation.brand}</p>
                         <p className="text-xs text-gray-600">{recommendation.recommendedFor}</p>
                         <p className="text-xs text-gray-400 mt-2">{recommendation.date}</p>
                       </div>
-                    ))}
-                  </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
+
           ) : (
             <div className="space-y-6">
               {/* (성분 관리 UI ... 생략) */}
