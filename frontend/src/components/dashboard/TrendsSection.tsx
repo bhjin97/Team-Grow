@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { API_BASE } from '../../lib/env';
 import { cn } from '../../lib/utils';
 import TrendProductCard from './TrendProductCard';
-import TrendProductModal from './TrendProductModal';
-
+import TrendProductDetailModal from './TrendProductDetailModal';
+import TrendAnalysisModal from './TrendAnalysisModal';
 
 
 type LeaderboardItem = {
@@ -20,12 +20,19 @@ type LeaderboardItem = {
   a_count: number;
   b_count: number;
   delta: number;
-  pct: number;   // 증감률(%)
-  index: number; // B/A*100
+  pct: number;   // 백엔드에서 여전히 내려주므로 유지
+  index: number; // 백엔드에서 여전히 내려주므로 유지
 };
 
 type LeaderboardResp = {
-  meta: { category: string; a_date: string; b_date: string; count: number; sort: string; min_base: number };
+  meta: {
+    category: string;
+    a_date: string;
+    b_date: string;
+    count: number;
+    sort: string;
+    min_base: number;
+  };
   items: LeaderboardItem[];
 };
 
@@ -35,7 +42,12 @@ const SORT_OPTIONS = [
   { key: 'most', label: '리뷰 많은 순' },
 ] as const;
 
-const SectionShell: React.FC<{ children: React.ReactNode; className?: string; title?: string; subtitle?: string }> = ({ children, className, title, subtitle }) => (
+const SectionShell: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+  title?: string;
+  subtitle?: string;
+}> = ({ children, className, title, subtitle }) => (
   <section className={cn('bg-white rounded-2xl shadow-lg p-4 sm:p-6', className)}>
     {title && (
       <div className="mb-3">
@@ -50,14 +62,16 @@ const SectionShell: React.FC<{ children: React.ReactNode; className?: string; ti
 export default function TrendsSection() {
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState<string>('');
-  const [sort, setSort] = useState<'hot'|'pct'|'most'>('hot');
+  const [sort, setSort] = useState<'hot' | 'pct' | 'most'>('hot');
   const [list, setList] = useState<LeaderboardItem[]>([]);
   const [meta, setMeta] = useState<LeaderboardResp['meta'] | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // 모달 상태
-  const [activePid, setActivePid] = useState<number | null>(null);
+  // 상세보기(작은) 모달
+  const [activeItem, setActiveItem] = useState<LeaderboardItem | null>(null);
+  // 분석 상세(큰) 모달
+  const [analysisOpen, setAnalysisOpen] = useState(false);
 
   // 카테고리 로드
   useEffect(() => {
@@ -69,12 +83,14 @@ export default function TrendsSection() {
         if (!mounted) return;
         setCategories(data);
         setCategory((prev) => prev || data[0] || '');
-      } catch (e) {
+      } catch {
         if (!mounted) return;
         setErr('카테고리 목록을 불러오지 못했습니다.');
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // 랭킹 로드
@@ -95,27 +111,28 @@ export default function TrendsSection() {
         if (!mounted) return;
         setList(data.items || []);
         setMeta(data.meta);
-      } catch (e) {
+      } catch {
         if (!mounted) return;
         setErr('랭킹을 불러오지 못했습니다.');
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [category, sort]);
 
   const headerNote = useMemo(() => {
     if (!meta) return '';
-    const up = list[0]?.delta ?? 0;
     const tag = sort === 'hot' ? '증가수' : sort === 'pct' ? '증가율' : '최신 리뷰수';
     return `A=${meta.a_date} → B=${meta.b_date} · 기준=${tag} · 베이스 하한≥${meta.min_base}`;
-  }, [meta, list, sort]);
+  }, [meta, sort]);
 
   return (
     <SectionShell
       title="지금 뜨는 제품 랭킹"
-      subtitle="카테고리별로 요즘 리뷰가 늘고 있는 제품들을 모아봤어요. 카드를 눌러 상세 추이를 확인하세요."
+      subtitle="카테고리별로 요즘 리뷰가 늘고 있는 제품들을 모아봤어요. 카드를 눌러 상세 정보를 확인하세요."
       className="lg:col-span-2"
     >
       {/* 컨트롤 바 */}
@@ -127,13 +144,17 @@ export default function TrendsSection() {
             onChange={(e) => setCategory(e.target.value)}
             className="py-2 pl-3 pr-8 rounded-xl border-2 border-gray-200 text-sm focus:outline-none focus:border-purple-400"
           >
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">정렬</label>
           <div className="flex rounded-xl border-2 border-gray-200 p-1">
-            {SORT_OPTIONS.map(opt => (
+            {SORT_OPTIONS.map((opt) => (
               <button
                 key={opt.key}
                 onClick={() => setSort(opt.key)}
@@ -159,9 +180,7 @@ export default function TrendsSection() {
             ))}
           </div>
         )}
-        {!loading && err && (
-          <div className="text-center text-red-600 text-sm py-8">{err}</div>
-        )}
+        {!loading && err && <div className="text-center text-red-600 text-sm py-8">{err}</div>}
         {!loading && !err && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
             {list.map((item, idx) => (
@@ -169,17 +188,39 @@ export default function TrendsSection() {
                 key={item.pid}
                 rank={idx + 1}
                 item={item}
-                onOpen={() => setActivePid(item.pid)}
+                onOpen={() => setActiveItem(item)} // 작은 모달
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* 모달 */}
-      {activePid !== null && (
-        <TrendProductModal pid={activePid} onClose={() => setActivePid(null)} />
+      {/* 하단 액션: 분석 상세 보기(대형 모달) */}
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setAnalysisOpen(true)}
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+          style={{ background: 'linear-gradient(135deg, #b4a2f8 0%, #9b87f5 100%)' }}
+        >
+          분석 상세 보기
+        </button>
+      </div>
+
+      {/* 제품 상세보기 (작은) 모달 */}
+      {activeItem && (
+        <TrendProductDetailModal
+          item={activeItem}
+          onClose={() => setActiveItem(null)}
+        />
       )}
+
+      {/* 대형 분석 모달 */}
+      <TrendAnalysisModal
+        open={analysisOpen}
+        category={category}
+        onClose={() => setAnalysisOpen(false)}
+      />
     </SectionShell>
   );
 }
