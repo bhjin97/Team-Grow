@@ -7,6 +7,9 @@ from .types import ChatBody
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+# ─────────────────────────────────────────────────────────
+# Intent (현재는 사용만 안 하지만 유지)
+# ─────────────────────────────────────────────────────────
 def identify_intent(q: str) -> str:
     ql = q.lower()
     if any(k in ql for k in ["성분", "ingredient", "알레르기", "주의"]): return "ingredient"
@@ -14,6 +17,9 @@ def identify_intent(q: str) -> str:
     if any(k in ql for k in ["추천", "대체", "유사", "가격", "카테고리"]): return "product"
     return "general"
 
+# ─────────────────────────────────────────────────────────
+# 메시지 빌더 (LLM 컨텍스트)
+# ─────────────────────────────────────────────────────────
 def build_messages(query: str, contexts: List[Dict[str, Any]]) -> List[Dict[str, str]]:
     system = (
         "너는 화장품 도메인 어시스턴트다. 제공된 컨텍스트에 근거해서만 답한다. "
@@ -29,6 +35,9 @@ def build_messages(query: str, contexts: List[Dict[str, Any]]) -> List[Dict[str,
     user = f"사용자 질문: {query}\n\n컨텍스트:\n" + ("\n\n".join(lines) if lines else "(없음)")
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
+# ─────────────────────────────────────────────────────────
+# Pinecone 검색
+# ─────────────────────────────────────────────────────────
 def pinecone_query_raw(query: str, top_k: int) -> Dict[str, Any]:
     emb = oai.embeddings.create(model=EMBED_MODEL, input=[query])
     qv = emb.data[0].embedding
@@ -42,7 +51,6 @@ def pinecone_query_raw(query: str, top_k: int) -> Dict[str, Any]:
     out = idx.query(vector=qv, top_k=top_k, include_metadata=True, include_values=False)
     return out.to_dict() if hasattr(out, "to_dict") else out
 
-# routers/chat.py (발췌)
 def pinecone_query_items(query: str, top_k: int) -> list[dict]:
     out = pinecone_query_raw(query, top_k)
     matches = out.get("matches", []) if isinstance(out, dict) else (out.matches or [])
@@ -65,6 +73,9 @@ def pinecone_query_items(query: str, top_k: int) -> list[dict]:
         })
     return items
 
+# ─────────────────────────────────────────────────────────
+# RDB override (최신 가격/이미지/URL + 리뷰요약 조인)
+# ─────────────────────────────────────────────────────────
 def override_with_rdb(db, items: list[dict]) -> list[dict]:
     # 1) pid 수집
     pids = [x["pid"] for x in items if x.get("pid")]
@@ -116,10 +127,13 @@ def override_with_rdb(db, items: list[dict]) -> list[dict]:
             "price_krw": best.get("price_krw") if best.get("price_krw") is not None else x.get("price_krw_meta"),
             "rag_text": rag_text_final,
             "score": x.get("score"),
+            "product_url": best.get("product_url"),  # 없으면 None
         })
     return out
 
-
+# ─────────────────────────────────────────────────────────
+# Health/Diag
+# ─────────────────────────────────────────────────────────
 @router.get("/health")
 def health():
     return {"ok": True}
@@ -152,8 +166,11 @@ def diag(db=Depends(get_db)):
         ret["db"] = f"err:{e!r}"
     return ret
 
+# ─────────────────────────────────────────────────────────
+# 채팅(텍스트 스트리밍)
+# ─────────────────────────────────────────────────────────
 @router.post("")
-def chat(body: ChatBody, db=Depends(get_db), mode: Optional[str] = Query(default=None)):   # ✅ 따옴표 제거
+def chat(body: ChatBody, db=Depends(get_db), mode: Optional[str] = Query(default=None)):   # ✅ 빈 path 허용
     q = (body.query or "").strip()
     if not q:
         raise HTTPException(400, "query is required")
@@ -178,6 +195,7 @@ def chat(body: ChatBody, db=Depends(get_db), mode: Optional[str] = Query(default
         except Exception as e:
             return PlainTextResponse(f"(pc_only error) {e}", status_code=500)
 
+    # 기본 경로: 컨텍스트 구성 → LLM 스트리밍
     try:
         raw_items = pinecone_query_items(q, top_k=body.top_k or 6)
     except Exception as e:
@@ -185,7 +203,7 @@ def chat(body: ChatBody, db=Depends(get_db), mode: Optional[str] = Query(default
 
     try:
         contexts = override_with_rdb(db, raw_items)
-    except Exception as e:
+    except Exception:
         contexts = []
 
     messages = build_messages(q, contexts)
@@ -200,3 +218,29 @@ def chat(body: ChatBody, db=Depends(get_db), mode: Optional[str] = Query(default
             yield f"(stream error) {e}"
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
+
+# ─────────────────────────────────────────────────────────
+# 🔥 추천 JSON (프런트 카드용)
+# ─────────────────────────────────────────────────────────
+@router.post("/recommend")
+def recommend(body: ChatBody, db=Depends(get_db)):
+    q = (body.query or "").strip()
+    if not q:
+        raise HTTPException(400, "query is required")
+    try:
+        raw_items = pinecone_query_items(q, top_k=body.top_k or 12)
+        contexts = override_with_rdb(db, raw_items)
+        products = [{
+            "pid": c.get("pid"),
+            "brand": c.get("brand"),
+            "product_name": c.get("product_name"),
+            "category": c.get("category"),
+            "price_krw": c.get("price_krw"),
+            "image_url": c.get("image_url"),
+            "rag_text": c.get("rag_text"),
+            "score": c.get("score"),
+            "product_url": c.get("product_url"),
+        } for c in contexts]
+        return JSONResponse({"products": products})
+    except Exception as e:
+        raise HTTPException(500, f"recommend error: {e}")
