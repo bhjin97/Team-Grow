@@ -8,21 +8,22 @@ from sqlalchemy import text
 
 from db import get_db  # 같은 프로젝트의 db.py
 
-TBL_PRODUCT = "product_data"               # pid, hash_id, brand, product_name, review_count, category...
-TBL_HISTORY = "product_review_history_tmp" # product_pid, period_start(date), review_count
-TBL_CHAIN   = "product_data_chain"         # pid, rag_text
+# ---------------------------------------------
+# 상수
+# ---------------------------------------------
+ALLOWED_CATEGORIES = ["스킨/토너", "에센스/세럼/앰플", "크림", "선크림"]
+TBL_PRODUCT = "product_data"                # pid, brand, product_name, review_count, category, ...
+TBL_HISTORY = "product_review_history_tmp"  # product_pid, period_start(date), review_count
+TBL_CHAIN   = "product_data_chain"          # pid, rag_text
 
 router = APIRouter(prefix="/api/trends", tags=["trends"])
 
-# ------------------------------------------------------------
-# 유틸: 최신 주차와 직전 주차(=A/B) 결정
-# ------------------------------------------------------------
-def _get_latest_and_prev_weeks(db: Session, b_date: Optional[str]) -> Tuple[date, date]:
-    """
-    product_review_history_tmp.period_start 에서
-    - B(비교 기준): 요청값 없으면 최신 날짜. b_date == 'latest' 도 최신 처리
-    - A(베이스): B 이전의 가장 최근 날짜
-    """
+# ---------------------------------------------
+# A/B 기준일 계산 (핵심 수정)
+#  - B: 히스토리 테이블의 최신 날짜
+#  - A: B 이전의 가장 최근 날짜. 없으면 A=None (→ 쿼리에서 BASE로 폴백)
+# ---------------------------------------------
+def _get_latest_and_prev_weeks(db: Session, b_date: Optional[str]) -> Tuple[Optional[date], date]:
     if b_date and b_date != "latest":
         q = text(f"""
             SELECT DISTINCT DATE(period_start) AS d
@@ -44,18 +45,13 @@ def _get_latest_and_prev_weeks(db: Session, b_date: Optional[str]) -> Tuple[date
         raise HTTPException(status_code=404, detail="리뷰 이력(period_start)이 없습니다.")
 
     b = days[-1]
-    # 직전 날짜 선택(동일 주차 스냅샷 구조라면 직전 행으로 충분)
-    if len(days) < 2:
-        # 직전이 없으면 B만 존재 → A=B 로 맞추되, 후속 계산에서 delta=0
-        a = b
-    else:
-        a = days[-2]
+    # 이전 스냅샷이 없으면 None을 반환한다. (!!! 중요)
+    a = days[-2] if len(days) >= 2 else None
     return a, b
 
-
-# ------------------------------------------------------------
-# 0) 기간 리스트 (필요 시)
-# ------------------------------------------------------------
+# ---------------------------------------------
+# 0) 기간 리스트
+# ---------------------------------------------
 @router.get("/periods", response_model=List[str])
 def get_periods(db: Session = Depends(get_db)):
     q = text(f"""
@@ -66,70 +62,34 @@ def get_periods(db: Session = Depends(get_db)):
     rows = db.execute(q).fetchall()
     return [str(r[0]) for r in rows]
 
-
-# (호환용) 프론트가 /weeks 를 기대하는 경우 지원
 @router.get("/weeks", response_model=List[str])
 def get_weeks(db: Session = Depends(get_db)):
-    return get_periods(db)  # 동일 응답
+    return get_periods(db)
 
-
-# ------------------------------------------------------------
-# 1) 카테고리 목록 (product_data 기준)
-# ------------------------------------------------------------
+# ---------------------------------------------
+# 1) 카테고리 목록
+# ---------------------------------------------
 @router.get("/categories", response_model=List[str])
 def get_categories(db: Session = Depends(get_db)):
-    q = text(f"""
-        SELECT DISTINCT category
-        FROM {TBL_PRODUCT}
-        WHERE category IS NOT NULL AND category <> ''
-        ORDER BY category
-    """)
-    rows = db.execute(q).fetchall()
-    cats = [r[0] for r in rows if r[0]]
-    if not cats:
-        raise HTTPException(status_code=404, detail="카테고리가 없습니다.")
-    return cats
+    return ALLOWED_CATEGORIES
 
-
-# ------------------------------------------------------------
-# 정렬 문자열 호환 (hot | pct | most | growth | volume)
-# ------------------------------------------------------------
-def _normalize_sort(sort: str) -> str:
-    if sort in ("hot", "pct", "most"):
-        return sort
-    if sort == "growth":
-        return "pct"
-    if sort == "volume":
-        return "most"
-    return "hot"
-
-
-# ------------------------------------------------------------
-# 2) 카테고리별 랭킹(카드 7개)
-#    * A 스냅샷이 없으면 product_data.review_count(BASE) 사용
-# ------------------------------------------------------------
+# ---------------------------------------------
+# 2) 카테고리별 랭킹(카드/리스트)
+#  - A가 없으면 a.review_count는 NULL → COALESCE로 BASE 사용
+# ---------------------------------------------
 @router.get("/leaderboard")
 def get_leaderboard(
-    category: str = Query(..., description="카테고리명 (product_data.category)"),
+    category: str = Query(..., description="카테고리명"),
     sort: str = Query(
         "hot",
-        description="정렬: hot(핫리뷰수) | pct(증가율) | most(리뷰많음) "
-                    "| growth(=pct) | volume(=most) | 핫리뷰 | 증가율 | 리뷰많음",
+        description="정렬: hot(핫리뷰수) | pct(증가율) | most(리뷰많음) | growth(=pct) | volume(=most)",
     ),
-    limit: int = Query(7, ge=1, le=30),
-    min_base: int = Query(75, ge=0, description="A(베이스) 최소 리뷰 수 하한(노이즈 컷)"),
-    b: Optional[str] = Query(None, description="B(비교) 날짜 YYYY-MM-DD 또는 'latest'. 없으면 최신"),
+    limit: int = Query(5, ge=1, le=30),
+    min_base: int = Query(75, ge=0, description="A(베이스) 최소 리뷰 수 하한"),
+    b: Optional[str] = Query(None, description="B(비교) 날짜 YYYY-MM-DD 또는 'latest'"),
     db: Session = Depends(get_db),
 ):
-    """
-    반환 필드:
-    - a_count, b_count
-    - delta
-    - pct_score(로그/스무딩 증가율), hot_score(규모보정 증가수), most_score(리뷰수B)
-    - rank_score(현재 정렬에 사용된 최종 점수)
-    """
-
-    # 0) 정렬 키 표준화(영/한/별칭 모두 허용)
+    # 정렬 키 정규화
     sort_map = {
         "hot": "hot", "핫리뷰": "hot", "증가수": "hot",
         "pct": "pct", "growth": "pct", "증가율": "pct",
@@ -137,28 +97,18 @@ def get_leaderboard(
     }
     sort_norm = sort_map.get(sort, "hot")
 
-    # 1) A/B 날짜 산출
+    # A/B 기준일
     a_date, b_date = _get_latest_and_prev_weeks(db, b)
-    # A 스냅샷이 없으면 BASE로 대체
-    prev = db.execute(
-        text(f"""
-            SELECT MAX(DATE(period_start)) AS d
-            FROM {TBL_HISTORY}
-            WHERE DATE(period_start) < :b_date
-        """),
-        {"b_date": b_date}
-    ).fetchone()
-    a_date_real = prev[0]
 
-    # 2) 데이터 로드 (A 없으면 BASE 사용)
+    # 직전 스냅샷이 없을 수 있으므로 LEFT JOIN + COALESCE(BASE)
     q = text(f"""
         SELECT
             pd.pid, pd.product_name, pd.brand,
             pd.image_url, pd.product_url, pd.price_krw,
             COALESCE(pdc.rag_text, '') AS rag_text,
-            pd.review_count AS base_cnt,           -- BASE
-            a.review_count  AS a_cnt,              -- A(스냅샷)
-            b.review_count  AS b_cnt               -- B(스냅샷)
+
+            COALESCE(a.review_count, pd.review_count, 0) AS a_cnt,
+            b.review_count AS b_cnt
         FROM {TBL_PRODUCT} AS pd
         LEFT JOIN {TBL_HISTORY} AS a
                ON a.product_pid = pd.pid
@@ -173,38 +123,28 @@ def get_leaderboard(
           AND COALESCE(a.review_count, pd.review_count, 0) >= :min_base
     """)
     rows = db.execute(q, {
-        "a_date": a_date_real,
+        "a_date": a_date,           # None이면 A조인 미일치 → a.review_count=NULL
         "b_date": b_date,
         "cat": category,
         "min_base": min_base
     }).fetchall()
 
-    # 3) 점수 공식을 “확 바꾼” 버전
-    #    - hot_score: 규모 보정 증가수  = (B - A) / (A + KHOT)^ALPHA
-    #    - pct_score: 로그 차이 증가율  = log1p(B) - log1p(A)
-    #    - most_score: 리뷰수 B 그 자체
-    #    ※ 이렇게 하면 세 탭이 절대 같은 순서가 나오지 않음.
     import math
-    KHOT = 300.0   # 분모 스무딩(너무 크게 튀는 소형 베이스 억제)
-    ALPHA = 0.35   # 규모 보정의 강도(0.3~0.5 권장)
+    KHOT = 300.0
+    ALPHA = 0.35
 
     items: List[Dict[str, Any]] = []
-    for (pid, name, brand, img, url, price, rag, base_cnt, a_cnt, b_cnt) in rows:
-        a_val = int(a_cnt) if a_cnt is not None else int(base_cnt or 0)
+    for (pid, name, brand, img, url, price, rag, a_cnt, b_cnt) in rows:
+        a_val = int(a_cnt or 0)
         b_val = int(b_cnt or 0)
         if a_val < 0: a_val = 0
         if b_val < 0: b_val = 0
 
         delta = b_val - a_val
-
-        # 증가율(로그 차) — 규모 무관하게 상승폭 비교 가능
-        pct_score = (math.log1p(b_val) - math.log1p(a_val)) if a_val > 0 or b_val > 0 else 0.0
-        # 규모 보정 증가수 — BASE가 큰 브랜드의 ‘원래 크기’ 이점 줄임
+        pct_score = (math.log1p(b_val) - math.log1p(a_val)) if (a_val > 0 or b_val > 0) else 0.0
         hot_score = (delta) / ((a_val + KHOT) ** ALPHA) if (a_val + KHOT) > 0 else 0.0
-        # 리뷰 많은 순 — 그 자체
         most_score = float(b_val)
 
-        # UI 보조용: 기존 퍼센트도 제공(표시 원하면 사용)
         pct_percent = (((b_val / a_val) - 1.0) * 100.0) if a_val > 0 else (100.0 if b_val > 0 else 0.0)
         index_val = ((b_val / a_val) * 100.0) if a_val > 0 else (100.0 if b_val > 0 else 100.0)
 
@@ -219,13 +159,9 @@ def get_leaderboard(
             "a_count": a_val,
             "b_count": b_val,
             "delta": delta,
-
-            # 새 점수들
             "hot_score": round(hot_score, 6),
             "pct_score": round(pct_score, 6),
             "most_score": round(most_score, 6),
-
-            # 참고용(표시 선택)
             "pct": round(pct_percent, 1),
             "index": round(index_val, 1),
         })
@@ -234,7 +170,7 @@ def get_leaderboard(
         return {
             "meta": {
                 "category": category,
-                "a_date": "BASE" if a_date_real is None else str(a_date_real),
+                "a_date": "BASE" if a_date is None else str(a_date),
                 "b_date": str(b_date),
                 "sort": sort_norm,
                 "min_base": min_base,
@@ -243,7 +179,7 @@ def get_leaderboard(
             "items": []
         }
 
-    # 4) 정렬 — 각 탭별로 아예 다른 점수 사용 + 강한 타이브레이커
+    # 정렬
     if sort_norm == "hot":
         for it in items:
             it["rank_score"] = it["hot_score"]
@@ -260,7 +196,7 @@ def get_leaderboard(
     return {
         "meta": {
             "category": category,
-            "a_date": "BASE" if a_date_real is None else str(a_date_real),
+            "a_date": "BASE" if a_date is None else str(a_date),
             "b_date": str(b_date),
             "sort": sort_norm,
             "min_base": min_base,
@@ -269,35 +205,27 @@ def get_leaderboard(
         "items": items[:limit]
     }
 
-# (호환용) /products : 프론트가 이 경로를 기대하는 경우를 위해 /leaderboard 위임
+# 호환용
 @router.get("/products")
 def get_products_compat(
     category: str = Query(...),
-    sort: str = Query("hot", description="hot | growth | volume 도 허용"),
-    limit: int = Query(7, ge=1, le=30),
+    sort: str = Query("hot"),
+    limit: int = Query(5, ge=1, le=30),
     min_base: int = Query(75, ge=0),
     b: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     return get_leaderboard(category=category, sort=sort, limit=limit, min_base=min_base, b=b, db=db)
 
-
-# ------------------------------------------------------------
-# 3) 제품 상세 시계열(모달 차트 용) — 최근 N주
-# ------------------------------------------------------------
+# ---------------------------------------------
+# 3) 제품 상세 시계열
+# ---------------------------------------------
 @router.get("/product_timeseries")
 def product_timeseries(
     pid: int = Query(..., description="product_data.pid"),
     weeks: int = Query(12, ge=4, le=52),
     db: Session = Depends(get_db),
 ):
-    """
-    반환:
-    - product { pid, name, brand, image_url, product_url, price_krw, category }
-    - series: [{date, count, index}], index는 첫 값=100 기준
-    - latest: {a_date, b_date, a_count, b_count, delta, pct, index}
-    """
-    # 제품 메타
     q_meta = text(f"""
         SELECT pid, product_name, brand, image_url, product_url, price_krw, category
         FROM {TBL_PRODUCT}
@@ -308,19 +236,17 @@ def product_timeseries(
     if not meta:
         raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
 
-    # 최근 N주 시계열
     q_ts = text(f"""
         SELECT DATE(period_start) AS d, CAST(review_count AS SIGNED) AS c
         FROM {TBL_HISTORY}
         WHERE product_pid = :pid
         ORDER BY d DESC
-        LIMIT :n
+        LIMIT {int(weeks)}
     """)
-    rows = db.execute(q_ts, {"pid": pid, "n": weeks}).fetchall()
+    rows = db.execute(q_ts, {"pid": pid}).fetchall()
     if not rows:
         raise HTTPException(status_code=404, detail="시계열 데이터가 없습니다.")
 
-    # 오래된→최신 순으로 정렬
     rows = list(reversed(rows))
     base_val = max(1, int(rows[0][1]) if rows[0][1] is not None else 1)
 
@@ -328,13 +254,8 @@ def product_timeseries(
     for d, c in rows:
         v = int(c) if c is not None else 0
         idx = (v / base_val) * 100.0 if base_val > 0 else 100.0
-        series.append({
-            "date": str(d),
-            "count": v,
-            "index": round(idx, 1)
-        })
+        series.append({"date": str(d), "count": v, "index": round(idx, 1)})
 
-    # 최신 2주 A/B 요약
     if len(rows) >= 2:
         a_date2, a_val = rows[-2][0], int(rows[-2][1] or 0)
         b_date2, b_val = rows[-1][0], int(rows[-1][1] or 0)
@@ -347,12 +268,8 @@ def product_timeseries(
     index = (b_val / a_val) * 100.0 if a_val > 0 else 100.0
 
     product = {
-        "pid": meta[0],
-        "product_name": meta[1],
-        "brand": meta[2],
-        "image_url": meta[3],
-        "product_url": meta[4],
-        "price_krw": meta[5],
+        "pid": meta[0], "product_name": meta[1], "brand": meta[2],
+        "image_url": meta[3], "product_url": meta[4], "price_krw": meta[5],
         "category": meta[6],
     }
 
@@ -370,34 +287,22 @@ def product_timeseries(
         }
     }
 
-
-# ------------------------------------------------------------
-# 4) 카테고리 요약(선택): 합계 기준 델타/증가율
-#    * A 스냅샷이 없으면 product_data.review_count(BASE) 사용
-# ------------------------------------------------------------
+# ---------------------------------------------
+# 4) 카테고리 요약(합계)
+# ---------------------------------------------
 @router.get("/category_summary")
 def category_summary(
     category: str = Query(...),
     db: Session = Depends(get_db),
-    b: Optional[str] = Query(None, description="B(비교) 날짜 YYYY-MM-DD 또는 'latest'. 없으면 최신"),
+    b: Optional[str] = Query(None, description="B(비교) 날짜 YYYY-MM-DD 또는 'latest'"),
     min_base: int = Query(75, ge=0),
 ):
     a_date, b_date = _get_latest_and_prev_weeks(db, b)
 
-    prev = db.execute(
-        text(f"""
-            SELECT MAX(DATE(period_start)) AS d
-            FROM {TBL_HISTORY}
-            WHERE DATE(period_start) < :b_date
-        """),
-        {"b_date": b_date}
-    ).fetchone()
-    a_date_real = prev[0]
-
     q = text(f"""
         SELECT
-            SUM(COALESCE(a.review_count, pd.review_count)) AS a_sum,   -- A=스냅샷 없으면 BASE
-            SUM(b.review_count) AS b_sum
+            SUM(CAST(COALESCE(a.review_count, pd.review_count, 0) AS SIGNED)) AS a_sum,
+            SUM(CAST(b.review_count AS SIGNED)) AS b_sum
         FROM {TBL_PRODUCT} AS pd
         LEFT JOIN {TBL_HISTORY} AS a
                ON a.product_pid = pd.pid
@@ -409,7 +314,7 @@ def category_summary(
           AND COALESCE(a.review_count, pd.review_count, 0) >= :min_base
     """)
     row = db.execute(q, {
-        "a_date": a_date_real,
+        "a_date": a_date,
         "b_date": b_date,
         "cat": category,
         "min_base": min_base
@@ -423,11 +328,216 @@ def category_summary(
 
     return {
         "category": category,
-        "a_date": "BASE" if a_date_real is None else str(a_date_real),
+        "a_date": "BASE" if a_date is None else str(a_date),
         "b_date": str(b_date),
         "a_sum": a_sum,
         "b_sum": b_sum,
         "delta": delta,
         "pct": round(pct, 1),
         "index": round(index, 1)
+    }
+
+# ---------------------------------------------
+# 4.5) 카테고리 시계열(절대량/지수)
+# ---------------------------------------------
+@router.get("/category_timeseries")
+def category_timeseries(
+    weeks: int = Query(8, ge=4, le=52),
+    db: Session = Depends(get_db),
+):
+    placeholders = ", ".join([f":c{i}" for i, _ in enumerate(ALLOWED_CATEGORIES)])
+    q = text(f"""
+        SELECT DATE(period_start) AS d, pd.category, SUM(CAST(prh.review_count AS SIGNED)) AS s
+        FROM {TBL_HISTORY} prh
+        JOIN {TBL_PRODUCT} pd ON pd.pid = prh.product_pid
+        WHERE pd.category IN ({placeholders})
+        GROUP BY d, pd.category
+        ORDER BY d DESC
+        LIMIT 10000
+    """)
+    params = {f"c{i}": cat for i, cat in enumerate(ALLOWED_CATEGORIES)}
+    rows = db.execute(q, params).fetchall()
+
+    if not rows:
+        return {"series": []}
+
+    from collections import defaultdict
+    per_day: Dict[str, Dict[str, int]] = defaultdict(lambda: {c:0 for c in ALLOWED_CATEGORIES})
+    days: List[str] = []
+    for d, cat, s in rows:
+        ds = str(d)
+        per_day[ds][cat] = int(s or 0)
+        if ds not in days:
+            days.append(ds)
+    days.sort()
+    days = days[-weeks:] if len(days) > weeks else days
+
+    base = per_day[days[0]]
+    base_total = {c: max(1, int(base.get(c,0))) for c in ALLOWED_CATEGORIES}
+
+    series = []
+    for ds in days:
+        row = {"date": ds}
+        for c in ALLOWED_CATEGORIES:
+            v = int(per_day[ds].get(c,0))
+            idx = round((v/base_total[c])*100.0, 1) if base_total[c] > 0 else 100.0
+            row[c] = {"sum": v, "index": idx}
+        series.append(row)
+
+    return {"series": series, "categories": ALLOWED_CATEGORIES}
+
+# ---------------------------------------------
+# 5) A/B 비교: 브랜드 포지셔닝 (합계)
+#  - A 없으면 BASE 사용
+# ---------------------------------------------
+@router.get("/brand_positioning")
+def brand_positioning(
+    category: str = Query(...),
+    db: Session = Depends(get_db),
+    b: Optional[str] = Query(None, description="B(비교) 날짜 YYYY-MM-DD 또는 'latest'"),
+    min_base: int = Query(75, ge=0),
+    topk: int = Query(50, ge=5, le=100),
+):
+    if category not in ALLOWED_CATEGORIES:
+        raise HTTPException(status_code=400, detail="허용되지 않은 카테고리")
+
+    a_date, b_date = _get_latest_and_prev_weeks(db, b)
+
+    q = text(f"""
+        SELECT
+            pd.brand,
+            SUM(CAST(COALESCE(a.review_count, pd.review_count, 0) AS SIGNED)) AS base_sum,
+            SUM(CAST(b.review_count AS SIGNED)) AS current_sum
+        FROM {TBL_PRODUCT} pd
+        LEFT JOIN {TBL_HISTORY} a
+               ON a.product_pid = pd.pid
+              AND DATE(a.period_start) = :a_date
+        JOIN {TBL_HISTORY} b
+               ON b.product_pid = pd.pid
+              AND DATE(b.period_start) = :b_date
+        WHERE pd.category = :cat
+          AND COALESCE(a.review_count, pd.review_count, 0) >= :min_base
+        GROUP BY pd.brand
+    """)
+    rows = db.execute(q, {
+        "a_date": a_date, "b_date": b_date, "cat": category, "min_base": min_base
+    }).fetchall()
+
+    items = []
+    for brand, base_sum, current_sum in rows:
+        base_sum = int(base_sum or 0)
+        current_sum = int(current_sum or 0)
+        delta_sum = current_sum - base_sum
+        if base_sum <= 0 and current_sum <= 0:
+            continue
+        items.append({
+            "brand": brand,
+            "base_sum": base_sum,
+            "current_sum": current_sum,
+            "delta_sum": delta_sum,
+        })
+
+    items.sort(key=lambda x: (x["delta_sum"], x["current_sum"]), reverse=True)
+    items = items[:topk]
+
+    return {
+        "meta": {"category": category, "a_date": ("BASE" if a_date is None else str(a_date)),
+                 "b_date": str(b_date), "min_base": min_base},
+        "items": items
+    }
+
+# ---------------------------------------------
+# 6) A/B 비교: 브랜드 기여도 Top/Bottom + 대표 제품
+#  - A 없으면 BASE 사용
+# ---------------------------------------------
+@router.get("/brand_contributors")
+def brand_contributors(
+    category: str = Query(...),
+    db: Session = Depends(get_db),
+    b: Optional[str] = Query(None, description="B(비교) 날짜 YYYY-MM-DD 또는 'latest'"),
+    min_base: int = Query(75, ge=0),
+    topk: int = Query(5, ge=3, le=10),
+):
+    if category not in ALLOWED_CATEGORIES:
+        raise HTTPException(status_code=400, detail="허용되지 않은 카테고리")
+
+    a_date, b_date = _get_latest_and_prev_weeks(db, b)
+
+    # 1) 브랜드별 A/B 합계
+    q_brand = text(f"""
+        SELECT
+            pd.brand AS brand,
+            SUM(CAST(COALESCE(a.review_count, pd.review_count, 0) AS SIGNED)) AS a_sum,
+            SUM(CAST(b.review_count AS SIGNED)) AS b_sum
+        FROM {TBL_PRODUCT} pd
+        LEFT JOIN {TBL_HISTORY} a
+               ON a.product_pid = pd.pid
+              AND DATE(a.period_start) = :a_date
+        JOIN {TBL_HISTORY} b
+               ON b.product_pid = pd.pid
+              AND DATE(b.period_start) = :b_date
+        WHERE pd.category = :cat
+          AND COALESCE(a.review_count, pd.review_count, 0) >= :min_base
+        GROUP BY pd.brand
+    """)
+    rows = db.execute(q_brand, {
+        "a_date": a_date, "b_date": b_date, "cat": category, "min_base": min_base
+    }).fetchall()
+
+    if not rows:
+        return {
+            "meta": {"category": category, "a_date": ("BASE" if a_date is None else str(a_date)),
+                     "b_date": str(b_date), "min_base": min_base},
+            "top": [], "bottom": []
+        }
+
+    items = []
+    for brand, a_sum, b_sum in rows:
+        a_sum = int(a_sum or 0)
+        b_sum = int(b_sum or 0)
+        delta = b_sum - a_sum
+        pct = ((b_sum / a_sum) - 1.0) * 100.0 if a_sum > 0 else (100.0 if b_sum > 0 else 0.0)
+        items.append({
+            "brand": brand,
+            "base_sum": a_sum,
+            "curr_sum": b_sum,
+            "delta": delta,
+            "pct": round(pct, 1),
+        })
+
+    # 2) 브랜드별 대표 제품(Δ 절대값 최대) — A는 BASE fallback
+    def fetch_top_product_for_brand(brand_name: str) -> Optional[Dict[str, Any]]:
+        q_prod = text(f"""
+            SELECT
+                pd.pid, pd.product_name,
+                CAST(b.review_count AS SIGNED) - CAST(COALESCE(a.review_count, pd.review_count, 0) AS SIGNED) AS d
+            FROM {TBL_PRODUCT} pd
+            LEFT JOIN {TBL_HISTORY} a
+                   ON a.product_pid = pd.pid
+                  AND DATE(a.period_start) = :a_date
+            JOIN {TBL_HISTORY} b
+                   ON b.product_pid = pd.pid
+                  AND DATE(b.period_start) = :b_date
+            WHERE pd.category = :cat
+              AND pd.brand = :brand
+            ORDER BY ABS(d) DESC
+            LIMIT 1
+        """)
+        r = db.execute(q_prod, {
+            "a_date": a_date, "b_date": b_date, "cat": category, "brand": brand_name
+        }).fetchone()
+        if not r:
+            return None
+        return {"pid": int(r[0]), "name": r[1], "delta": int(r[2] or 0)}
+
+    for it in items:
+        it["top_product"] = fetch_top_product_for_brand(it["brand"])
+
+    top = sorted(items, key=lambda x: (x["delta"], x["curr_sum"]), reverse=True)[:topk]
+    bottom = sorted(items, key=lambda x: (x["delta"], -x["curr_sum"]))[:topk]
+
+    return {
+        "meta": {"category": category, "a_date": ("BASE" if a_date is None else str(a_date)),
+                 "b_date": str(b_date), "min_base": min_base},
+        "top": top, "bottom": bottom,
     }
