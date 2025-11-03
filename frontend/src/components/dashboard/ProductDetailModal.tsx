@@ -22,6 +22,7 @@ interface ProductDetailModalProps {
   onClose: () => void;
   onToggleFavorite?: (pid: string | number) => void;
   favorites?: number[];
+  mode?: 'routine' | 'profile';
 }
 
 const formatPrice = (price: number | undefined) => {
@@ -34,6 +35,7 @@ export default function ProductDetailModal({
   onClose,
   onToggleFavorite,
   favorites = [],
+  mode,
 }: ProductDetailModalProps) {
   const [isSaved, setIsSaved] = React.useState(false);
   const [toastMsg, setToastMsg] = React.useState<string | null>(null);
@@ -109,7 +111,15 @@ export default function ProductDetailModal({
                   className="max-w-full max-h-full object-contain"
                 />
                 <button
-                  onClick={handleToggleFavorite}
+                  onClick={() => {
+                    if (mode === 'profile') {
+                      // 프로필에서는 즐겨찾기 삭제만 허용
+                      onToggleFavorite?.(product.product_pid);
+                    } else {
+                      // 루틴에서는 토글
+                      handleToggleFavorite();
+                    }
+                  }}
                   className={`absolute top-4 left-4 p-2 rounded-full shadow-md transition ${
                     isSaved
                       ? 'bg-pink-500 text-white'

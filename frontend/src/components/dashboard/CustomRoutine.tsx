@@ -34,6 +34,7 @@ interface CustomRoutineProps {
   routineProducts: Product[];
   setRoutineProducts: (v: Product[]) => void;
   onFetchRoutine: () => Promise<void>;
+  resetKeywords: () => void; 
 }
 
 export default function CustomRoutine({
@@ -50,6 +51,7 @@ export default function CustomRoutine({
   routineProducts,
   setRoutineProducts,
   onFetchRoutine,
+  resetKeywords,
 }: CustomRoutineProps) {
   const [favorites, setFavorites] = React.useState<number[]>([]);
   const [toastMsg, setToastMsg] = React.useState<string | null>(null);
@@ -211,7 +213,7 @@ export default function CustomRoutine({
             ))}
             <button
               type="button"
-              onClick={() => setSelectedKeywords([])}
+              onClick={resetKeywords}
               className="px-3 py-1 rounded-full text-xs sm:text-sm bg-gray-200 text-gray-700 hover:bg-gray-300"
             >
               초기화
@@ -297,7 +299,8 @@ export default function CustomRoutine({
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onToggleFavorite={(pid) => toggleFavorite(Number(pid))}
-        favorites={favorites} 
+        favorites={favorites}
+        mode="routine" 
       />
     </>
   );
