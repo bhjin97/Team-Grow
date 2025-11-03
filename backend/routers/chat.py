@@ -8,6 +8,50 @@ from .types import ChatBody
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 # ─────────────────────────────────────────────────────────
+# 카테고리 매핑 (메타데이터와 동일 표기)
+# ─────────────────────────────────────────────────────────
+CATEGORY_MAP: dict[str, list[str]] = {
+    # 스킨/토너
+    "스킨": ["스킨/토너"],
+    "토너": ["스킨/토너"],
+    "toner": ["스킨/토너"],
+    "skin": ["스킨/토너"],
+
+    # 에센스/세럼/앰플
+    "에센스": ["에센스/세럼/앰플"],
+    "세럼": ["에센스/세럼/앰플"],
+    "앰플": ["에센스/세럼/앰플"],
+    "essence": ["에센스/세럼/앰플"],
+    "serum": ["에센스/세럼/앰플"],
+    "ampoule": ["에센스/세럼/앰플"],
+
+    # 크림
+    "크림": ["크림"],
+    "cream": ["크림"],
+    "수분크림": ["크림"],
+    "영양크림": ["크림"],
+
+    # 선크림
+    "선크림": ["선크림"],
+    "자차": ["선크림"],
+    "sunscreen": ["선크림"],
+    "spf": ["선크림"],
+}
+
+def detect_categories(user_text: str) -> list[str] | None:
+    """사용자 질의에서 우리가 쓰는 표준 카테고리 리스트를 추출."""
+    t = (user_text or "").lower()
+    hits = set()
+    for key, cats in CATEGORY_MAP.items():
+        if key in t:
+            hits.update(cats)
+    # 복합 표기 보완(스킨/토너 키워드 군집)
+    if any(k in t for k in ["스킨", "토너", "skin", "toner"]):
+        hits.add("스킨/토너")
+    return list(hits) if hits else None
+
+
+# ─────────────────────────────────────────────────────────
 # Intent (현재는 사용만 안 하지만 유지)
 # ─────────────────────────────────────────────────────────
 def identify_intent(q: str) -> str:
@@ -16,6 +60,7 @@ def identify_intent(q: str) -> str:
     if any(k in ql for k in ["루틴", "순서", "아침", "저녁"]): return "routine"
     if any(k in ql for k in ["추천", "대체", "유사", "가격", "카테고리"]): return "product"
     return "general"
+
 
 # ─────────────────────────────────────────────────────────
 # 메시지 빌더 (LLM 컨텍스트)
@@ -35,10 +80,11 @@ def build_messages(query: str, contexts: List[Dict[str, Any]]) -> List[Dict[str,
     user = f"사용자 질문: {query}\n\n컨텍스트:\n" + ("\n\n".join(lines) if lines else "(없음)")
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
+
 # ─────────────────────────────────────────────────────────
-# Pinecone 검색
+# Pinecone 검색 (메타 필터 추가)
 # ─────────────────────────────────────────────────────────
-def pinecone_query_raw(query: str, top_k: int) -> Dict[str, Any]:
+def pinecone_query_raw(query: str, top_k: int, meta_filter: Optional[dict] = None) -> Dict[str, Any]:
     emb = oai.embeddings.create(model=EMBED_MODEL, input=[query])
     qv = emb.data[0].embedding
     info = pc.describe_index(INDEX_PRODUCT)
@@ -48,11 +94,17 @@ def pinecone_query_raw(query: str, top_k: int) -> Dict[str, Any]:
             f"인덱스 차원과 임베딩 모델을 맞춰주세요."
         )
     idx = pc.Index(INDEX_PRODUCT)
-    out = idx.query(vector=qv, top_k=top_k, include_metadata=True, include_values=False)
+    out = idx.query(
+        vector=qv,
+        top_k=top_k,
+        include_metadata=True,
+        include_values=False,
+        filter=meta_filter  # ← 메타 필터 적용
+    )
     return out.to_dict() if hasattr(out, "to_dict") else out
 
-def pinecone_query_items(query: str, top_k: int) -> list[dict]:
-    out = pinecone_query_raw(query, top_k)
+def pinecone_query_items(query: str, top_k: int, meta_filter: Optional[dict] = None) -> list[dict]:
+    out = pinecone_query_raw(query, top_k, meta_filter=meta_filter)
     matches = out.get("matches", []) if isinstance(out, dict) else (out.matches or [])
     items = []
     for m in matches:
@@ -72,6 +124,7 @@ def pinecone_query_items(query: str, top_k: int) -> list[dict]:
             "score": (m.get("score") if isinstance(m, dict) else m.score),
         })
     return items
+
 
 # ─────────────────────────────────────────────────────────
 # RDB override (최신 가격/이미지/URL + 리뷰요약 조인)
@@ -131,6 +184,7 @@ def override_with_rdb(db, items: list[dict]) -> list[dict]:
         })
     return out
 
+
 # ─────────────────────────────────────────────────────────
 # Health/Diag
 # ─────────────────────────────────────────────────────────
@@ -166,11 +220,12 @@ def diag(db=Depends(get_db)):
         ret["db"] = f"err:{e!r}"
     return ret
 
+
 # ─────────────────────────────────────────────────────────
-# 채팅(텍스트 스트리밍)
+# 채팅(텍스트 스트리밍) - 메타 필터 적용
 # ─────────────────────────────────────────────────────────
 @router.post("")
-def chat(body: ChatBody, db=Depends(get_db), mode: Optional[str] = Query(default=None)):   # ✅ 빈 path 허용
+def chat(body: ChatBody, db=Depends(get_db), mode: Optional[str] = Query(default=None)):
     q = (body.query or "").strip()
     if not q:
         raise HTTPException(400, "query is required")
@@ -190,14 +245,18 @@ def chat(body: ChatBody, db=Depends(get_db), mode: Optional[str] = Query(default
 
     if mode == "pc_only":
         try:
-            raw = pinecone_query_raw(q, top_k=body.top_k or 6)
+            cats = detect_categories(q)
+            meta_filter = {"category": {"$in": cats}} if cats else None
+            raw = pinecone_query_raw(q, top_k=body.top_k or 6, meta_filter=meta_filter)
             return JSONResponse(raw)
         except Exception as e:
             return PlainTextResponse(f"(pc_only error) {e}", status_code=500)
 
     # 기본 경로: 컨텍스트 구성 → LLM 스트리밍
     try:
-        raw_items = pinecone_query_items(q, top_k=body.top_k or 6)
+        cats = detect_categories(q)
+        meta_filter = {"category": {"$in": cats}} if cats else None
+        raw_items = pinecone_query_items(q, top_k=body.top_k or 6, meta_filter=meta_filter)
     except Exception as e:
         return PlainTextResponse(f"Pinecone error: {e}", status_code=500)
 
@@ -219,8 +278,9 @@ def chat(body: ChatBody, db=Depends(get_db), mode: Optional[str] = Query(default
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
 
+
 # ─────────────────────────────────────────────────────────
-# 🔥 추천 JSON (프런트 카드용)
+# 🔥 추천 JSON (프런트 카드용) - 메타 필터 적용
 # ─────────────────────────────────────────────────────────
 @router.post("/recommend")
 def recommend(body: ChatBody, db=Depends(get_db)):
@@ -228,7 +288,9 @@ def recommend(body: ChatBody, db=Depends(get_db)):
     if not q:
         raise HTTPException(400, "query is required")
     try:
-        raw_items = pinecone_query_items(q, top_k=body.top_k or 12)
+        cats = detect_categories(q)
+        meta_filter = {"category": {"$in": cats}} if cats else None
+        raw_items = pinecone_query_items(q, top_k=body.top_k or 12, meta_filter=meta_filter)
         contexts = override_with_rdb(db, raw_items)
         products = [{
             "pid": c.get("pid"),
