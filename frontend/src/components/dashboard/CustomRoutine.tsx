@@ -5,6 +5,7 @@ import { Clock, Heart } from 'lucide-react';
 import * as React from 'react';
 import { fetchRoutine } from '../../lib/utils';
 import { API_BASE } from '../../lib/env';
+import ProductDetailModal from './ProductDetailModal';
 
 // Product 인터페이스
 interface Product {
@@ -51,7 +52,8 @@ export default function CustomRoutine({
   onFetchRoutine,
 }: CustomRoutineProps) {
   const [favorites, setFavorites] = React.useState<number[]>([]);
-  const [toastMsg, setToastMsg] = React.useState<string | null>(null); // ✅ 토스트 상태 추가
+  const [toastMsg, setToastMsg] = React.useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null); // ✅ 모달용
   const userId = localStorage.getItem('user_id');
 
   // ✅ 즐겨찾기 목록 불러오기
@@ -142,6 +144,7 @@ export default function CustomRoutine({
 
         {/* 선택 영역 */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-6">
+          {/* 계절 */}
           <div>
             <label className="text-xs text-gray-600 mb-1 block">계절</label>
             <select
@@ -153,6 +156,8 @@ export default function CustomRoutine({
               <option value="winter">❄️ 겨울</option>
             </select>
           </div>
+
+          {/* 시간 */}
           <div>
             <label className="text-xs text-gray-600 mb-1 block">시간</label>
             <select
@@ -164,6 +169,8 @@ export default function CustomRoutine({
               <option value="evening">🌙 오후</option>
             </select>
           </div>
+
+          {/* 피부 타입 */}
           <div>
             <label className="text-xs text-gray-600 mb-1 block">피부 타입</label>
             <select
@@ -221,11 +228,15 @@ export default function CustomRoutine({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.6 + index * 0.1 }}
-                className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 hover:shadow-lg transition-shadow relative"
+                className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 hover:shadow-lg transition-shadow relative cursor-pointer"
+                onClick={() => setSelectedProduct(product)} // ✅ 클릭 시 모달 열기
               >
                 {/* ❤️ 하트 버튼 */}
                 <button
-                  onClick={() => toggleFavorite(Number(product.product_pid))}
+                  onClick={(e) => {
+                    e.stopPropagation(); // ✅ 부모 클릭 방지
+                    toggleFavorite(Number(product.product_pid));
+                  }}
                   className={`absolute top-2 right-2 p-1.5 rounded-full transition ${
                     favorites.includes(Number(product.product_pid))
                       ? 'bg-pink-500 text-white'
@@ -280,6 +291,14 @@ export default function CustomRoutine({
           스킨케어 루틴 추천 받기
         </button>
       </motion.div>
+
+      {/* ✅ 제품 상세 모달 */}
+      <ProductDetailModal
+        product={selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        onToggleFavorite={(pid) => toggleFavorite(Number(pid))}
+        favorites={favorites} 
+      />
     </>
   );
 }
