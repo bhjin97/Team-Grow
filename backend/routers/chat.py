@@ -42,63 +42,83 @@ def pinecone_query_raw(query: str, top_k: int) -> Dict[str, Any]:
     out = idx.query(vector=qv, top_k=top_k, include_metadata=True, include_values=False)
     return out.to_dict() if hasattr(out, "to_dict") else out
 
-def pinecone_query_items(query: str, top_k: int) -> List[Dict[str, Any]]:
+# routers/chat.py (발췌)
+def pinecone_query_items(query: str, top_k: int) -> list[dict]:
     out = pinecone_query_raw(query, top_k)
     matches = out.get("matches", []) if isinstance(out, dict) else (out.matches or [])
     items = []
     for m in matches:
-        md = m.get("metadata", {}) if isinstance(m, dict) else (m.metadata or {})
+        md  = m.get("metadata", {}) if isinstance(m, dict) else (m.metadata or {})
         mid = m.get("id") if isinstance(m, dict) else m.id
-        hid = md.get("hash_id") or mid
+        # 🔑 pid 우선: 메타에 pid가 있으면 그걸 쓰고, 없으면 match.id를 pid로 간주
+        pid = str(md.get("pid") or mid)
+
         items.append({
-            "hash_id": hid,
-            "category": md.get("category"),
-            "rag_text_meta": md.get("rag_text"),
+            "pid": pid,
             "brand": md.get("brand"),
             "product_name": md.get("product_name"),
-            "price_krw_meta": md.get("price_krw"),
+            "category": md.get("category"),
             "image_url_meta": md.get("image_url"),
-            "score": (m.get("score") if isinstance(m, dict) else m.score)
+            "price_krw_meta": md.get("price_krw"),
+            "rag_text_meta": md.get("rag_text"),
+            "score": (m.get("score") if isinstance(m, dict) else m.score),
         })
     return items
 
-def override_with_rdb(db, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    hids = [x["hash_id"] for x in items if x.get("hash_id")]
+def override_with_rdb(db, items: list[dict]) -> list[dict]:
+    # 1) pid 수집
+    pids = [x["pid"] for x in items if x.get("pid")]
+    pids_tuple = tuple(set(pids)) if pids else None
+
     best_map, rag_map = {}, {}
-    if hids:
+
+    if pids_tuple:
+        # 2) 제품 최신값(pid 조인)
         rows = db.execute(text("""
-            SELECT pid, hash_id, brand, product_name, category, price_krw, image_url
-            FROM product_data WHERE hash_id IN :hids
-        """), {"hids": tuple(hids)}).mappings().all()
-        for r in rows: best_map[r["hash_id"]] = dict(r)
+            SELECT pid, hash_id, brand, product_name, category, price_krw, image_url, product_url
+            FROM product_data
+            WHERE pid IN :pids
+        """), {"pids": pids_tuple}).mappings().all()
+        for r in rows:
+            best_map[str(r["pid"])] = dict(r)
 
+        # 3) 리뷰 요약(pid → product_data.hash_id → review_data)
         rows_rag = db.execute(text("""
-            SELECT rr.hash_id, rr.rag_text
-            FROM review_data rr
+            SELECT pd.pid, rr.rag_text
+            FROM product_data pd
             JOIN (
-                SELECT hash_id, MIN(rid) AS rid_min
-                FROM review_data WHERE hash_id IN :hids
-                GROUP BY hash_id
-            ) m ON rr.hash_id = m.hash_id AND rr.rid = m.rid_min
-        """), {"hids": tuple(hids)}).mappings().all()
-        for r in rows_rag: rag_map[r["hash_id"]] = r["rag_text"]
+                SELECT x.hash_id, rr.rag_text
+                FROM review_data rr
+                JOIN (
+                    SELECT hash_id, MIN(rid) AS rid_min
+                    FROM review_data
+                    GROUP BY hash_id
+                ) x ON rr.hash_id = x.hash_id AND rr.rid = x.rid_min
+            ) rr ON rr.hash_id = pd.hash_id
+            WHERE pd.pid IN :pids
+        """), {"pids": pids_tuple}).mappings().all()
+        for r in rows_rag:
+            rag_map[str(r["pid"])] = r["rag_text"]
 
+    # 4) 머지(DB 우선, 없으면 메타 fallback)
     out = []
     for x in items:
-        hid = x.get("hash_id")
-        best = best_map.get(hid, {})
-        rag_text_final = x.get("rag_text_meta") or rag_map.get(hid)
+        pid = x.get("pid")
+        best = best_map.get(pid, {})
+        rag_text_final = rag_map.get(pid) or x.get("rag_text_meta")
+
         out.append({
-            "hash_id": hid,
+            "pid": pid,
             "brand": best.get("brand") or x.get("brand"),
             "product_name": best.get("product_name") or x.get("product_name"),
             "category": best.get("category") or x.get("category"),
             "image_url": best.get("image_url") or x.get("image_url_meta"),
             "price_krw": best.get("price_krw") if best.get("price_krw") is not None else x.get("price_krw_meta"),
             "rag_text": rag_text_final,
-            "score": x.get("score")
+            "score": x.get("score"),
         })
     return out
+
 
 @router.get("/health")
 def health():
