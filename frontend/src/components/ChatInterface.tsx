@@ -20,23 +20,27 @@ import {
   Bell,
 } from 'lucide-react';
 import { useUserStore } from '@/stores/auth/store';
-import { chatStream } from '@/lib/api';  // ⬅️ 추가: 스트리밍 래퍼 사용
+import { chatStream, fetchRecommendations, RecProduct } from '@/lib/api';
 
 export interface ChatInterfaceProps {
   userName?: string;
   onNavigate?: (page: string) => void;
 }
+
 interface Message {
   id: number;
   type: 'user' | 'ai';
   content: string;
   image?: string;
   timestamp: Date;
+  // 이미지 분석 mock (기존 유지)
   productInfo?: {
     name: string;
     ingredients: string[];
     description: string;
   };
+  // 🔥 추천 카드
+  products?: RecProduct[];
 }
 
 export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatInterfaceProps) {
@@ -65,7 +69,7 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
   };
   React.useEffect(() => { scrollToBottom(); }, [messages]);
 
-  // ⬇️ ⬇️ ⬇️ 여기부터 핵심 변경: 스트리밍 연결
+  // ⬇️ 핵심: 스트리밍 + 추천 카드 호출
   const handleSendMessage = async () => {
     const text = inputValue.trim();
     if (!text) return;
@@ -80,7 +84,7 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
 
-    // 2) AI placeholder 추가 (빈 컨텐츠로 시작)
+    // 2) AI placeholder 추가
     const aiMsgId = userMsg.id + 1;
     const aiMsg: Message = {
       id: aiMsgId,
@@ -91,17 +95,20 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
     setMessages(prev => [...prev, aiMsg]);
     setIsTyping(true);
 
-    // 3) 스트리밍 호출
     try {
+      // 3) LLM 스트리밍
       const { iter } = await chatStream(text, 6);
       for await (const chunk of iter()) {
-        // 토큰 도착마다 마지막 AI메시지에 이어붙이기
         setMessages(prev => prev.map(m =>
           m.id === aiMsgId ? { ...m, content: (m.content || '') + chunk } : m
         ));
       }
+      // 4) 추천 카드 가져오기
+      const { products } = await fetchRecommendations(text, 12);
+      setMessages(prev => prev.map(m =>
+        m.id === aiMsgId ? { ...m, products } : m
+      ));
     } catch (err) {
-      // 에러 시 안내 문구
       setMessages(prev => prev.map(m =>
         m.id === aiMsgId
           ? { ...m, content: '죄송해요. 잠시 후 다시 시도해주세요.' }
@@ -112,9 +119,9 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
       setIsTyping(false);
     }
   };
-  // ⬆️ ⬆️ ⬆️ 핵심 변경 끝
+  // ⬆️ 끝
 
-  // 기존 Mock 분석(이미지) 로직은 유지 (백엔드 멀티모달 연결 전 데모용)
+  // 기존 Mock 분석(이미지) 로직 유지
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -251,7 +258,7 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
                 <UserCircle className="w-5 h-5" />
                 <span>프로필</span>
               </button>
-              <button onClick={() => { onNavigate?.('settings'); setMobileMenuOpen(false); }} className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50">
+              <button onClick={() => { onNavigate?.('settings'); setMobileMenuOpen(false); }} className="flex items-center space-y-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50">
                 <SettingsIcon className="w-5 h-5" />
                 <span>설정</span>
               </button>
@@ -282,6 +289,56 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
                         )}
                         <p className="text-sm sm:text-base whitespace-pre-line break-words">{message.content}</p>
 
+                        {/* 추천 카드 섹션 */}
+                        {message.products && message.products.length > 0 && (
+                          <div className="mt-4 space-y-3">
+                            <h4 className="text-sm sm:text-base font-semibold text-pink-600">추천 제품</h4>
+                            {message.products.slice(0, 6).map((p, i) => (
+                              <div key={i} className="p-3 sm:p-4 bg-white rounded-lg border border-gray-200">
+                                <div className="flex items-start gap-3">
+                                  {p.image_url && (
+                                    <img
+                                      src={p.image_url}
+                                      alt={p.product_name || ''}
+                                      className="w-16 h-16 object-cover rounded-md flex-shrink-0"
+                                    />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm sm:text-base font-bold text-gray-800 truncate">
+                                      {(p.brand ? `${p.brand} · ` : '') + (p.product_name || '')}
+                                    </div>
+                                    <div className="text-xs text-gray-500">{p.category || ''}</div>
+                                    {p.price_krw != null && (
+                                      <div className="mt-1 text-sm text-gray-700">₩{p.price_krw.toLocaleString()}</div>
+                                    )}
+                                    {p.rag_text && (
+                                      <details className="mt-2">
+                                        <summary className="text-xs text-pink-600 cursor-pointer">리뷰 요약 보기</summary>
+                                        <p className="mt-1 text-xs text-gray-700 whitespace-pre-wrap">{p.rag_text}</p>
+                                      </details>
+                                    )}
+                                    {p.product_url && (
+                                      <a
+                                        href={p.product_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-block mt-2 text-xs text-white px-3 py-1 rounded-lg"
+                                        style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+                                      >
+                                        상품 페이지
+                                      </a>
+                                    )}
+                                  </div>
+                                  {typeof p.score === 'number' && (
+                                    <div className="text-[11px] text-gray-500 ml-2">sim {p.score.toFixed(3)}</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 기존 이미지 분석 카드 (mock) */}
                         {message.productInfo && (
                           <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-white rounded-lg">
                             <h4 className="text-sm sm:text-base font-bold text-pink-600 mb-2 flex items-center">
