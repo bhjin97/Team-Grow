@@ -32,6 +32,7 @@ import { API_BASE } from '../lib/env';
 import { AnimatePresence } from 'framer-motion';
 import { fetchUserProfile, updateUserProfile } from '../lib/utils';
 import { useUserStore } from '@/stores/auth/store';
+import ProductDetailModal from './dashboard/ProductDetailModal';
 
 export interface UserProfileProps {
   onNavigate?: (page: string) => void;
@@ -129,6 +130,8 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     gender: 'na',
     skinType: '',
   });
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+
   // ==================== 즐겨찾기 관련 추가 ====================
   interface FavoriteProduct {
   product_id: number;
@@ -138,6 +141,9 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
   image_url: string;
   price_krw?: number;
   review_count?: number;
+  capacity?: string;
+  product_url?: string;
+  rag_text?: string;
 }
 
   const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
@@ -229,7 +235,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         skinTypeCode: userData.skinType === '진단 필요' ? null : userData.skinType,
       };
 
-      const updatedData = await updateUserProfile(userData.id, updateData);
+      const updatedData = await updateUserProfile(userData.id, updateData as any);
 
       setUserData({
         id: updatedData.id,
@@ -619,9 +625,34 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: 0.1 * index }}
                           className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border border-pink-100 hover:shadow-md relative"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${API_BASE}/product/detail/${product.product_id}`);
+                              if (!res.ok) throw new Error('상세정보 불러오기 실패');
+                              const data = await res.json();
+
+                              // ✅ API에서 받은 데이터 그대로 모달에 전달
+                              setSelectedProduct({
+                                step: data.category || '단계 정보 없음',
+                                product_pid: data.product_pid,
+                                image_url: data.image_url || '',
+                                display_name: data.display_name || `${data.brand || ''} - ${data.product_name || ''}`,
+                                reason: data.category || '카테고리 정보 없음',
+                                price_krw: data.price_krw ?? 0,
+                                capacity: data.capacity || '용량 정보 없음',
+                                product_url: data.product_url || '',
+                                description: data.description || '제품 설명이 없습니다.',
+                              });
+                            } catch (err) {
+                              console.error('❌ 제품 상세정보 로드 실패:', err);
+                            }
+                          }}
                         >
                           <button
-                            onClick={() => removeFavorite(product.product_id)}
+                            onClick={(e) => {
+                              e.stopPropagation(); // ✅ 모달 열림 방지
+                              removeFavorite(product.product_id);
+                            }}
                             className="absolute top-2 right-2 p-1.5 bg-white rounded-full text-gray-500 hover:text-red-500 shadow-sm"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -781,6 +812,15 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
           )}
         </motion.div>
       </main>
+
+      {/* ✅ 제품 상세보기 모달 */}
+      <ProductDetailModal
+        product={selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        onToggleFavorite={(pid) => removeFavorite(Number(pid))}
+        favorites={favorites.map(f => f.product_id)}
+        mode="profile" 
+      />
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-pink-100 z-50">
         <div className="flex items-center justify-around py-3">

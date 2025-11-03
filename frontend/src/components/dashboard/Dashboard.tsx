@@ -49,12 +49,32 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     FOCUS_RULES[`${season}_${timeOfDay}`] || []
   );
 
+  // ✅ 사용자가 키워드를 직접 바꿨는지 추적하는 상태
+  const [userChangedKeyword, setUserChangedKeyword] = useState(false);
+
+  // ✅ 계절/시간대 변경 시 자동 키워드 설정
+  useEffect(() => {
+    if (!userChangedKeyword) {
+      const key = `${season}_${timeOfDay}`;
+      const defaultKeywords = FOCUS_RULES[key] || [];
+      setSelectedKeywords(defaultKeywords);
+    }
+  }, [season, timeOfDay]);
+
+  // ✅ 키워드 토글 (자동변경 해제 추가)
   const toggleKeyword = (kw: string) => {
+    setUserChangedKeyword(true); // 수동 변경 시 자동선택 해제
     if (selectedKeywords.includes(kw)) {
       setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
     } else if (selectedKeywords.length < 2) {
       setSelectedKeywords([...selectedKeywords, kw]);
     }
+  };
+
+  // ✅ 키워드 초기화 함수 (CustomRoutine에서 버튼 클릭 시 사용됨)
+  const resetKeywords = () => {
+    setSelectedKeywords([]);
+    setUserChangedKeyword(false); // 다시 자동선택 활성화
   };
 
   // --- 축/라벨 계산 ---
@@ -186,6 +206,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                 console.error('Failed to fetch routine:', err);
               }
             }}
+            resetKeywords={resetKeywords}
           />
         </div>
 
