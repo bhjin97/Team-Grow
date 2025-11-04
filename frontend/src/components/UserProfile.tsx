@@ -134,17 +134,17 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
 
   // ==================== 즐겨찾기 관련 추가 ====================
   interface FavoriteProduct {
-  product_id: number;
-  product_name: string;
-  brand: string;
-  category: string;
-  image_url: string;
-  price_krw?: number;
-  review_count?: number;
-  capacity?: string;
-  product_url?: string;
-  rag_text?: string;
-}
+    product_id: number;
+    product_name: string;
+    brand: string;
+    category: string;
+    image_url: string;
+    price_krw?: number;
+    review_count?: number;
+    capacity?: string;
+    product_url?: string;
+    rag_text?: string;
+  }
 
   const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -512,7 +512,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                     <label className="text-sm font-semibold text-gray-700 mb-2 block">
                       피부 타입 (바우만)
                     </label>
-                    <div className="flex flex-wrap gap-2 px-1 py-2 bg-gray-50 rounded-lg min-h-[44px] items-center">
+                    <div className="flex flex-wrap gap-2 px-0 py-2 bg-gray-50 rounded-lg min-h-[44px] items-center">
                       {isEditing ? (
                         <input
                           type="text"
@@ -520,7 +520,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                           readOnly
                           placeholder="예: OSNT"
                           maxLength={4}
-                          className="w-18 px-3 py-1 text-purple-700 rounded-full text-md font-semibold focus:outline-none text-center cursor-default pointer-events-none select-none"
+                          className="w-24 px-3 py-1 text-purple-700 rounded-full text-md font-semibold focus:outline-none text-center cursor-default pointer-events-none select-none"
                         />
                       ) : (
                         <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-base font-semibold">
@@ -579,11 +579,15 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                 </h3>
                 <div className="space-y-3">
                   {recentIngredients.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-6">아직 조회한 성분이 없습니다.</p>
+                    <p className="text-gray-500 text-sm text-center py-6">
+                      아직 조회한 성분이 없습니다.
+                    </p>
                   ) : (
                     recentIngredients.map((ingredient, index) => (
                       <div key={index} className="bg-white rounded-lg p-3 shadow-sm">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-1">{ingredient.name}</h4>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">
+                          {ingredient.name}
+                        </h4>
                         <p className="text-xs text-gray-600">{ingredient.effect}</p>
                       </div>
                     ))
@@ -627,7 +631,9 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                           className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border border-pink-100 hover:shadow-md relative"
                           onClick={async () => {
                             try {
-                              const res = await fetch(`${API_BASE}/product/detail/${product.product_id}`);
+                              const res = await fetch(
+                                `${API_BASE}/product/detail/${product.product_id}`
+                              );
                               if (!res.ok) throw new Error('상세정보 불러오기 실패');
                               const data = await res.json();
 
@@ -636,7 +642,9 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                                 step: data.category || '단계 정보 없음',
                                 product_pid: data.product_pid,
                                 image_url: data.image_url || '',
-                                display_name: data.display_name || `${data.brand || ''} - ${data.product_name || ''}`,
+                                display_name:
+                                  data.display_name ||
+                                  `${data.brand || ''} - ${data.product_name || ''}`,
                                 reason: data.category || '카테고리 정보 없음',
                                 price_krw: data.price_krw ?? 0,
                                 capacity: data.capacity || '용량 정보 없음',
@@ -649,7 +657,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                           }}
                         >
                           <button
-                            onClick={(e) => {
+                            onClick={e => {
                               e.stopPropagation(); // ✅ 모달 열림 방지
                               removeFavorite(product.product_id);
                             }}
@@ -691,7 +699,9 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                   ) : (
                     recentRecommendations.map(recommendation => (
                       <div key={recommendation.id} className="bg-white rounded-lg p-3 shadow-sm">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-1">{recommendation.productName}</h4>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">
+                          {recommendation.productName}
+                        </h4>
                         <p className="text-xs text-gray-500 mb-1">{recommendation.brand}</p>
                         <p className="text-xs text-gray-600">{recommendation.recommendedFor}</p>
                         <p className="text-xs text-gray-400 mt-2">{recommendation.date}</p>
@@ -701,7 +711,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                 </div>
               </div>
             </div>
-
           ) : (
             <div className="space-y-6">
               {/* (성분 관리 UI ... 생략) */}
@@ -817,9 +826,9 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
       <ProductDetailModal
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
-        onToggleFavorite={(pid) => removeFavorite(Number(pid))}
+        onToggleFavorite={pid => removeFavorite(Number(pid))}
         favorites={favorites.map(f => f.product_id)}
-        mode="profile" 
+        mode="profile"
       />
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-pink-100 z-50">
