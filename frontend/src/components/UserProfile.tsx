@@ -146,7 +146,50 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     rag_text?: string;
   }
 
+  // ✅ 추가
+  interface RecentRecommendation {
+    product_pid: string;
+    display_name: string;
+    image_url: string;
+    reason: string;
+    category: string;
+    price_krw?: number;
+    created_at?: string;
+    type?: string;
+    source?: string;
+  }
+
   const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
+  const [recentRecommendations, setRecentRecommendations] = useState<RecentRecommendation[]>([]);
+
+
+  // ✅ 최근 추천 제품 불러오기 (localStorage)
+  useEffect(() => {
+    const stored = localStorage.getItem("recent_recommendations");
+    if (!stored) return;
+
+    try {
+      const parsed = JSON.parse(stored);
+      // 세션별(products 배열) → 평탄화(flatMap)
+      const flatProducts = parsed
+        .flatMap((session: any) =>
+          session.products.map((p: any) => ({
+            ...p,
+            created_at: session.created_at,
+            type: session.type,
+          }))
+        )
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+      setRecentRecommendations(flatProducts);
+    } catch (err) {
+      console.error("❌ 최근 추천 데이터 파싱 실패:", err);
+    }
+  }, []);
+
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const userId = localStorage.getItem('user_id');
 
@@ -255,7 +298,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     }
   };
 
-  const recentRecommendations: any[] = [];
   const recentIngredients: any[] = [];
   const favoriteProducts: any[] = [];
   const [preferredIngredients, setPreferredIngredients] = useState<any[]>([]);
@@ -691,24 +733,55 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                   <TrendingUp className="w-5 h-5 text-pink-500 mr-2" />
                   최근 추천받은 제품
                 </h3>
-                <div className="space-y-3">
-                  {recentRecommendations.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-6">
-                      아직 추천받은 제품이 없습니다.
-                    </p>
-                  ) : (
-                    recentRecommendations.map(recommendation => (
-                      <div key={recommendation.id} className="bg-white rounded-lg p-3 shadow-sm">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-1">
-                          {recommendation.productName}
-                        </h4>
-                        <p className="text-xs text-gray-500 mb-1">{recommendation.brand}</p>
-                        <p className="text-xs text-gray-600">{recommendation.recommendedFor}</p>
-                        <p className="text-xs text-gray-400 mt-2">{recommendation.date}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
+
+                {recentRecommendations.length === 0 ? (
+                  <p className="text-gray-500 text-sm text-center py-6">
+                    아직 추천받은 제품이 없습니다.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto pb-2">
+                    <div className="flex gap-3 sm:gap-4 min-w-max">
+                      {recentRecommendations.map((item, index) => (
+                        <motion.div
+                          key={`${item.product_pid}_${index}`}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border border-pink-100 hover:shadow-md relative"
+                          onClick={() => setSelectedProduct(item)} // 클릭 시 모달 열기
+                        >
+                          <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center">
+                            <img
+                              src={item.image_url}
+                              alt={item.display_name}
+                              className="w-full h-full object-contain rounded-lg"
+                            />
+                          </div>
+                          <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-tight line-clamp-2">
+                            {item.display_name}
+                          </p>
+                          <p className="text-[11px] text-gray-500">
+                            {item.category}
+                          </p>
+
+                          {/* ✅ 출처 표시 */}
+                          <p className="text-[11px] font-semibold text-pink-600 mt-0.5">
+                            {item.source === "routine"
+                              ? "맞춤 루틴 추천"
+                              : item.source === "chat"
+                              ? "AI 상담 추천"
+                              : "기타 추천"}
+                          </p>
+
+                          <p className="text-[10px] text-gray-400 truncate">
+                            {item.reason}
+                          </p>
+
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
