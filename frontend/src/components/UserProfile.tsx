@@ -202,7 +202,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
   // 즐겨찾기 불러오기
   useEffect(() => {
     const loadFavorites = async () => {
-      if (!userId) return;
       try {
         const res = await fetch(`${API_BASE}/favorite_products/${userId}`);
         if (res.ok) {
@@ -237,8 +236,10 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     const userIdStr = localStorage.getItem('user_id');
     const currentUserId = Number.parseInt(userIdStr || '0', 10);
 
-    if (currentUserId === 0) {
-      console.error('UserProfile: localStorage에서 user_id를 찾을 수 없습니다.');
+    // ✅ 로그인 상태가 아니라면 접근 불가
+    if (!currentUserId) {
+      console.error('로그인되지 않은 상태입니다.');
+      onNavigate?.('login'); // 로그인 페이지로 이동
       return;
     }
 
@@ -263,6 +264,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
 
     loadData();
   }, []);
+
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -463,7 +465,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                   />
                 ) : (
                   <h3 className="mt-4 text-xl font-bold text-gray-800">
-                    {userData.email || userData.name || '(방문자)'}
+                    {userData.email || userData.name}
                   </h3>
                 )}
               </div>
