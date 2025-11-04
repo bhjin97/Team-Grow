@@ -168,3 +168,44 @@ img.broken-image-fallback {
     opacity: 1;
   }
 }
+
+/* 마크다운(프로즈) 기본 */
+.prose {
+  color: #1f2937; /* gray-800 */
+  font-size: 0.95rem;
+}
+.prose h2, .prose h3 {
+  color: #e75480; /* 포인트 핑크 */
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+.prose p {
+  margin: 0.3rem 0;
+}
+.prose strong {
+  color: #7c6dff; /* 라벤더 포인트 */
+}
+.prose hr, .prose > * + hr {
+  border: none;
+  border-top: 1px solid #f3cfe0; /* 연핑크 구분선 */
+  margin: 0.75rem 0;
+}
+.prose blockquote {
+  margin: 0.4rem 0;
+  padding: 0.55rem 0.8rem;
+  background: #fff0f5; /* very light pink */
+  border-left: 3px solid #f3b6c0;
+  border-radius: 0.5rem;
+}
+.prose ul, .prose ol {
+  margin: 0.3rem 0 0.3rem 1rem;
+}
+.prose img {
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb; /* gray-200 */
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  margin: 0.25rem 0 0.5rem;
+  max-height: 240px; /* 과도한 이미지 방지 */
+  object-fit: cover;
+}
