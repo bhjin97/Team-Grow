@@ -53,26 +53,6 @@ export default function SkinSummary({
             {/* 설명 텍스트 아이콘 라인 기준 정렬 */}
             <p className="text-sm text-gray-500 mt-2 pl-[2.5rem]">{axisDesc}</p>
           </div>
-
-          {/* 오른쪽: 기간 토글 */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setSelectedPeriod('7days')}
-              className={`px-3 py-1.5 rounded-lg text-sm ${
-                selectedPeriod === '7days' ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              7일
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('30days')}
-              className={`px-3 py-1.5 rounded-lg text-sm ${
-                selectedPeriod === '30days' ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              30일
-            </button>
-          </div>
         </div>
       </div>
 
