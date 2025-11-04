@@ -21,6 +21,9 @@ import {
 } from 'lucide-react';
 import { useUserStore } from '@/stores/auth/store';
 import { chatStream, fetchRecommendations, RecProduct } from '@/lib/api';
+import { uploadOcrImage /*, searchOcrByName (추후 필요 시)*/ } from '@/lib/api';
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export interface ChatInterfaceProps {
   userName?: string;
@@ -33,15 +36,18 @@ interface Message {
   content: string;
   image?: string;
   timestamp: Date;
-  // 이미지 분석 mock (기존 유지)
   productInfo?: {
     name: string;
     ingredients: string[];
     description: string;
   };
-  // 🔥 추천 카드
   products?: RecProduct[];
+
+  // ⬇️ 추가
+  analysis?: any;
+  ocrImageUrl?: string | null;
 }
+
 
 /* ─────────────────────────────
    세션 저장 관련 유틸
@@ -188,46 +194,61 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
   };
   // ⬆️ 끝
 
-  // 기존 Mock 분석(이미지) 로직 유지
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const imageMessage: Message = {
-        id: messages.length + 1,
-        type: 'user',
-        content: 'Please analyze this product',
-        image: reader.result as string,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, imageMessage]);
-      setIsTyping(true);
-      setTimeout(() => {
-        const analysisResponse: Message = {
-          id: messages.length + 2,
-          type: 'ai',
-          content: "I've analyzed the product image. Here's what I found:",
-          timestamp: new Date(),
-          productInfo: {
-            name: 'Hydrating Facial Serum',
-            ingredients: [
-              'Hyaluronic Acid - Excellent hydration',
-              'Niacinamide - Brightening & pore refining',
-              'Vitamin E - Antioxidant protection',
-              'Glycerin - Moisture retention',
-              'Panthenol - Soothing & healing',
-            ],
-            description:
-              'This is a great product for combination skin! The hyaluronic acid will hydrate dry areas, while niacinamide helps control oil in the T-zone. All ingredients are safe for your skin type and there are no concerning ingredients based on your profile.',
-          },
-        };
-        setMessages(prev => [...prev, analysisResponse]);
-        setIsTyping(false);
-      }, 2000);
-    };
-    reader.readAsDataURL(file);
+  // ChatInterface.tsx 내
+const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  // (1) 미리보기(선택): 업로드 직후 사용자 메시지에 이미지 붙이기
+  const localPreview = URL.createObjectURL(file);
+  const userMsg: Message = {
+    id: messages.length + 1,
+    type: 'user',
+    content: '이 제품 이미지 분석해줘',
+    image: localPreview,
+    timestamp: new Date(),
   };
+  setMessages(prev => [...prev, userMsg]);
+
+  // (2) AI placeholder
+  const aiMsgId = userMsg.id + 1;
+  const aiMsg: Message = {
+    id: aiMsgId,
+    type: 'ai',
+    content: '분석 중입니다…',
+    timestamp: new Date(),
+  };
+  setMessages(prev => [...prev, aiMsg]);
+  setIsTyping(true);
+
+  try {
+    // (3) OCR 업로드 → 결과 수신
+    const { analysis, render } = await uploadOcrImage(file);
+
+    // (4) AI 메시지 내용을 실제 분석 텍스트로 교체
+    setMessages(prev => prev.map(m => {
+      if (m.id !== aiMsgId) return m;
+      return {
+        ...m,
+        content: render?.text || "분석 결과를 표시할 수 없습니다.",
+        image: render?.image_url || undefined,  // 서버 이미지가 있으면 교체
+        analysis,                               // (선택) JSON 보관
+        ocrImageUrl: render?.image_url ?? null, // (선택)
+      };
+    }));
+  } catch (err) {
+    console.error(err);
+    setMessages(prev => prev.map(m =>
+      m.id === aiMsgId
+        ? { ...m, content: '❌ OCR 분석에 실패했습니다. 잠시 후 다시 시도해주세요.' }
+        : m
+    ));
+  } finally {
+    setIsTyping(false);
+    // 파일 input 초기화(같은 파일 재업로드 허용)
+    if (e.target) e.target.value = '';
+  }
+};
 
   const handleSaveProduct = (messageId: number) => {
     if (savedProducts.includes(messageId)) {
@@ -351,10 +372,23 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
 
                       <div className={`rounded-2xl p-3 sm:p-4 ${message.type === 'user' ? 'text-white' : 'bg-gray-100 text-gray-800'}`}
                            style={ message.type === 'user' ? { background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' } : {} }>
-                        {message.image && (
+                        {message.image && message.type === 'user' && (
                           <img src={message.image} alt="Uploaded product" className="rounded-lg mb-2 sm:mb-3 max-w-full w-full sm:max-w-xs" />
                         )}
-                        <p className="text-sm sm:text-base whitespace-pre-line break-words">{message.content}</p>
+                        {/* 본문 렌더링: user는 일반 텍스트, ai는 마크다운 */}
+                        {message.type === 'ai' ? (
+                          <div className="prose prose-sm max-w-none leading-relaxed">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {message.content || ''}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="text-sm sm:text-base whitespace-pre-line break-words">
+                            {message.content}
+                          </p>
+                        )}
+
+
 
                         {/* 추천 카드 섹션 */}
                         {message.products && message.products.length > 0 && (
