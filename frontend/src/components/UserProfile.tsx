@@ -458,14 +458,14 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                 {isEditing ? (
                   <input
                     type="text"
-                    value={userData.email || ''}
-                    onChange={e => setUserData({ ...userData, email: e.target.value })}
-                    placeholder={`별명을 입력하세요 (비워두면 "${userData.email}"으로 설정됩니다)`}
+                    value={userData.nickname || ''}
+                    onChange={e => setUserData({ ...userData, nickname: e.target.value })}
+                    placeholder={`별명을 입력하세요 (비워두면 "${userData.name}"으로 설정됩니다)`}
                     className="mt-4 text-xl font-bold text-gray-800 text-center px-3 py-1 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 w-full"
                   />
                 ) : (
                   <h3 className="mt-4 text-xl font-bold text-gray-800">
-                    {userData.email || userData.name}
+                    {userData.nickname || userData.name}
                   </h3>
                 )}
               </div>
