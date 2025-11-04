@@ -28,7 +28,7 @@ def recommend_routine(
     스킨케어 루틴 추천 API
     - 제품 목록은 skincare_routine_product에서 가져옴
     - 리뷰 수는 product_data.review_count 기준
-    - [수정] product_pid 및 상세 정보(가격, 용량, URL, rag_text) 반환
+    - [수정] reason에는 키워드 중심의 추천 근거만 포함
     """
 
     # DB에서 상세 정보 추가 조회 (price_krw, capacity, product_url, rag_text)
@@ -73,22 +73,24 @@ def recommend_routine(
         )[:top_n]
 
         for r in top:
+            # ✅ reason에는 키워드만 기록
             if r["matched_keywords"]:
-                reason = f"{', '.join(r['matched_keywords'])} | 리뷰 {r['review_count']}개"
+                reason = ", ".join(r["matched_keywords"])
             else:
-                reason = f"리뷰 {r['review_count']}개"
+                reason = ""
 
-            # ✅ [수정] 반환 데이터에 description (srp.rag_text) 추가
+            # ✅ review_count는 별도 필드로 전달
             results.append({
                 "step": step,
                 "product_pid": r["product_pid"],
                 "display_name": f"{r['brand']} - {r['product_name']}",
                 "image_url": r["image_url"],
-                "reason": reason,
+                "reason": reason,  # 키워드 기반 근거
+                "review_count": r.get("review_count", 0),  # 별도 저장
                 "price_krw": r.get("price_krw"),
                 "capacity": r.get("capacity"),
                 "product_url": r.get("product_url"),
-                "description": r.get("rag_text")  # ✅ 한줄 요약 (rag_text)
+                "description": r.get("rag_text")
             })
 
     return results

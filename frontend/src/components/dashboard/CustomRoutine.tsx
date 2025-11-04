@@ -14,10 +14,13 @@ interface Product {
   image_url: string;
   display_name: string;
   reason: string;
+  review_count?: number; 
   price_krw?: number;
   capacity?: string;
   product_url?: string;
   description?: string;
+  category?: string;
+  source?: string;
 }
 
 interface CustomRoutineProps {
@@ -231,7 +234,8 @@ export default function CustomRoutine({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.6 + index * 0.1 }}
                 className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 hover:shadow-lg transition-shadow relative cursor-pointer"
-                onClick={() => setSelectedProduct(product)} // ✅ 클릭 시 모달 열기
+                onClick={() =>
+                  setSelectedProduct(product)} // ✅ 클릭 시 모달 열기
               >
                 {/* ❤️ 하트 버튼 */}
                 <button
@@ -267,7 +271,21 @@ export default function CustomRoutine({
                 <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-tight line-clamp-2">
                   {product.display_name}
                 </p>
-                <p className="text-[11px] text-gray-500">{product.reason}</p>
+                {/* 추천 근거 (reason) */}
+                {product.reason ? (
+                  <p className="text-[11px] text-gray-500">
+                    {product.reason}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-gray-400 italic"></p>
+                )}
+
+                {/* 리뷰 개수는 따로, 작게 회색으로 */}
+                {product.review_count !== undefined && product.review_count > 0 && (
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    리뷰 {product.review_count.toLocaleString()}개
+                  </p>
+                )}
               </motion.div>
             ))}
           </div>
@@ -277,21 +295,77 @@ export default function CustomRoutine({
         <button
           onClick={async () => {
             try {
+              // ✅ 1️⃣ 루틴 추천 API 호출
               const data = await fetchRoutine(
                 baumannType,
                 season,
                 timeOfDay,
                 selectedKeywords
               );
+
+              // ✅ 2️⃣ 화면에 추천 결과 반영
               setRoutineProducts(data);
+
+              // ✅ 3️⃣ localStorage에 저장 (용량 자동 정리 포함)
+              try {
+                const prev = JSON.parse(localStorage.getItem("recent_recommendations") || "[]");
+
+                // ✅ 이미 저장된 product_pid 중복 제거
+                const existingPids = new Set(
+                  prev.flatMap((session: any) => session.products.map((p: any) => p.product_pid))
+                );
+
+                // ✅ 새로 추천된 제품 중, 기존에 없는 것만 추가
+                const newProducts = data.filter(p => !existingPids.has(p.product_pid));
+
+                if (newProducts.length > 0) {
+                  const newSession = {
+                    id: `rec_${Date.now()}`,
+                    type: "routine",
+                    created_at: new Date().toISOString(),
+                    products: newProducts.map(p => ({
+                      product_pid: p.product_pid,
+                      display_name: p.display_name,
+                      image_url: p.image_url,
+                      reason: p.reason,
+                      review_count: p.review_count || 0,
+                      category: p.step || "기타",
+                      price_krw: p.price_krw || 0,
+                      source: "routine",
+                    })),
+                  };
+
+                  // ✅ 새로운 세션을 앞에 추가 (최신 순)
+                  let updated = [newSession, ...prev];
+
+                  // ✅ localStorage 용량 계산 및 오래된 세션 삭제
+                  const MAX_STORAGE = 4.5 * 1024 * 1024; // 약 4.5MB
+                  let size = new Blob([JSON.stringify(updated)]).size;
+
+                  while (size > MAX_STORAGE && updated.length > 1) {
+                    updated.pop(); // 오래된 세션부터 제거
+                    size = new Blob([JSON.stringify(updated)]).size;
+                    console.warn("⚠️ 용량 초과로 오래된 추천 기록 삭제됨");
+                  }
+
+                  localStorage.setItem("recent_recommendations", JSON.stringify(updated));
+                  console.log("💾 최근 추천 저장 완료:", newSession);
+                } else {
+                  console.log("⚠️ 이미 저장된 제품만 존재하므로 추가 안 함");
+                }
+              } catch (err) {
+                console.error("❌ 최근 추천 저장 실패:", err);
+              }
+
             } catch (err) {
-              console.error(err);
+              console.error("❌ 루틴 추천 실패:", err);
             }
           }}
           className="w-full mt-3 sm:mt-4 py-2.5 sm:py-3 rounded-xl bg-pink-100 text-pink-700 text-sm sm:text-base font-medium hover:bg-pink-200 transition-colors"
         >
           스킨케어 루틴 추천 받기
         </button>
+
       </motion.div>
 
       {/* ✅ 제품 상세 모달 */}
