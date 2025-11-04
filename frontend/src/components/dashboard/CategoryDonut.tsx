@@ -1,5 +1,7 @@
 'use client';
 import * as React from 'react';
+import { PALETTE_CATEGORY, fmtNumber } from '@/settings/trends';
+
 
 type DonutProps = {
   title?: string;
@@ -9,8 +11,6 @@ type DonutProps = {
   hoveredLabel?: string | null; // 외부에서 hover 동기화(선택)
   onSliceHover?: (label: string | null) => void;
 };
-
-const COLORS = ['#9b87f5','#b4a2f8','#d1c4ff','#f5c6d9']; // 기존 톤 유지(연보라/핑크)
 
 export default function CategoryDonut({
   title = '카테고리 비중',
@@ -57,7 +57,7 @@ export default function CategoryDonut({
     return {
       key: d.label,
       dPath,
-      color: COLORS[i % COLORS.length],
+      color: PALETTE_CATEGORY[i % PALETTE_CATEGORY.length],
       label: d.label,
       value: v,
       pct,
@@ -88,28 +88,30 @@ export default function CategoryDonut({
             총합
           </text>
           <text x={radius} y={radius+12} textAnchor="middle" fontSize="14" fill="#111827" fontWeight={700}>
-            {total.toLocaleString()}
+            {fmtNumber(total)}
           </text>
         </svg>
 
-        {/* 범례 */}
-        <div className="w-full grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2">
+        {/* 범례: flex-wrap + 항목 폭 유연화 */}
+        <div className="w-full flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm leading-6">
           {arcs.map((a)=>(
             <div
-                key={a.key}
-                className={`
-                    flex items-center gap-2 text-sm
-                    ${a.active ? 'font-semibold text-gray-900' : 'text-gray-700'}
-                `}
-                onMouseEnter={() => onSliceHover?.(a.label)}
-                onMouseLeave={() => onSliceHover?.(null)}
-                >
-                <span className="inline-block w-3 h-3 rounded shrink-0" style={{ background: a.color }} />
-                <span className="truncate max-w-[7rem]">{a.label}</span>
-                <span className="ml-auto tabular-nums text-right whitespace-nowrap">{a.value.toLocaleString()} ({a.pct})</span>
-                </div>
-
-                        ))}
+              key={a.key}
+              className={`
+                flex items-center justify-between gap-2 px-2 py-0.5 rounded-md
+                ${a.active ? 'font-semibold text-gray-900 bg-gray-50' : 'text-gray-700'}
+                basis-1/2 md:basis-1/4 min-w-[200px] max-w-full
+              `}
+              onMouseEnter={() => onSliceHover?.(a.label)}
+              onMouseLeave={() => onSliceHover?.(null)}
+            >
+              <span className="inline-block w-3 h-3 rounded shrink-0" style={{ background: a.color }} />
+              <span className="flex-1 min-w-0 truncate">{a.label}</span>
+              <span className="shrink-0 tabular-nums whitespace-nowrap">
+                {fmtNumber(a.value)} ({a.pct})
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { API_BASE } from '../../lib/env';
 import { cn } from '../../lib/utils'; // ← 이거만 사용, 로컬 cn 선언 금지!
+import { fmtNumber } from '@/settings/trends';
 
 type BrandItem = {
   brand: string;
@@ -147,12 +148,12 @@ export default function ABCompareSection({ category }: { category: string }) {
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <span className="text-xs text-gray-500 hidden sm:inline">
-              A {base_sum.toLocaleString()} → B {current_sum.toLocaleString()}
+              A {fmtNumber(base_sum)} → B {fmtNumber(base_sum)}
             </span>
             <span
               className={cn('text-xs font-semibold', delta_sum >= 0 ? 'text-emerald-700' : 'text-rose-700')}
             >
-              Δ {delta_sum.toLocaleString()}
+              Δ {fmtNumber(delta_sum)}
             </span>
             <span
               className="text-[11px] px-1.5 py-0.5 rounded-full text-white"
@@ -194,17 +195,17 @@ export default function ABCompareSection({ category }: { category: string }) {
           <div className="mt-2 grid grid-cols-3 gap-2">
             <div>
               A 합계<br />
-              <span className="font-medium text-gray-900">{base_sum.toLocaleString()}</span>
+              <span className="font-medium text-gray-900">{fmtNumber(delta_sum)}</span>
             </div>
             <div>
               Δ<br />
               <span className={cn('font-medium', delta_sum >= 0 ? 'text-emerald-700' : 'text-rose-700')}>
-                {delta_sum.toLocaleString()}
+                {fmtNumber(delta_sum)}
               </span>
             </div>
             <div>
               B 합계<br />
-              <span className="font-medium text-gray-900">{current_sum.toLocaleString()}</span>
+              <span className="font-medium text-gray-900">{fmtNumber(current_sum)}</span>
             </div>
           </div>
         </div>
@@ -274,9 +275,9 @@ export default function ABCompareSection({ category }: { category: string }) {
                 <span className="font-semibold text-gray-900">{b.brand}</span>
                 {` 가 최근 주(B)에서 A 대비 `}
                 <span className={delta >= 0 ? 'text-emerald-700 font-semibold' : 'text-rose-700 font-semibold'}>
-                  {delta.toLocaleString()} ({pctLabel})
+                  {fmtNumber(delta)} ({pctLabel})
                 </span>
-                {` 만큼 변화했습니다. (A ${base.toLocaleString()} → B ${curr.toLocaleString()})`}
+                {` 만큼 변화했습니다. (A ${fmtNumber(base)} → B ${fmtNumber(curr)})`}
               </li>
             );
           })}

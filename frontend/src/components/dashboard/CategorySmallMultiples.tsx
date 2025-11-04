@@ -1,6 +1,28 @@
 'use client';
 
 import * as React from 'react';
+import { PALETTE_CATEGORY, fmtNumber, LOG_PAD_RATIO } from '@/settings/trends';
+
+// === responsive width hook ===
+function useContainerWidth<T extends HTMLElement>(min = 320, max = 640) {
+  const ref = React.useRef<T | null>(null);
+  const [w, setW] = React.useState<number>(max);
+  React.useEffect(() => {
+    if (!ref.current) return;
+    const obs = new ResizeObserver(() => {
+      const cw = ref.current?.clientWidth ?? max;
+      setW(Math.max(min, Math.min(max, cw)));
+    });
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [min, max]);
+  return { ref, width: w };
+}
+
+// === scale helpers & toggle ===
+const USE_LOG1P = true;
+const log1p = (n: number) => Math.log1p(Math.max(0, n));
+const expm1 = (n: number) => Math.expm1(n);
 
 type CategoryPoint = {
   date: string;
@@ -23,24 +45,38 @@ export default function CategorySmallMultiples({
   }, [series]);
 
   // 각 카테고리별로 y-범위 계산(절대량 sum 기준)
-  const yDomains = React.useMemo(() => {
-    const map: Record<string, { min: number; max: number }> = {};
-    for (const c of categories) {
-      let mi = Number.POSITIVE_INFINITY;
-      let ma = 0;
-      for (const r of rows) {
-        const v = Number(r[c]?.sum ?? 0);
-        mi = Math.min(mi, v);
-        ma = Math.max(ma, v);
-      }
-      if (!isFinite(mi)) mi = 0;
-      if (ma <= mi) ma = mi + 1;
-      map[c] = { min: mi, max: ma };
-    }
-    return map;
-  }, [rows, categories]);
+    const yDomains = React.useMemo(() => {
+      const map: Record<string, { min: number; max: number; displayMin: number; displayMax: number }> = {};
+      for (const c of categories) {
+        let mi = Number.POSITIVE_INFINITY;
+        let ma = 0;
+        for (const r of rows) {
+          const v = Number(r[c]?.sum ?? 0);
+          mi = Math.min(mi, v);
+          ma = Math.max(ma, v);
+        }
+        if (!isFinite(mi)) mi = 0;
+        if (ma <= mi) ma = mi + 1;
 
-  const COLORS = ['#9b87f5', '#f5a2c0', '#8bd3dd', '#f6c667', '#94a3b8', '#34d399', '#fb7185'];
+        // ① 표시용(원값) min/max
+        const dispMin = mi;
+        const dispMax = ma;
+
+        // ② 스케일용 min/max (log1p or linear)
+        const tMin = USE_LOG1P ? log1p(mi) : mi;
+        const tMax = USE_LOG1P ? log1p(ma) : ma;
+
+        // ③ 패딩(변환 공간에서 8% 또는 최소 1 단위)
+        const gap = Math.max(1e-6, tMax - tMin);
+        const padV = Math.max(gap * LOG_PAD_RATIO, 1);
+
+        const outMin = USE_LOG1P ? Math.max(0, tMin - padV) : Math.max(0, tMin - padV);
+        const outMax = USE_LOG1P ? (tMax + padV) : (tMax + padV);
+
+        map[c] = { min: outMin, max: outMax, displayMin: dispMin, displayMax: dispMax };
+      }
+      return map;
+    }, [rows, categories]);
 
   return (
     <div className="space-y-3">
@@ -50,7 +86,7 @@ export default function CategorySmallMultiples({
           <SmallLine
             key={c}
             title={c}
-            color={COLORS[i % COLORS.length]}
+            color={PALETTE_CATEGORY[i % PALETTE_CATEGORY.length]}
             points={rows.map((r) => ({ x: r.date, y: Number(r[c]?.sum ?? 0) }))}
             domain={yDomains[c]}
             hoveredDate={hoveredDate}
@@ -73,18 +109,21 @@ function SmallLine({
   title: string;
   color: string;
   points: { x: string; y: number }[];
-  domain: { min: number; max: number };
+  domain: { min: number; max: number; displayMin: number; displayMax: number };
   hoveredDate: string | null;
   onHover: (d: string | null) => void;
 }) {
-  const width = 420;
+  const { ref, width } = useContainerWidth<HTMLDivElement>(320, 640); // 부모 폭 추적
   const height = 160;
-  const pad = 28;
+  const pad = 26;
 
   const xs = (idx: number) =>
     pad + (points.length <= 1 ? 0 : (idx / (points.length - 1)) * (width - pad * 2));
-  const ys = (v: number) =>
-    height - pad - ((v - domain.min) / (domain.max - domain.min)) * (height - pad * 2);
+  const ys = (v: number) => {
+    const tv = USE_LOG1P ? log1p(v) : v;
+    return height - pad - ((tv - domain.min) / (domain.max - domain.min)) * (height - pad * 2);
+  };
+
 
   // 라인 path
   const path = React.useMemo(() => {
@@ -108,11 +147,11 @@ function SmallLine({
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm font-semibold text-gray-900">{title}</div>
         <div className="text-xs text-gray-500">
-          min {Math.round(domain.min).toLocaleString()} · max {Math.round(domain.max).toLocaleString()}
+          min {fmtNumber(Math.round(domain.displayMin))} · max {fmtNumber(Math.round(domain.displayMax))}
         </div>
       </div>
 
-      <div className="w-full overflow-x-auto">
+      <div className="w-full overflow-x-auto" ref={ref}>
         <svg width={width} height={height} className="block">
           {/* Axes */}
           <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#e5e7eb" />
@@ -135,10 +174,10 @@ function SmallLine({
 
           {/* points */}
           {points.map((p, i) => (
-            <circle key={p.x} cx={xs(i)} cy={ys(p.y)} r={2} fill={color}>
-              <title>{`${p.x}\n${p.y.toLocaleString()}`}</title>
+            <circle key={p.x} cx={xs(i)} cy={ys(p.y)} r={2.5} fill={color}>
+              <title>{`${p.x}\n${fmtNumber(p.y)}`}</title>
             </circle>
-          ))}
+          ))} 
 
           {/* hover guide */}
           {hoverX !== null && (
