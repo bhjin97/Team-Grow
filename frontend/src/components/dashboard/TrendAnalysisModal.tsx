@@ -5,19 +5,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { API_BASE } from '../../lib/env';
 import { cn } from '../../lib/utils';
 import ABCompareSection from './ABCompareSection';
-import CategorySmallMultiples from './CategorySmallMultiples';
 import CategoryDonut from './CategoryDonut';
-import {
-  fmtNumber,
-  fmtPercent,
-} from '@/settings/trends';
 
+// ⬇︎ 새로 사용하는 모듈
+import CategoryOverlay from './CategoryOverlay';
+import OverlayCaption from './OverlayCaption';
+import DonutDeltaCaption from './DonutDeltaCaption';
 import BubbleCaption from './BubbleCaption';
-import { CategoryDonutCaption, SmallMultiplesCaption } from './ChartCaptions';
 
 type CategoryPoint = {
   date: string;
-  [cat: string]: any;
+  [cat: string]: any; // { sum:number, index:number }
 };
 
 type CategoryTsResp = {
@@ -41,35 +39,66 @@ type Props = {
   open: boolean;
   category: string;
   onClose: () => void;
-  yScaleMode?: 'auto' | 'shared' | 'symlog'; // 축 스케일 모드
-  padFrac?: number;   // 상하 패딩 비율
-  minSpan?: number;   // 최소 y범위
-  useIndex?: boolean; // sum 대신 index 사용
+  yScaleMode?: 'auto' | 'shared' | 'symlog';
+  padFrac?: number;
+  minSpan?: number;
+  useIndex?: boolean;
 };
 
-const TabButton: React.FC<{active?: boolean; onClick?: () => void; children: React.ReactNode;}> = ({ active, onClick, children }) => (
-  <button type="button" onClick={onClick} className={cn('px-3 py-1.5 rounded-lg text-sm font-medium', active ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:bg-gray-50')}>
+const TabButton: React.FC<{
+  active?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}> = ({ active, onClick, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={cn(
+      'px-3 py-1.5 rounded-lg text-sm font-medium',
+      active ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+    )}
+  >
     {children}
   </button>
 );
 
-const Card: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className }) => (
+const Card: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({
+  title,
+  children,
+  className,
+}) => (
   <div className={cn('bg-white rounded-xl border border-gray-200 p-4', className)}>
     <div className="text-sm font-semibold text-gray-900 mb-3">{title}</div>
     {children}
   </div>
 );
 
-const BarRow: React.FC<{ label: string; value: number; max: number; sub?: string; pos?: boolean; }> = ({ label, value, max, sub, pos }) => {
+const BarRow: React.FC<{
+  label: string;
+  value: number;
+  max: number;
+  sub?: string;
+  pos?: boolean;
+}> = ({ label, value, max, sub, pos }) => {
   const pct = max > 0 ? Math.min(100, Math.round((Math.abs(value) / max) * 100)) : 0;
   return (
     <div className="w-full">
       <div className="flex items-center justify-between text-sm">
         <span className="text-gray-700 truncate">{label}</span>
-        <span className={cn('font-semibold', pos ? 'text-emerald-700' : 'text-rose-700')}>{(pos?'+':'') + value.toLocaleString()}</span>
+        <span className={cn('font-semibold', pos ? 'text-emerald-700' : 'text-rose-700')}>
+          {(pos ? '+' : '') + value.toLocaleString()}
+        </span>
       </div>
       <div className="h-2 w-full bg-gray-100 rounded mt-1 overflow-hidden">
-        <div className="h-full" style={{ width: `${pct}%`, background: pos ? 'linear-gradient(90deg, #34d399 0%, #059669 100%)' : 'linear-gradient(90deg, #fca5a5 0%, #ef4444 100%)' }} />
+        <div
+          className="h-full"
+          style={{
+            width: `${pct}%`,
+            background: pos
+              ? 'linear-gradient(90deg, #34d399 0%, #059669 100%)'
+              : 'linear-gradient(90deg, #fca5a5 0%, #ef4444 100%)',
+          }}
+        />
       </div>
       {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
     </div>
@@ -77,13 +106,14 @@ const BarRow: React.FC<{ label: string; value: number; max: number; sub?: string
 };
 
 /** ─────────────────────────────────────────────────────────
- *  버블 차트: 호버 시 브랜드명/요약 툴팁 표시 (추가됨)
- *  - 원 테두리 강조
- *  - 포인트 바로 위에 브랜드 라벨
- *  - 우측 상단 박스에 A/B/Δ 간단 표시
- *  나머지 파일/로직에는 영향 없음
+ *  버블 차트 (브랜드 포지셔닝)
+ *  - 호버 시 브랜드 라벨/요약 박스 표시
  *  ───────────────────────────────────────────────────────── */
-const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number; }> = ({ data, width = 980, height = 360 }) => {
+const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number }> = ({
+  data,
+  width = 980,
+  height = 360,
+}) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const pad = 40;
@@ -94,14 +124,16 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
 
   const log1pSafe = (n: number) => Math.log1p(Math.max(0, n));
   const symlog = (n: number, c: number) => {
-    const a = Math.abs(n); const linZone = c * 0.4;
+    const a = Math.abs(n);
+    const linZone = c * 0.4;
     const scaled = a < linZone ? a / linZone : Math.log1p((a - linZone) / c) + 1;
     return Math.sign(n) * scaled;
   };
 
   const maxA_t = log1pSafe(maxA);
   const c = Math.max(1, Math.max(Math.abs(minDelta), Math.abs(maxDelta)) / 12);
-  const minD_t = symlog(minDelta, c), maxD_t = symlog(maxDelta, c);
+  const minD_t = symlog(minDelta, c),
+    maxD_t = symlog(maxDelta, c);
 
   const sx = (v: number) => pad + (log1pSafe(v) / maxA_t) * (width - pad * 2);
   const sy = (v: number) => {
@@ -112,28 +144,26 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
 
   const zeroY = sy(0);
 
-  // 좌표/반경을 미리 계산해두면 라벨 배치가 쉬움
-  const points = useMemo(() => {
-    return data.map((d) => ({
-      ...d,
-      x: sx(d.base_sum),
-      y: sy(d.delta_sum),
-      r: sr(d.current_sum),
-    }));
-  }, [data]);
+  const points = useMemo(
+    () =>
+      data.map((d) => ({
+        ...d,
+        x: sx(d.base_sum),
+        y: sy(d.delta_sum),
+        r: sr(d.current_sum),
+      })),
+    [data]
+  );
 
   const hovered = hoverIdx !== null ? points[hoverIdx] : null;
 
   return (
     <div className="relative">
       <svg width={width} height={height} className="rounded-lg border border-gray-200 bg-white">
-        {/* Axes */}
         <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#e5e7eb" />
         <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="#e5e7eb" />
-        {/* y=0 가이드 */}
         <line x1={pad} y1={zeroY} x2={width - pad} y2={zeroY} stroke="#eab308" strokeDasharray="4 4" />
 
-        {/* Bubbles */}
         {points.map((p, i) => {
           const isHover = i === hoverIdx;
           return (
@@ -151,10 +181,8 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
                 stroke="#9b87f5"
                 strokeWidth={isHover ? 3 : 1.5}
               />
-              {/* 호버일 때 포인트 라벨 */}
               {isHover && (
                 <>
-                  {/* 라벨 백그라운드 (읽기성 향상) */}
                   <rect
                     x={p.x - Math.min(80, Math.max(40, p.brand.length * 6)) / 2}
                     y={p.y - p.r - 22}
@@ -180,12 +208,14 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
           );
         })}
 
-        {/* Axis labels */}
-        <text x={width - pad} y={height - pad + 18} textAnchor="end" fontSize="11" fill="#6b7280">Base(A)</text>
-        <text x={pad - 6} y={pad - 10} textAnchor="start" fontSize="11" fill="#6b7280">Δ(B−A)</text>
+        <text x={width - pad} y={height - pad + 18} textAnchor="end" fontSize="11" fill="#6b7280">
+          Base(A)
+        </text>
+        <text x={pad - 6} y={pad - 10} textAnchor="start" fontSize="11" fill="#6b7280">
+          Δ(B−A)
+        </text>
       </svg>
 
-      {/* 우측 상단 요약 툴팁 (HTML div로 겹쳐서 렌더) */}
       {hovered && (
         <div
           className="absolute top-2 right-2 rounded-lg border border-gray-200 bg-white shadow px-3 py-2 text-xs"
@@ -238,34 +268,54 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [open, category]);
 
   if (!open) return null;
 
-  // 리스트 뷰용 정렬
-  const byDeltaDesc = (brandData ?? []).slice().sort((a,b)=> b.delta_sum - a.delta_sum);
-  const byBDesc     = (brandData ?? []).slice().sort((a,b)=> b.current_sum - a.current_sum);
+  const byDeltaDesc = (brandData ?? []).slice().sort((a, b) => b.delta_sum - a.delta_sum);
+  const byBDesc = (brandData ?? []).slice().sort((a, b) => b.current_sum - a.current_sum);
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center">
       <button aria-label="close overlay" onClick={onClose} className="absolute inset-0 bg-black/40" />
-      <div className="relative w-[min(980px,92vw)] max-h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col h-full">
+      <div className="relative w=[min(980px,92vw)] w-[min(980px,92vw)] max-h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col h-full">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
             <div className="text-lg font-bold text-gray-900">카테고리 분석</div>
             <div className="text-xs text-gray-500 mt-0.5">대상: {category}</div>
           </div>
-          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 grid place-items-center text-gray-500" aria-label="close">✕</button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full hover:bg-gray-100 grid place-items-center text-gray-500"
+            aria-label="close"
+          >
+            ✕
+          </button>
         </div>
 
         {/* Tabs */}
         <div className="px-5 pt-3 pb-2 border-b border-gray-200 sticky top-[64px] bg-white z-10">
           <div className="flex gap-2">
-            <TabButton active={tab === 'brand'} onClick={() => setTab('brand')}>브랜드 분석</TabButton>
-            <TabButton active={tab === 'category'} onClick={() => { setHoveredDate(null); setTab('category'); }}>카테고리 추이</TabButton>
-            <TabButton active={tab === 'ab'} onClick={() => setTab('ab')}>A/B 비교</TabButton>
+            <TabButton active={tab === 'brand'} onClick={() => setTab('brand')}>
+              브랜드 분석
+            </TabButton>
+            <TabButton
+              active={tab === 'category'}
+              onClick={() => {
+                setHoveredDate(null);
+                setTab('category');
+              }}
+            >
+              카테고리 추이
+            </TabButton>
+            <TabButton active={tab === 'ab'} onClick={() => setTab('ab')}>
+              A/B 비교
+            </TabButton>
           </div>
         </div>
 
@@ -292,7 +342,9 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
               {brandView === 'list' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card title="증가 합계 TOP (Δ)">
-                    {!brandData?.length ? <div className="text-sm text-gray-500">데이터가 없습니다.</div> : (
+                    {!brandData?.length ? (
+                      <div className="text-sm text-gray-500">데이터가 없습니다.</div>
+                    ) : (
                       <div className="space-y-3">
                         {byDeltaDesc.slice(0, 8).map((b, i, arr) => (
                           <BarRow
@@ -309,7 +361,9 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                   </Card>
 
                   <Card title="현재 규모 TOP (B 합계)">
-                    {!brandData?.length ? <div className="text-sm text-gray-500">데이터가 없습니다.</div> : (
+                    {!brandData?.length ? (
+                      <div className="text-sm text-gray-500">데이터가 없습니다.</div>
+                    ) : (
                       <div className="space-y-3">
                         {byBDesc.slice(0, 8).map((b, i, arr) => (
                           <BarRow
@@ -317,7 +371,9 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                             label={b.brand}
                             value={b.current_sum}
                             max={Math.max(1, arr[0]?.current_sum || 1)}
-                            sub={`Δ ${(b.current_sum - b.base_sum).toLocaleString()} / 지수 ${b.base_sum>0 ? ((b.current_sum/b.base_sum)*100).toFixed(1) : '—'}`}
+                            sub={`Δ ${(b.current_sum - b.base_sum).toLocaleString()} / 지수 ${
+                              b.base_sum > 0 ? ((b.current_sum / b.base_sum) * 100).toFixed(1) : '—'
+                            }`}
                             pos={true}
                           />
                         ))}
@@ -345,42 +401,83 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
           {/* 카테고리 탭 */}
           {!loading && !err && tab === 'category' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* (좌) 도넛 + Δ비중 캡션  ←↓↓ 여기만 변경됨 */}
               <div className="bg-white rounded-xl border border-gray-200 p-4 min-w-0">
                 {(() => {
                   const lastRow = catTs?.series?.[catTs.series.length - 1];
                   const row = catTs?.series?.find((r: any) => r.date === hoveredDate) ?? lastRow;
-                  const donutData = row && catTs ? catTs.categories.map((c) => ({ label: c, value: Number(row[c]?.sum ?? 0) })) : [];
-                  const prevSource = (() => {
-                    if (!catTs || !row) return null;
+
+                  // 현재 주 기준의 직전/직전-1주 찾기
+                  const { prevSource, prevPrevSource } = (() => {
+                    if (!catTs || !row) return { prevSource: null as any, prevPrevSource: null as any };
                     const idx = catTs.series.findIndex((r) => r.date === row.date);
-                    if (idx > 0) return catTs.series[idx - 1];
-                    return null;
+                    return {
+                      prevSource: idx > 0 ? catTs.series[idx - 1] : null,
+                      prevPrevSource: idx > 1 ? catTs.series[idx - 2] : null,
+                    };
                   })();
-                  const prevDonut = prevSource && catTs ? catTs.categories.map((c) => ({ label: c, value: Number(prevSource[c]?.sum ?? 0) })) : undefined;
+
+                  // ⬇ Δ 비중 데이터(현재 주 Δ)
+                  const donutData =
+                    row && catTs
+                      ? catTs.categories.map((c) => {
+                          const cur = Number(row[c]?.sum ?? 0);
+                          const prev = Number(prevSource?.[c]?.sum ?? 0);
+                          const delta = Math.max(0, cur - prev); // 음수 방지 원하면 유지
+                          return { label: c, value: delta };
+                        })
+                      : [];
+
+                  // ⬇ 직전 주 Δ (캡션 비교용). 직전 주와 직전-1주가 모두 있어야 계산 가능
+                  const prevDonut =
+                    prevSource && prevPrevSource && catTs
+                      ? catTs.categories.map((c) => {
+                          const cur = Number(prevSource[c]?.sum ?? 0);
+                          const prev = Number(prevPrevSource[c]?.sum ?? 0);
+                          const delta = Math.max(0, cur - prev);
+                          return { label: c, value: delta };
+                        })
+                      : undefined;
 
                   return (
                     <>
-                      <CategoryDonut title={row ? `주차별 카테고리 비중 (${row.date})` : '카테고리 비중'} data={donutData} size={272} thickness={28} hoveredLabel={null} onSliceHover={() => {}} />
+                      <CategoryDonut
+                        title={row ? `주차별 카테고리 Δ 비중 (${row.date})` : '카테고리 Δ 비중'}
+                        data={donutData}
+                        size={272}
+                        thickness={28}
+                        hoveredLabel={null}
+                        onSliceHover={() => {}}
+                      />
                       <div className="mt-3">
-                        <CategoryDonutCaption current={donutData} prev={prevDonut} weekLabel={row?.date ?? ''} />
+                        <DonutDeltaCaption current={donutData} prev={prevDonut} weekLabel={row?.date ?? ''} />
                       </div>
                     </>
                   );
                 })()}
               </div>
 
+              {/* (우) 합쳐 그린 라인 오버레이 + 캡션 */}
               <div className="bg-white rounded-xl border border-gray-200 p-4 min-w-0">
-                <CategorySmallMultiples
-                  series={catTs?.series ?? []}
-                  categories={catTs?.categories ?? []}
-                  hoveredDate={hoveredDate}
-                  onHover={setHoveredDate}
-                  yScaleMode="shared"  // 모든 카테고리 같은 축(비교성 ↑)
-                />
-
-                <div className="mt-3">
-                  <SmallMultiplesCaption series={catTs?.series ?? []} categories={catTs?.categories ?? []} window={8} />
-                </div>
+                <div className="text-sm font-semibold text-gray-900 mb-2">카테고리 비교</div>
+                {catTs?.series?.length ? (
+                  <>
+                    <CategoryOverlay
+                      series={catTs.series}
+                      categories={catTs.categories}
+                      hoveredDate={hoveredDate}
+                      onHover={setHoveredDate}
+                      useIndex={false} // 누적 증가량(sum) 기준
+                      padFrac={0.15}
+                      minSpan={80}
+                    />
+                    <div className="mt-3">
+                      <OverlayCaption series={catTs.series} categories={catTs.categories} window={8} />
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm text-gray-500">데이터가 없습니다.</div>
+                )}
               </div>
             </div>
           )}
