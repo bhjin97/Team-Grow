@@ -101,7 +101,7 @@ export default function TrendProductCard({ rank, item, onOpen, variant = 'defaul
                 className="text-[11px] px-2 py-0.5 rounded text-white"
                 style={{ background: 'linear-gradient(135deg, #b4a2f8 0%, #9b87f5 100%)' }}
               >
-                분석
+                정보
               </button>
               <span className="ml-auto text-[10px] text-gray-500">리뷰 {item.b_count.toLocaleString()}</span>
             </div>
