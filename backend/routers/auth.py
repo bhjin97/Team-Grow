@@ -1,6 +1,6 @@
 # backend/routers/auth.py
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from sqlalchemy import text
 from db import get_engine
@@ -19,7 +19,7 @@ def _hash_pw(password: str, salt: str) -> str:
 # 요청 모델
 # -------------------------------
 class SignupRequest(BaseModel):
-    email: str
+    email: EmailStr
     fullName: str
     password: str
 
