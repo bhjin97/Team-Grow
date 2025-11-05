@@ -36,6 +36,7 @@ export default function CategoryOverlay({
   useIndex = false,
   padFrac = 0.12,
   minSpan = 60,
+  plotMode = 'cumDelta',      // 'sum' | 'delta' | 'cumDelta'  ← 추가
 }: {
   series: CategoryPoint[];
   categories: string[];
@@ -44,6 +45,7 @@ export default function CategoryOverlay({
   useIndex?: boolean;
   padFrac?: number;
   minSpan?: number;
+  plotMode?: 'sum' | 'delta' | 'cumDelta';
 }) {
   // 날짜 오름차순
   const rows = React.useMemo(
@@ -51,28 +53,44 @@ export default function CategoryOverlay({
     [series]
   );
 
-  // 공유 y-domain
-  const { domain, lines } = React.useMemo(() => {
-    if (rows.length === 0)
-      return { domain: { min: 0, max: 1 }, lines: {} as Record<string, { x: string; y: number }[]> };
-    let mn = Number.POSITIVE_INFINITY;
-    let mx = Number.NEGATIVE_INFINITY;
-    const map: Record<string, { x: string; y: number }[]> = {};
-    for (const c of categories) {
-      const pts = rows.map(r => {
-        const y = Number(r[c]?.[useIndex ? 'index' : 'sum'] ?? 0);
-        mn = Math.min(mn, y);
-        mx = Math.max(mx, y);
-        return { x: r.date, y };
-      });
-      map[c] = pts;
-    }
-    if (!isFinite(mn) || !isFinite(mx)) mn = 0, mx = 1;
-    if (mx <= mn) mx = mn + 1;
-    const span = mx - mn;
-    const pad = Math.max(span * padFrac, minSpan - span, 1);
-    return { domain: { min: Math.max(0, mn - pad), max: mx + pad }, lines: map };
-  }, [rows, categories, useIndex, padFrac, minSpan]);
+// 공유 y-domain 계산부에서 y 선택 로직 교체
+const { domain, lines } = React.useMemo(() => {
+  if (rows.length === 0)
+    return { domain: { min: 0, max: 1 }, lines: {} as Record<string, { x: string; y: number }[]> };
+
+  let mn = Number.POSITIVE_INFINITY;
+  let mx = Number.NEGATIVE_INFINITY;
+  const map: Record<string, { x: string; y: number }[]> = {};
+
+  for (const c of categories) {
+    const base = Number(rows[0]?.[c]?.sum ?? 0);                         // 첫 주(베이스)
+    const pts = rows.map((r, i) => {
+      const cur = Number(r[c]?.sum ?? 0);
+      let y: number;
+
+      if (plotMode === 'delta') {
+        const prev = i > 0 ? Number(rows[i - 1]?.[c]?.sum ?? 0) : cur;
+        y = Math.max(0, cur - prev);                                     // 주간 Δ (음수 0 클램프)
+      } else if (plotMode === 'cumDelta') {
+        y = Math.max(0, cur - base);                                     // 베이스 대비 누적 증가분
+      } else {
+        y = cur;                                                         // 절대합(sum)
+      }
+
+      mn = Math.min(mn, y);
+      mx = Math.max(mx, y);
+      return { x: r.date, y };
+    });
+    map[c] = pts;
+  }
+
+  if (!isFinite(mn) || !isFinite(mx)) mn = 0, mx = 1;
+  if (mx <= mn) mx = mn + 1;
+  const span = mx - mn;
+  const pad = Math.max(span * padFrac, minSpan - span, 1);
+  return { domain: { min: Math.max(0, mn - pad), max: mx + pad }, lines: map };
+}, [rows, categories, padFrac, minSpan, plotMode]);
+
 
   // 차트 사이즈/패딩
   const { ref, width } = useContainerWidth<HTMLDivElement>(280, 900);
