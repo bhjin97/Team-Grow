@@ -42,3 +42,13 @@ class UserFavoriteProduct(Base):
     user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     product_id = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    
+class Ingredient(Base):
+    __tablename__ = "ingredients"
+
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    korean_name = Column(String(255), nullable=False)
+    english_name = Column(String(255))
+    description = Column(Text)
+    caution_grade = Column(String(50)) # 안전 / 주의 / 위험 / NULL
