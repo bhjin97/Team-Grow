@@ -150,8 +150,13 @@ export default function ProductDetailModal({
                 />
                 <button
                   onClick={() => {
-                    if (mode === 'profile') {
-                      onToggleFavorite?.(detailedProduct.product_pid);
+                    // ✅ 항상 숫자형으로 변환하여 전달
+                    const pid = Number(detailedProduct.product_pid);
+                    console.log("❤️ 즐겨찾기 클릭됨:", pid, typeof pid);
+
+                    // ✅ mode와 상관없이 onToggleFavorite이 있으면 실행
+                    if (onToggleFavorite) {
+                      onToggleFavorite(pid);
                     } else {
                       handleToggleFavorite();
                     }

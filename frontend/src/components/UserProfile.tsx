@@ -205,7 +205,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
 
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const userId = localStorage.getItem('user_id');
+  const userId = Number(localStorage.getItem('user_id'));
 
   // 토스트 메시지 표시 함수
   const showToast = (msg: string) => {
@@ -245,6 +245,67 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
       console.error('❌ 즐겨찾기 삭제 실패:', err);
     }
   };
+
+  // ✅ 즐겨찾기 추가/삭제 토글 함수
+  const toggleFavorite = async (productId: number) => {
+    if (!userId) return;
+    const isAlreadyFavorite = favorites.some(f => f.product_id === productId);
+
+    try {
+      if (isAlreadyFavorite) {
+        // --- 즐겨찾기 삭제 ---
+        const res = await fetch(
+          `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
+          { method: "DELETE" }
+        );
+        if (res.ok) {
+          setFavorites(prev => prev.filter(f => f.product_id !== productId));
+          showToast("즐겨찾기에서 제거되었습니다 💔");
+        } else {
+          console.error("❌ 즐겨찾기 삭제 실패:", await res.text());
+        }
+      } else {
+        // --- 즐겨찾기 추가 ---
+        const res = await fetch(
+          `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
+          { method: "POST" }
+        );
+        if (res.ok) {
+          // ✅ recentRecommendations 또는 selectedProduct 에서 제품 정보 찾기
+          const newProduct =
+            recentRecommendations.find(p => Number(p.product_pid) === productId) ||
+            favorites.find(f => f.product_id === productId) || // 혹시 중복 방지
+            null;
+
+            if (!newProduct) {
+              showToast("제품 정보를 찾을 수 없습니다 ⚠️");
+              return;
+            }
+
+          // ✅ 최소 데이터라도 favorites에 추가
+          const newFav = newProduct
+            ? ({
+                product_id: productId,
+                product_name: (newProduct as any).display_name ?? "이름 없음",
+                brand: (newProduct as any).brand ?? "",
+                category: (newProduct as any).category ?? "",
+                image_url: (newProduct as any).image_url ?? "",
+                price_krw: (newProduct as any).price_krw ?? 0,
+              })
+            : { product_id: productId };
+
+          // ✅ 즉시 즐겨찾기 리스트에 반영
+          setFavorites((prev) => [newFav as FavoriteProduct, ...prev]);
+          showToast("즐겨찾기에 추가되었습니다 ❤️");
+        } else {
+          console.error("❌ 즐겨찾기 추가 실패:", await res.text());
+        }
+      }
+    } catch (err) {
+      console.error("❌ toggleFavorite 오류:", err);
+    }
+  };
+
 
   useEffect(() => {
     const userIdStr = localStorage.getItem('user_id');
@@ -922,7 +983,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
       <ProductDetailModal
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
-        onToggleFavorite={pid => removeFavorite(Number(pid))}
+        onToggleFavorite={pid => toggleFavorite(Number(pid))}
         favorites={favorites.map(f => f.product_id)}
         mode="profile"
       />
