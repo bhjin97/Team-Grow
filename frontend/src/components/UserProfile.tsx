@@ -154,6 +154,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     reason: string;
     category: string;
     price_krw?: number;
+    review_count?: number;
     created_at?: string;
     type?: string;
     source?: string;
@@ -791,6 +792,13 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                           <p className="text-[10px] text-gray-400 truncate">
                             {item.reason}
                           </p>
+
+                          {item.review_count !== undefined && (
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              리뷰 {item.review_count.toLocaleString()}개
+                            </p>
+                          )}
+
 
                         </motion.div>
                       ))}
