@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useUserStore } from '@/stores/auth/store';
 import { useUserProfile, useToast, useFavorites, useRecentRecommendations } from '@/shared';
 import { SimpleToast, LoadingOverlay } from '@/shared/ui';
@@ -70,6 +70,7 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
   const name = useUserStore(state => state.name);
   const [userId, setUserId] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('activity');
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
@@ -103,12 +104,15 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
   const handleSave = async () => {
     if (!profile) return;
 
+    setIsSaving(true);
     try {
       await updateProfile(profile);
       setIsEditing(false);
       showToast('프로필이 성공적으로 업데이트되었습니다', 'success');
     } catch (error) {
       showToast('프로필 업데이트에 실패했습니다', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -169,10 +173,12 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     }
   };
 
-  if (profileLoading) {
+  // 초기 로딩 중
+  if (profileLoading && !profile) {
     return <LoadingOverlay message="프로필 로딩 중..." />;
   }
 
+  // 프로필이 없으면 빈 화면 (로그인으로 리다이렉트됨)
   if (!profile) {
     return null;
   }
@@ -182,7 +188,7 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
       className="min-h-screen w-full pb-16 md:pb-0"
       style={{ background: 'linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%)' }}
     >
-      {profileLoading && <BubbleAnimation />}
+      {isSaving && <BubbleAnimation />}
 
       <ProfileHeader userName={name} onNavigate={onNavigate} />
 
@@ -198,12 +204,11 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">개인 정보</h2>
             <EditProfileButtons
               isEditing={isEditing}
-              isSaving={profileLoading}
+              isSaving={isSaving}
               onEdit={() => setIsEditing(true)}
               onSave={handleSave}
               onCancel={() => {
                 setIsEditing(false);
-                // 원래 프로필로 복원 (필요시)
               }}
             />
           </div>
@@ -228,7 +233,6 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
           className="bg-white rounded-b-2xl shadow-lg p-4 sm:p-6"
         >
           {activeTab === 'activity' ? (
-            // 나의 활동
             <ActivityTab
               favorites={favorites}
               recommendations={recommendations}
@@ -237,7 +241,6 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
               onRecommendationClick={product => setSelectedProduct(product)}
             />
           ) : (
-            // 성분 관리
             <IngredientsTab
               preferredIngredients={preferredIngredients}
               cautionIngredients={cautionIngredients}

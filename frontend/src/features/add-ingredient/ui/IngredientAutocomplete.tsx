@@ -11,6 +11,8 @@ export interface IngredientAutocompleteProps {
   onSelect: (ingredient: Ingredient) => void;
   placeholder?: string;
   isLoading?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 export const IngredientAutocomplete = ({
@@ -18,13 +20,16 @@ export const IngredientAutocomplete = ({
   onChange,
   suggestions,
   onSelect,
-  placeholder = '한글/영문/설명으로 검색',
+  placeholder = '한글/영문으로 검색',
   isLoading = false,
+  hasMore = false,
+  onLoadMore,
 }: IngredientAutocompleteProps) => {
   const [isFocused, setIsFocused] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const showSuggestions = isFocused && value.trim().length > 0 && suggestions.length > 0;
 
@@ -43,6 +48,25 @@ export const IngredientAutocomplete = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // 무한 스크롤 감지
+  useEffect(() => {
+    if (!showSuggestions || !hasMore || !onLoadMore || !listRef.current) return;
+
+    const handleScroll = () => {
+      if (!listRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = listRef.current;
+      
+      // 바닥에서 50px 이내로 스크롤하면 더 로드
+      if (scrollHeight - scrollTop - clientHeight < 50 && !isLoading) {
+        onLoadMore();
+      }
+    };
+
+    const list = listRef.current;
+    list.addEventListener('scroll', handleScroll);
+    return () => list.removeEventListener('scroll', handleScroll);
+  }, [showSuggestions, hasMore, onLoadMore, isLoading]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!showSuggestions) return;
@@ -111,50 +135,59 @@ export const IngredientAutocomplete = ({
             transition={{ duration: 0.15 }}
             className="absolute left-0 right-0 top-full bg-white border border-t-0 border-gray-200 rounded-b-lg shadow-lg max-h-[300px] overflow-y-auto z-50"
           >
-            {suggestions.slice(0, 10).map((ingredient, index) => (
-              <button
-                key={ingredient.id}
-                onClick={() => {
-                  onSelect(ingredient);
-                  setIsFocused(false);
-                  setSelectedIndex(-1);
-                }}
-                className={cn(
-                  'w-full px-4 py-3 text-left hover:bg-pink-50 transition-colors border-b border-gray-100 last:border-b-0',
-                  selectedIndex === index && 'bg-pink-50'
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-800 text-sm truncate">
-                      {ingredient.korean_name}
-                    </p>
-                    {ingredient.english_name && (
-                      <p className="text-xs text-gray-500 truncate">{ingredient.english_name}</p>
+            <div ref={listRef} className="overflow-y-auto max-h-[300px]">
+              {suggestions.map((ingredient, index) => (
+                <button
+                  key={ingredient.id}
+                  onClick={() => {
+                    onSelect(ingredient);
+                    setIsFocused(false);
+                    setSelectedIndex(-1);
+                  }}
+                  className={cn(
+                    'w-full px-4 py-3 text-left hover:bg-pink-50 transition-colors border-b border-gray-100 last:border-b-0',
+                    selectedIndex === index && 'bg-pink-50'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-800 text-sm truncate">
+                        {ingredient.korean_name}
+                      </p>
+                      {ingredient.english_name && (
+                        <p className="text-xs text-gray-500 truncate">{ingredient.english_name}</p>
+                      )}
+                    </div>
+                    {ingredient.caution_grade && (
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0',
+                          ingredient.caution_grade.includes('고')
+                            ? 'bg-red-100 text-red-700'
+                            : ingredient.caution_grade.includes('중')
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-gray-100 text-gray-600'
+                        )}
+                      >
+                        {ingredient.caution_grade}
+                      </span>
                     )}
                   </div>
-                  {ingredient.caution_grade && (
-                    <span
-                      className={cn(
-                        'px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0',
-                        ingredient.caution_grade.includes('고')
-                          ? 'bg-red-100 text-red-700'
-                          : ingredient.caution_grade.includes('중')
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-gray-100 text-gray-600'
-                      )}
-                    >
-                      {ingredient.caution_grade}
-                    </span>
+                  {ingredient.description && (
+                    <p className="text-xs text-gray-400 mt-1 line-clamp-1">
+                      {ingredient.description}
+                    </p>
                   )}
+                </button>
+              ))}
+
+              {/* 더 불러오기 표시 */}
+              {hasMore && (
+                <div className="px-4 py-2 text-center text-xs text-gray-500">
+                  {isLoading ? '불러오는 중...' : '스크롤하여 더 보기'}
                 </div>
-                {ingredient.description && (
-                  <p className="text-xs text-gray-400 mt-1 line-clamp-1">
-                    {ingredient.description}
-                  </p>
-                )}
-              </button>
-            ))}
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
