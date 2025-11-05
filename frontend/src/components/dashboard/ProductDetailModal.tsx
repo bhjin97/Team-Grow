@@ -1,5 +1,6 @@
 'use client';
 
+import { API_BASE } from '@/lib/env';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingCart, Droplet, CircleDollarSign, Info, Heart } from 'lucide-react';
 import * as React from 'react';
@@ -39,6 +40,11 @@ export default function ProductDetailModal({
 }: ProductDetailModalProps) {
   const [isSaved, setIsSaved] = React.useState(false);
   const [toastMsg, setToastMsg] = React.useState<string | null>(null);
+  const [detailedProduct, setDetailedProduct] = React.useState<Product | null>(product); // ✅ 추가
+  const handleClose = () => {
+  setDetailedProduct(null); // 내부 상태 비우기
+  onClose(); // 부모 컴포넌트에도 닫기 전달
+};
 
   // ✅ 부모의 favorites가 바뀌면 즉시 반영
   React.useEffect(() => {
@@ -47,10 +53,42 @@ export default function ProductDetailModal({
     setIsSaved(found);
   }, [favorites, product]);
 
+  // ✅ 누락된 상세정보 자동 보완
+  React.useEffect(() => {
+    if (!product) return;
+
+    // 이미 용량/설명 데이터가 있다면 fetch 생략
+    if (product.capacity && product.description) {
+      setDetailedProduct(product);
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/product/detail/${product.product_pid}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDetailedProduct({
+            ...product,
+            capacity: data.capacity || '용량 정보 없음',
+            description: data.description || '제품 설명이 없습니다.',
+            price_krw: data.price_krw ?? product.price_krw ?? 0,
+            product_url: data.product_url || product.product_url,
+          });
+        } else {
+          setDetailedProduct(product);
+        }
+      } catch (err) {
+        console.error('❌ 자동 상세정보 불러오기 실패:', err);
+        setDetailedProduct(product);
+      }
+    })();
+  }, [product]);
+
   // ✅ 하트 버튼 클릭 시 부모 함수 호출
   const handleToggleFavorite = () => {
-    if (!product) return;
-    onToggleFavorite?.(product.product_pid);
+    if (!detailedProduct) return;
+    onToggleFavorite?.(detailedProduct.product_pid);
     setIsSaved(!isSaved);
     showToast(isSaved ? '즐겨찾기에서 제거되었습니다 💔' : '즐겨찾기에 추가되었습니다 ❤️');
   };
@@ -63,7 +101,7 @@ export default function ProductDetailModal({
 
   return (
     <AnimatePresence>
-      {product && (
+      {detailedProduct && (
         <>
           {/* ✅ 토스트 메시지 */}
           <AnimatePresence>
@@ -85,7 +123,7 @@ export default function ProductDetailModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-            onClick={onClose}
+            onClick={handleClose}
           >
             <motion.div
               initial={{ y: 50, opacity: 0 }}
@@ -97,7 +135,7 @@ export default function ProductDetailModal({
             >
               {/* 닫기 버튼 */}
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200"
               >
                 <X className="w-5 h-5" />
@@ -106,17 +144,15 @@ export default function ProductDetailModal({
               {/* 이미지 + 하트 */}
               <div className="w-full h-64 bg-gray-50 flex items-center justify-center p-4 relative">
                 <img
-                  src={product.image_url}
-                  alt={product.display_name}
+                  src={detailedProduct.image_url}
+                  alt={detailedProduct.display_name}
                   className="max-w-full max-h-full object-contain"
                 />
                 <button
                   onClick={() => {
                     if (mode === 'profile') {
-                      // 프로필에서는 즐겨찾기 삭제만 허용
-                      onToggleFavorite?.(product.product_pid);
+                      onToggleFavorite?.(detailedProduct.product_pid);
                     } else {
-                      // 루틴에서는 토글
                       handleToggleFavorite();
                     }
                   }}
@@ -133,42 +169,42 @@ export default function ProductDetailModal({
               {/* 제품 정보 */}
               <div className="p-5 sm:p-6">
                 <span className="text-sm font-semibold text-pink-600">
-                  {product.step}
+                  {detailedProduct.step}
                 </span>
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 mb-3 leading-snug">
-                  {product.display_name}
+                  {detailedProduct.display_name}
                 </h2>
 
                 <div className="space-y-3">
                   <div className="flex items-center text-gray-700">
                     <CircleDollarSign className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0" />
                     <span className="text-sm sm:text-base font-medium">
-                      {formatPrice(product.price_krw)}
+                      {formatPrice(detailedProduct.price_krw)}
                     </span>
                   </div>
                   <div className="flex items-center text-gray-700">
                     <Droplet className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0" />
                     <span className="text-sm sm:text-base">
-                      {product.capacity || '용량 정보 없음'}
+                      {detailedProduct.capacity || '용량 정보 없음'}
                     </span>
                   </div>
                 </div>
 
-                {product.description && (
+                {detailedProduct.description && (
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <div className="flex items-start text-gray-700">
                       <Info className="w-5 h-5 text-pink-500 mr-2 flex-shrink-0 mt-0.5" />
                       <p className="text-sm text-gray-600 leading-relaxed">
-                        {product.description}
+                        {detailedProduct.description}
                       </p>
                     </div>
                   </div>
                 )}
 
                 {/* 구매 버튼 */}
-                {product.product_url ? (
+                {detailedProduct.product_url ? (
                   <a
-                    href={product.product_url}
+                    href={detailedProduct.product_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full mt-5 flex items-center justify-center gap-2 py-3 rounded-xl bg-pink-500 text-white font-bold text-base hover:bg-pink-600 transition-colors"
