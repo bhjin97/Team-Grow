@@ -79,7 +79,7 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
       id: 1,
       type: 'ai',
       content:
-        "Hello! I'm your beauty AI assistant. You can upload product images to analyze ingredients, or ask me for personalized product recommendations. How can I help you today?",
+        "안녕하세요! 저는 여러분의 뷰티 AI 어시스턴트입니다. 제품 이미지를 업로드하여 성분을 분석하거나, 맞춤형 제품 추천을 요청하실 수 있습니다. 오늘 무엇을 도와드릴까요?",
       timestamp: new Date(),
     },
   ]);
@@ -364,11 +364,36 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
               <AnimatePresence>
                 {messages.map(message => (
                   <motion.div key={message.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`flex items-start space-x-2 sm:space-x-3 max-w-[85%] sm:max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                           style={{ background: message.type === 'user' ? 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' : 'linear-gradient(135deg, #dac4e8 0%, #c4d4f0 100%)' }}>
-                        {message.type === 'user' ? <User className="w-4 h-4 sm:w-5 sm:h-5 text-white" /> : <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />}
-                      </div>
+                    <div
+                      className={`flex items-start ${
+                        message.type === 'user'
+                          ? 'flex-row-reverse space-x-reverse gap-3 sm:gap-4' // ⬅️ 간격 추가
+                          : 'space-x-2 sm:space-x-3'
+                      } max-w-[85%] sm:max-w-[80%]`}
+                    >
+
+                      {/* 아바타: 사용자/AI 분기 */}
+                      {message.type === 'ai' ? (
+                        // ⬇️ AI: 배경/원형 없이 이미지 그대로
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 flex-shrink-0">
+                          <img
+                            src="/ai-droplet.png"
+                            alt="AI"
+                            className="w-full h-full object-contain"
+                            style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.15))' }} // 선택사항
+                          />
+                        </div>
+                      ) : (
+                        // ⬇️ 사용자: 기존처럼 원형 그라데이션 유지
+                        <div
+                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+                        >
+                          <User className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                        </div>
+                      )}
+
+
 
                       <div className={`rounded-2xl p-3 sm:p-4 ${message.type === 'user' ? 'text-white' : 'bg-gray-100 text-gray-800'}`}
                            style={ message.type === 'user' ? { background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' } : {} }>
@@ -387,8 +412,6 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                             {message.content}
                           </p>
                         )}
-
-
 
                         {/* 추천 카드 섹션 */}
                         {message.products && message.products.length > 0 && (
@@ -476,21 +499,7 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 ))}
               </AnimatePresence>
 
-              {isTyping && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start space-x-2 sm:space-x-3">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-purple-400 flex items-center justify-center">
-                    <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                  </div>
-                  <div className="bg-gray-100 rounded-2xl p-3 sm:p-4">
-                    <div className="flex space-x-2">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
+              {/* 하단 스크롤 포커스 */}
               <div ref={messagesEndRef} />
             </div>
 
