@@ -190,7 +190,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
         {/* === 상단: 하나의 대형 카드(2열) === */}
         <section className="rounded-2xl bg-white shadow-sm overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-2">
-            {/* 좌측: SkinSummary를 프레임 없이 보이도록 embed */}
+            {/* 좌측: SkinSummary */}
             <div className="p-4 sm:p-6 embed-card md:border-r md:border-gray-100">
               <SkinSummary
                 code={code}
@@ -202,7 +202,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
               />
             </div>
 
-            {/* 우측: 분포 패널(frameless) */}
+            {/* 우측: 분포 패널 */}
             <div className="p-4 sm:p-6">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base sm:text-lg font-semibold">사이트 피부 타입 분포</h2>
@@ -212,6 +212,11 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
             </div>
           </div>
         </section>
+
+        {/* ▼ 지금 뜨는 제품 랭킹: 위치 이동 (두 번째 섹션) */}
+        <div className="mt-6">
+          <TrendsSection />
+        </div>
 
         {/* === 기존 2열 그리드 === */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-6">
@@ -262,11 +267,6 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
             }}
             resetKeywords={resetKeywords}
           />
-        </div>
-
-        {/* ▼ 지금 뜨는 제품 랭킹 */}
-        <div className="mt-6">
-          <TrendsSection />
         </div>
       </main>
 
