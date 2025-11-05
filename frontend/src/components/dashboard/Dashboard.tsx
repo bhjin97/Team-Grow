@@ -13,8 +13,10 @@ import VirtualSkinModel from './VirtualSkinModel';
 import CustomRoutine from './CustomRoutine';
 import TrendsSection from './TrendsSection';
 
-import { fetchRoutine } from '../../lib/utils'; 
-// ⚠️ API_BASE는 여기서 안 쓰이므로 import 제거
+// 우측 카드(분포 + 모달 트리거)
+import SkinTypeStatsPanel from './SkinTypeStatsPanel';
+
+import { fetchRoutine } from '../../lib/utils';
 
 type AxisKey = 'OD' | 'SR' | 'PN' | 'WT';
 type AxisBrief = { avg: number; letter: string; confidence: number };
@@ -24,6 +26,9 @@ export interface DashboardProps {
   userName?: string;
   onNavigate?: (page: string) => void;
 }
+
+type Gender = 'all' | 'female' | 'male' | 'other' | 'na';
+type AgeBand = 'all' | '10s' | '20s' | '30s' | '40s' | '50s' | '60s_plus';
 
 export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardProps) {
   // --- 대시보드 상태 ---
@@ -37,6 +42,10 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   const [axes, setAxes] = useState<AxesJSON | null>(null);
   const [routineProducts, setRoutineProducts] = useState<any[]>([]);
 
+  // --- 공용 필터(기간 항상 all) ---
+  const [gender, setGender] = useState<Gender>('all');
+  const [ageBand, setAgeBand] = useState<AgeBand>('all');
+
   // --- 키워드 룰 ---
   const FOCUS_RULES: Record<string, string[]> = {
     summer_morning: ['가벼운', '산뜻'],
@@ -48,11 +57,8 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
     FOCUS_RULES[`${season}_${timeOfDay}`] || []
   );
-
-  // ✅ 사용자가 키워드를 직접 바꿨는지 추적하는 상태
   const [userChangedKeyword, setUserChangedKeyword] = useState(false);
 
-  // ✅ 계절/시간대 변경 시 자동 키워드 설정
   useEffect(() => {
     if (!userChangedKeyword) {
       const key = `${season}_${timeOfDay}`;
@@ -61,9 +67,8 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     }
   }, [season, timeOfDay]);
 
-  // ✅ 키워드 토글 (자동변경 해제 추가)
   const toggleKeyword = (kw: string) => {
-    setUserChangedKeyword(true); // 수동 변경 시 자동선택 해제
+    setUserChangedKeyword(true);
     if (selectedKeywords.includes(kw)) {
       setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
     } else if (selectedKeywords.length < 2) {
@@ -71,15 +76,14 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     }
   };
 
-  // ✅ 키워드 초기화 함수 (CustomRoutine에서 버튼 클릭 시 사용됨)
   const resetKeywords = () => {
     setSelectedKeywords([]);
-    setUserChangedKeyword(false); // 다시 자동선택 활성화
+    setUserChangedKeyword(false);
   };
 
   // --- 축/라벨 계산 ---
   const code = (baumannType ?? 'ORNT').toUpperCase();
-  const pick = { OD: code[0], SR: code[1], PN: code[2], WT: code[3] };
+  const pick = { OD: code[0], SR: code[1], PN: code[2], WT: code[3] } as const;
   const koAxisWord = {
     OD: pick.OD === 'O' ? '지성' : '건성',
     SR: pick.SR === 'R' ? '저항성' : '민감성',
@@ -118,7 +122,6 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
 
     (async () => {
       try {
-        // 백엔드에서 /api/profile/{id} 제공 중(프로젝트 기존 로직)
         const base = (await import('../../lib/env')).API_BASE;
         if (!base) return;
         const res = await fetch(`${base}/api/profile/${userId}`);
@@ -142,6 +145,39 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     })();
   }, []);
 
+  // ▼ 공용 필터 바(기간 제거: 성별/연령대만)
+  const FiltersBar = () => (
+    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      <label className="text-xs text-gray-500">성별</label>
+      <select
+        value={gender}
+        onChange={(e) => setGender(e.target.value as Gender)}
+        className="border rounded-md px-2 py-1 text-sm"
+      >
+        <option value="all">전체</option>
+        <option value="female">여성</option>
+        <option value="male">남성</option>
+        <option value="other">기타</option>
+        <option value="na">미응답</option>
+      </select>
+
+      <label className="text-xs text-gray-500 ml-2">연령대</label>
+      <select
+        value={ageBand}
+        onChange={(e) => setAgeBand(e.target.value as AgeBand)}
+        className="border rounded-md px-2 py-1 text-sm"
+      >
+        <option value="all">전체</option>
+        <option value="10s">10대</option>
+        <option value="20s">20대</option>
+        <option value="30s">30대</option>
+        <option value="40s">40대</option>
+        <option value="50s">50대</option>
+        <option value="60s_plus">60대+</option>
+      </select>
+    </div>
+  );
+
   return (
     <div
       className="min-h-screen w-full pb-16 md:pb-0"
@@ -150,17 +186,35 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
       <DashboardHeader userName={userName} onNavigate={onNavigate} />
 
       <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl">
-        {/* 상단 요약 */}
-        <SkinSummary
-          code={code}
-          koAxisWord={koAxisWord}
-          concerns={concerns}
-          selectedPeriod={selectedPeriod}
-          setSelectedPeriod={setSelectedPeriod}
-        />
 
-        {/* 2열 그리드 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* === 상단: 하나의 대형 카드(2열) === */}
+        <section className="rounded-2xl bg-white shadow-sm overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            {/* 좌측: SkinSummary를 프레임 없이 보이도록 embed */}
+            <div className="p-4 sm:p-6 embed-card md:border-r md:border-gray-100">
+              <SkinSummary
+                code={code}
+                koAxisWord={koAxisWord}
+                concerns={concerns}
+                selectedPeriod={selectedPeriod}
+                setSelectedPeriod={setSelectedPeriod}
+                variant="compact"
+              />
+            </div>
+
+            {/* 우측: 분포 패널(frameless) */}
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base sm:text-lg font-semibold">사이트 피부 타입 분포</h2>
+                <FiltersBar />
+              </div>
+              <SkinTypeStatsPanel interval="all" gender={gender} ageBand={ageBand} framed={false} />
+            </div>
+          </div>
+        </section>
+
+        {/* === 기존 2열 그리드 === */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-6">
           <PerfumeRecommendations
             selectedWeather={selectedWeather}
             setSelectedWeather={setSelectedWeather}
@@ -210,7 +264,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
           />
         </div>
 
-        {/* ▼ 신규 섹션: 지금 뜨는 제품 랭킹 (두 카드 폭) */}
+        {/* ▼ 지금 뜨는 제품 랭킹 */}
         <div className="mt-6">
           <TrendsSection />
         </div>
