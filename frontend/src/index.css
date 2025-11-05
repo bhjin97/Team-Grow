@@ -209,3 +209,11 @@ img.broken-image-fallback {
   max-height: 240px; /* 과도한 이미지 방지 */
   object-fit: cover;
 }
+
+/* 상단 대형 카드 안에서 SkinSummary를 '프레임 없이' 보이게 */
+.embed-card > * {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
