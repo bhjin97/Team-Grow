@@ -149,15 +149,19 @@ export default function TrendsSection() {
     return `A=${meta.a_date} → B=${meta.b_date} · 기준=${tag} · 베이스 하한≥${meta.min_base}`;
   }, [meta, sort]);
 
-  const donutData = useMemo(() => {
-    if (!catTs?.series?.length || !catTs?.categories?.length) return null;
-    const lastRow = catTs.series[catTs.series.length - 1];
-    const row = catTs.series.find((r) => r.date === hoveredDate) ?? lastRow;
-    return catTs.categories.map((c) => ({
-      label: c,
-      value: Number(row[c]?.sum ?? 0),
-    }));
-  }, [catTs, hoveredDate]);
+const donutData = useMemo(() => {
+  if (!catTs?.series?.length || !catTs?.categories?.length) return null;
+  const rows = catTs.series;
+  const last = rows[rows.length - 1];
+  const prev = rows.length >= 2 ? rows[rows.length - 2] : null;
+
+  return catTs.categories.map((c) => {
+    const b = Number(last?.[c]?.sum ?? 0);
+    const a = Number(prev?.[c]?.sum ?? 0);
+    const inc = Math.max(0, b - a);           // 감소는 0으로 클램프
+    return { label: c, value: inc };
+  });
+}, [catTs]);
 
   return (
     <SectionShell
@@ -220,7 +224,7 @@ export default function TrendsSection() {
               categories={catTs.categories}
               hoveredDate={hoveredDate}
               onHover={setHoveredDate}
-              useIndex={false}
+              plotMode="cumDelta"      // ← 베이스 대비 누적 증가선
               padFrac={0.15}
               minSpan={80}
             />
