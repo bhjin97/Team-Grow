@@ -82,7 +82,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       id: 1,
       type: 'ai',
       content:
-        "Hello! I'm your beauty AI assistant. You can upload product images to analyze ingredients, or ask me for personalized product recommendations. How can I help you today?",
+        "안녕하세요! 저는 여러분의 뷰티 AI 어시스턴트입니다. 제품 이미지를 업로드하여 성분을 분석하거나, 맞춤형 제품 추천을 요청하실 수 있습니다. 오늘 무엇을 도와드릴까요?",
       timestamp: new Date(),
     },
   ]);
@@ -614,7 +614,6 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                   </motion.div>
                 ))}
               </AnimatePresence>
-
               {isTyping && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -642,7 +641,6 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                   </div>
                 </motion.div>
               )}
-
               <div ref={messagesEndRef} />
             </div>
 
