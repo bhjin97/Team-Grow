@@ -1,164 +1,211 @@
 'use client';
 
 import * as React from 'react';
-import { PALETTE_CATEGORY, fmtNumber, LOG_PAD_RATIO } from '@/settings/trends';
 
-// === responsive width hook ===
-function useContainerWidth<T extends HTMLElement>(min = 320, max = 640) {
+// 간단 숫자 포맷
+const fmt = (n: number) => n.toLocaleString();
+
+// 카테고리별 색상(팔레트)
+const COLORS = ['#7c3aed', '#ec4899', '#06b6d4', '#f59e0b'];
+
+type CategoryPoint = {
+  date: string;                 // 'YYYY-MM-DD'
+  [cat: string]: any;           // { sum:number, index:number }
+};
+
+type Props = {
+  series: CategoryPoint[];
+  categories: string[];
+  hoveredDate: string | null;
+  onHover: (d: string | null) => void;
+
+  // 옵션
+  yScaleMode?: 'auto' | 'shared' | 'symlog';
+  padFrac?: number;   // y패딩 비율
+  minSpan?: number;   // 최소 y범위
+  useIndex?: boolean; // sum 대신 index사용
+
+  // ▶ 네비게이터(슬라이더) 표시 여부 (기본 false)
+  showNavigator?: boolean;
+};
+
+function useContainerWidth<T extends HTMLElement>(min = 320, max = 1024) {
   const ref = React.useRef<T | null>(null);
-  const [w, setW] = React.useState<number>(max);
+  const [w, setW] = React.useState<number>(min);
   React.useEffect(() => {
     if (!ref.current) return;
-    const obs = new ResizeObserver(() => {
-      const cw = ref.current?.clientWidth ?? max;
-      setW(Math.max(min, Math.min(max, cw)));
-    });
-    obs.observe(ref.current);
+    const el = ref.current;
+    const resize = () => {
+      const cw = el.clientWidth;
+      setW(Math.max(min, Math.min(max, cw || min)));
+    };
+    resize();
+    const obs = new ResizeObserver(resize);
+    obs.observe(el);
     return () => obs.disconnect();
   }, [min, max]);
   return { ref, width: w };
 }
-
-// === scale helpers & toggle ===
-const USE_LOG1P = true;
-const log1p = (n: number) => Math.log1p(Math.max(0, n));
-const expm1 = (n: number) => Math.expm1(n);
-
-type CategoryPoint = {
-  date: string;
-  [cat: string]: any; // { sum:number, index:number }
-};
 
 export default function CategorySmallMultiples({
   series,
   categories,
   hoveredDate,
   onHover,
-}: {
-  series: CategoryPoint[];
-  categories: string[];
-  hoveredDate: string | null;
-  onHover: (d: string | null) => void;
-}) {
-  const rows = React.useMemo(() => {
-    return [...series].sort((a, b) => (a.date < b.date ? -1 : 1));
-  }, [series]);
+  yScaleMode = 'auto',
+  padFrac = 0.12,
+  minSpan = 60,
+  useIndex = false,
+  showNavigator = false, // ← 기본 끔
+}: Props) {
+  // 날짜 오름차순
+  const rows = React.useMemo(
+    () => [...series].sort((a, b) => (a.date < b.date ? -1 : 1)),
+    [series]
+  );
 
-  // 각 카테고리별로 y-범위 계산(절대량 sum 기준)
-    const yDomains = React.useMemo(() => {
-      const map: Record<string, { min: number; max: number; displayMin: number; displayMax: number }> = {};
-      for (const c of categories) {
-        let mi = Number.POSITIVE_INFINITY;
-        let ma = 0;
-        for (const r of rows) {
-          const v = Number(r[c]?.sum ?? 0);
-          mi = Math.min(mi, v);
-          ma = Math.max(ma, v);
-        }
-        if (!isFinite(mi)) mi = 0;
-        if (ma <= mi) ma = mi + 1;
-
-        // ① 표시용(원값) min/max
-        const dispMin = mi;
-        const dispMax = ma;
-
-        // ② 스케일용 min/max (log1p or linear)
-        const tMin = USE_LOG1P ? log1p(mi) : mi;
-        const tMax = USE_LOG1P ? log1p(ma) : ma;
-
-        // ③ 패딩(변환 공간에서 8% 또는 최소 1 단위)
-        const gap = Math.max(1e-6, tMax - tMin);
-        const padV = Math.max(gap * LOG_PAD_RATIO, 1);
-
-        const outMin = USE_LOG1P ? Math.max(0, tMin - padV) : Math.max(0, tMin - padV);
-        const outMax = USE_LOG1P ? (tMax + padV) : (tMax + padV);
-
-        map[c] = { min: outMin, max: outMax, displayMin: dispMin, displayMax: dispMax };
+  // 공통 y도메인(공유 스케일이 필요한 경우)
+  const sharedDomain = React.useMemo(() => {
+    if (rows.length === 0) return null;
+    let mn = Number.POSITIVE_INFINITY;
+    let mx = Number.NEGATIVE_INFINITY;
+    for (const c of categories) {
+      for (const r of rows) {
+        const raw = Number(r[c]?.[useIndex ? 'index' : 'sum'] ?? 0);
+        mn = Math.min(mn, raw);
+        mx = Math.max(mx, raw);
       }
-      return map;
-    }, [rows, categories]);
+    }
+    if (!isFinite(mn) || !isFinite(mx)) return null;
+    if (mx <= mn) mx = mn + 1;
+    const span = mx - mn;
+    const pad = Math.max(span * padFrac, minSpan - span, 1);
+    return { min: Math.max(0, mn - pad), max: mx + pad };
+  }, [rows, categories, yScaleMode, padFrac, minSpan, useIndex]);
 
   return (
     <div className="space-y-3">
-      <div className="text-sm font-semibold text-gray-900">카테고리별 절대량 추이 (스몰 멀티플 라인)</div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {categories.map((c, i) => (
-          <SmallLine
-            key={c}
-            title={c}
-            color={PALETTE_CATEGORY[i % PALETTE_CATEGORY.length]}
-            points={rows.map((r) => ({ x: r.date, y: Number(r[c]?.sum ?? 0) }))}
-            domain={yDomains[c]}
-            hoveredDate={hoveredDate}
-            onHover={onHover}
-          />
-        ))}
-      </div>
+      {/* 네비게이터는 기본 비활성 */}
+      {showNavigator && (
+        <div className="rounded-2xl border border-gray-200 p-3">
+          <input type="range" min={0} max={rows.length - 1} className="w-full" />
+        </div>
+      )}
+
+      <SmallMultiplesGrid
+        rows={rows}
+        categories={categories}
+        hoveredDate={hoveredDate}
+        onHover={onHover}
+        sharedDomain={yScaleMode === 'shared' ? sharedDomain : null}
+        useIndex={useIndex}
+      />
     </div>
   );
 }
 
-function SmallLine({
+function SmallMultiplesGrid({
+  rows,
+  categories,
+  hoveredDate,
+  onHover,
+  sharedDomain,
+  useIndex,
+}: {
+  rows: CategoryPoint[];
+  categories: string[];
+  hoveredDate: string | null;
+  onHover: (d: string | null) => void;
+  sharedDomain: { min: number; max: number } | null;
+  useIndex: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {categories.map((c, i) => (
+        <OneChart
+          key={c}
+          title={c}
+          color={COLORS[i % COLORS.length]}
+          points={rows.map(r => ({
+            x: r.date,
+            y: Number(r[c]?.[useIndex ? 'index' : 'sum'] ?? 0),
+          }))}
+          hoveredDate={hoveredDate}
+          onHover={onHover}
+          sharedDomain={sharedDomain}
+        />
+      ))}
+    </div>
+  );
+}
+
+function OneChart({
   title,
   color,
   points,
-  domain,
   hoveredDate,
   onHover,
+  sharedDomain,
 }: {
   title: string;
   color: string;
   points: { x: string; y: number }[];
-  domain: { min: number; max: number; displayMin: number; displayMax: number };
   hoveredDate: string | null;
   onHover: (d: string | null) => void;
+  sharedDomain: { min: number; max: number } | null;
 }) {
-  const { ref, width } = useContainerWidth<HTMLDivElement>(320, 640); // 부모 폭 추적
+  const { ref, width } = useContainerWidth<HTMLDivElement>(320, 800);
   const height = 160;
   const pad = 26;
 
+  const domain = React.useMemo(() => {
+    if (sharedDomain) return sharedDomain;
+    let mn = Number.POSITIVE_INFINITY;
+    let mx = Number.NEGATIVE_INFINITY;
+    for (const p of points) {
+      mn = Math.min(mn, p.y);
+      mx = Math.max(mx, p.y);
+    }
+    if (!isFinite(mn) || !isFinite(mx)) return { min: 0, max: 1 };
+    if (mx <= mn) mx = mn + 1;
+    const span = mx - mn;
+    const pad = Math.max(span * 0.12, 60 - span, 1);
+    return { min: Math.max(0, mn - pad), max: mx + pad };
+  }, [points, sharedDomain]);
+
   const xs = (idx: number) =>
     pad + (points.length <= 1 ? 0 : (idx / (points.length - 1)) * (width - pad * 2));
-  const ys = (v: number) => {
-    const tv = USE_LOG1P ? log1p(v) : v;
-    return height - pad - ((tv - domain.min) / (domain.max - domain.min)) * (height - pad * 2);
-  };
+  const ys = (v: number) =>
+    height - pad - ((v - domain.min) / (domain.max - domain.min)) * (height - pad * 2);
 
-
-  // 라인 path
   const path = React.useMemo(() => {
     if (points.length === 0) return '';
-    const d = points
-      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xs(i)} ${ys(p.y)}`)
-      .join(' ');
-    return d;
-  }, [points]);
+    return points.map((p, i) => `${i ? 'L' : 'M'} ${xs(i)} ${ys(p.y)}`).join(' ');
+  }, [points, width, domain.min, domain.max]);
 
-  // hover guide x
   const hoverX = React.useMemo(() => {
     if (!hoveredDate) return null;
-    const idx = points.findIndex((p) => p.x === hoveredDate);
-    if (idx < 0) return null;
-    return xs(idx);
-  }, [hoveredDate, points]);
+    const i = points.findIndex(p => p.x === hoveredDate);
+    return i >= 0 ? xs(i) : null;
+  }, [hoveredDate, points, width]);
+
+  const minVal = Math.round(Math.min(...points.map(p => p.y)));
+  const maxVal = Math.round(Math.max(...points.map(p => p.y)));
 
   return (
     <div className="rounded-xl border border-gray-200 p-3 bg-white">
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm font-semibold text-gray-900">{title}</div>
-        <div className="text-xs text-gray-500">
-          min {fmtNumber(Math.round(domain.displayMin))} · max {fmtNumber(Math.round(domain.displayMax))}
-        </div>
+        <div className="text-xs text-gray-500">min {fmt(minVal)} · max {fmt(maxVal)}</div>
       </div>
-
-      <div className="w-full overflow-x-auto" ref={ref}>
+      <div ref={ref} className="w-full">
         <svg width={width} height={height} className="block">
-          {/* Axes */}
+          {/* axes */}
           <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#e5e7eb" />
           <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="#e5e7eb" />
 
           {/* grid */}
-          {[0.25, 0.5, 0.75].map((t) => {
+          {[0.25, 0.5, 0.75].map(t => {
             const gy = pad + t * (height - pad * 2);
             const gx = pad + t * (width - pad * 2);
             return (
@@ -175,30 +222,16 @@ function SmallLine({
           {/* points */}
           {points.map((p, i) => (
             <circle key={p.x} cx={xs(i)} cy={ys(p.y)} r={2.5} fill={color}>
-              <title>{`${p.x}\n${fmtNumber(p.y)}`}</title>
+              <title>{`${p.x}\n${fmt(p.y)}`}</title>
             </circle>
-          ))} 
+          ))}
 
           {/* hover guide */}
           {hoverX !== null && (
             <g>
               <line x1={hoverX} y1={pad} x2={hoverX} y2={height - pad} stroke="#d1d5db" />
-              <rect
-                x={hoverX - 28}
-                y={pad - 18}
-                width={56}
-                height={16}
-                rx={4}
-                fill="white"
-                stroke="#e5e7eb"
-              />
-              <text
-                x={hoverX}
-                y={pad - 6}
-                textAnchor="middle"
-                fontSize="10"
-                fill="#374151"
-              >
+              <rect x={hoverX - 28} y={pad - 18} width={56} height={16} rx={4} fill="white" stroke="#e5e7eb" />
+              <text x={hoverX} y={pad - 6} textAnchor="middle" fontSize="10" fill="#374151">
                 {hoveredDate}
               </text>
             </g>
