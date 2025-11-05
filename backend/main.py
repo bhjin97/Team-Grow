@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from db import get_db
 from models import Base 
-from routers import profile, analysis, auth, routine, perfume, user, trends, favorite_products, product, ocr, stats
+from routers import profile, analysis, auth, routine, perfume, user, trends, favorite_products, product, ocr, stats, delete
 from routers.chat import router as chat_router
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,3 +35,4 @@ app.include_router(favorite_products.router)
 app.include_router(product.router)
 app.include_router(ocr.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
+app.include_router(delete.router) 
