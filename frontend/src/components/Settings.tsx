@@ -27,6 +27,7 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { useUserStore } from '@/stores/auth/store';
+import DeleteAccountModal from './DeleteAccountModal'; // ✅ 추가
 
 export interface SettingsProps {
   userName?: string;
@@ -34,6 +35,7 @@ export interface SettingsProps {
   onLogout?: () => void;
   onChangePassword?: () => void;
 }
+
 export default function Settings({ onNavigate, onLogout, onChangePassword }: SettingsProps) {
   const name = useUserStore(state => state.name);
 
@@ -48,11 +50,18 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
   // 앱 설정
   const [darkMode, setDarkMode] = useState(false);
   const [language, setLanguage] = useState('ko');
+
+  // ✅ 계정 삭제 모달 상태 + 사용자 정보
+  const [openDelete, setOpenDelete] = useState(false);
+  const userName = name || (typeof window !== 'undefined' ? (localStorage.getItem('user_name') || '사용자') : '사용자');
+  const userId = typeof window !== 'undefined' ? (Number(localStorage.getItem('user_id') || '') || null) : null;
+
   const handleLogout = () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
       onLogout?.();
     }
   };
+
   return (
     <div
       className="min-h-screen w-full pb-16 md:pb-0"
@@ -126,7 +135,7 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
                 }}
               >
-                {name.charAt(0).toUpperCase()}
+                {userName.charAt(0).toUpperCase()}
               </button>
             </div>
 
@@ -140,14 +149,8 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
 
           {mobileMenuOpen && (
             <motion.div
-              initial={{
-                opacity: 0,
-                y: -10,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
               className="md:hidden mt-4 pb-4 space-y-3"
             >
               <button
@@ -185,9 +188,7 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   onNavigate?.('settings');
                   setMobileMenuOpen(false);
                 }}
-                style={{
-                  background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
-                }}
+                style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
                 className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-white font-semibold"
               >
                 <SettingsIcon className="w-5 h-5" />
@@ -200,19 +201,7 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
 
       {/* Main Content */}
       <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-4xl">
-        <motion.div
-          initial={{
-            opacity: 0,
-            y: 20,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{
-            duration: 0.5,
-          }}
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className="flex items-center mb-6 sm:mb-8">
             <SettingsIcon className="w-8 h-8 text-pink-600 mr-3" />
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">설정</h2>
@@ -242,14 +231,8 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   >
                     <motion.div
                       className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full"
-                      animate={{
-                        x: pushNotifications ? 24 : 0,
-                      }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 500,
-                        damping: 30,
-                      }}
+                      animate={{ x: pushNotifications ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     />
                   </button>
                 </div>
@@ -259,12 +242,8 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   <div className="flex items-center space-x-3">
                     <Mail className="w-5 h-5 text-gray-500" />
                     <div>
-                      <p className="text-sm sm:text-base font-semibold text-gray-800">
-                        이메일 알림
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-500">
-                        중요한 업데이트를 이메일로 받기
-                      </p>
+                      <p className="text-sm sm:text-base font-semibold text-gray-800">이메일 알림</p>
+                      <p className="text-xs sm:text-sm text-gray-500">중요한 업데이트를 이메일로 받기</p>
                     </div>
                   </div>
                   <button
@@ -273,14 +252,8 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   >
                     <motion.div
                       className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full"
-                      animate={{
-                        x: emailNotifications ? 24 : 0,
-                      }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 500,
-                        damping: 30,
-                      }}
+                      animate={{ x: emailNotifications ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     />
                   </button>
                 </div>
@@ -290,9 +263,7 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   <div className="flex items-center space-x-3">
                     <Info className="w-5 h-5 text-gray-500" />
                     <div>
-                      <p className="text-sm sm:text-base font-semibold text-gray-800">
-                        제품 업데이트
-                      </p>
+                      <p className="text-sm sm:text-base font-semibold text-gray-800">제품 업데이트</p>
                       <p className="text-xs sm:text-sm text-gray-500">새로운 제품 추천 알림</p>
                     </div>
                   </div>
@@ -302,14 +273,8 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   >
                     <motion.div
                       className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full"
-                      animate={{
-                        x: productUpdates ? 24 : 0,
-                      }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 500,
-                        damping: 30,
-                      }}
+                      animate={{ x: productUpdates ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     />
                   </button>
                 </div>
@@ -319,9 +284,7 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   <div className="flex items-center space-x-3">
                     <Bell className="w-5 h-5 text-gray-500" />
                     <div>
-                      <p className="text-sm sm:text-base font-semibold text-gray-800">
-                        주간 리포트
-                      </p>
+                      <p className="text-sm sm:text-base font-semibold text-gray-800">주간 리포트</p>
                       <p className="text-xs sm:text-sm text-gray-500">매주 피부 상태 요약 받기</p>
                     </div>
                   </div>
@@ -331,14 +294,8 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   >
                     <motion.div
                       className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full"
-                      animate={{
-                        x: weeklyReport ? 24 : 0,
-                      }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 500,
-                        damping: 30,
-                      }}
+                      animate={{ x: weeklyReport ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     />
                   </button>
                 </div>
@@ -356,11 +313,7 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                 {/* 다크 모드 */}
                 <div className="flex items-center justify-between py-3 border-b border-gray-100">
                   <div className="flex items-center space-x-3">
-                    {darkMode ? (
-                      <Moon className="w-5 h-5 text-gray-500" />
-                    ) : (
-                      <Sun className="w-5 h-5 text-gray-500" />
-                    )}
+                    {darkMode ? <Moon className="w-5 h-5 text-gray-500" /> : <Sun className="w-5 h-5 text-gray-500" />}
                     <div>
                       <p className="text-sm sm:text-base font-semibold text-gray-800">다크 모드</p>
                       <p className="text-xs sm:text-sm text-gray-500">어두운 테마 사용</p>
@@ -372,14 +325,8 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                   >
                     <motion.div
                       className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full"
-                      animate={{
-                        x: darkMode ? 24 : 0,
-                      }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 500,
-                        damping: 30,
-                      }}
+                      animate={{ x: darkMode ? 24 : 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     />
                   </button>
                 </div>
@@ -434,7 +381,7 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                       개인정보 처리방침
                     </span>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                  <ChevronRight className="w-5 하-5 text-gray-400" />
                 </button>
 
                 <button className="w-full flex items-center justify-between py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors">
@@ -460,18 +407,18 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
                 <motion.button
                   onClick={handleLogout}
                   className="w-full flex items-center justify-center space-x-3 py-3 px-4 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium"
-                  whileHover={{
-                    scale: 1.02,
-                  }}
-                  whileTap={{
-                    scale: 0.98,
-                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                 >
                   <LogOut className="w-5 h-5" />
                   <span className="text-sm sm:text-base">로그아웃</span>
                 </motion.button>
 
-                <button className="w-full py-2 text-sm text-gray-500 hover:text-red-600 transition-colors">
+                {/* ✅ 계정 삭제: 모달 트리거 */}
+                <button
+                  onClick={() => setOpenDelete(true)}
+                  className="w-full py-2 text-sm text-gray-500 hover:text-red-600 transition-colors"
+                >
                   계정 삭제
                 </button>
               </div>
@@ -522,6 +469,14 @@ export default function Settings({ onNavigate, onLogout, onChangePassword }: Set
           </button>
         </div>
       </nav>
+
+      {/* ✅ 삭제 모달 */}
+      <DeleteAccountModal
+        open={openDelete}
+        onClose={() => setOpenDelete(false)}
+        userName={userName}
+        userId={userId}
+      />
     </div>
   );
 }
