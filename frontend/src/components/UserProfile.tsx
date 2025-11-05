@@ -163,17 +163,28 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
   const [recentRecommendations, setRecentRecommendations] = useState<RecentRecommendation[]>([]);
 
 
-  // ✅ 최근 추천 제품 불러오기 (localStorage)
+  // ✅ 최근 추천 제품 불러오기 (user별 localStorage key)
   useEffect(() => {
-    const stored = localStorage.getItem("recent_recommendations");
-    if (!stored) return;
+    const userId = localStorage.getItem('user_id');
+    if (!userId) {
+      console.warn('⚠️ 로그인된 사용자 정보가 없습니다.');
+      return;
+    }
+
+    const key = `recent_recommendations_${userId}`;
+    const stored = localStorage.getItem(key);
+    if (!stored) {
+      console.log(`ℹ️ ${key} 에 저장된 추천 기록이 없습니다.`);
+      return;
+    }
 
     try {
       const parsed = JSON.parse(stored);
-      // 세션별(products 배열) → 평탄화(flatMap)
+
+      // 세션별 products 배열 → 평탄화(flatMap)
       const flatProducts = parsed
         .flatMap((session: any) =>
-          session.products.map((p: any) => ({
+          (session.products || []).map((p: any) => ({
             ...p,
             created_at: session.created_at,
             type: session.type,
@@ -184,11 +195,13 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
 
+      console.log(`✅ ${key} 불러온 데이터:`, flatProducts);
       setRecentRecommendations(flatProducts);
     } catch (err) {
-      console.error("❌ 최근 추천 데이터 파싱 실패:", err);
+      console.error('❌ 최근 추천 데이터 파싱 실패:', err);
     }
   }, []);
+
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const userId = localStorage.getItem('user_id');

@@ -308,7 +308,8 @@ export default function CustomRoutine({
 
               // ✅ 3️⃣ localStorage에 저장 (용량 자동 정리 포함)
               try {
-                const prev = JSON.parse(localStorage.getItem("recent_recommendations") || "[]");
+                const key = `recent_recommendations_${userId}`; // ✅ 회원별 key 분리
+                const prev = JSON.parse(localStorage.getItem(key) || "[]");
 
                 // ✅ 이미 저장된 product_pid 중복 제거
                 const existingPids = new Set(
@@ -348,7 +349,7 @@ export default function CustomRoutine({
                     console.warn("⚠️ 용량 초과로 오래된 추천 기록 삭제됨");
                   }
 
-                  localStorage.setItem("recent_recommendations", JSON.stringify(updated));
+                  localStorage.setItem(key, JSON.stringify(updated));
                   console.log("💾 최근 추천 저장 완료:", newSession);
                 } else {
                   console.log("⚠️ 이미 저장된 제품만 존재하므로 추가 안 함");
