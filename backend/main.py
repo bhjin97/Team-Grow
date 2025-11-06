@@ -1,4 +1,14 @@
+<<<<<<< HEAD
 # backend/main.py  (resolved)
+=======
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from db import get_db
+from models import Base 
+from routers import profile, analysis, auth, routine, perfume, user, trends, favorite_products, product, ocr, stats, delete, ingredients
+from routers.chat import router as chat_router
+>>>>>>> e3d823b (Feat/ingredients search (#103))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,7 +49,12 @@ app.include_router(product.router)
 # prefix 필요한 라우터
 app.include_router(ocr.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
+<<<<<<< HEAD
 
 # 기타
 app.include_router(delete.router)
 app.include_router(chat_router)
+=======
+app.include_router(delete.router) 
+app.include_router(ingredients.router)
+>>>>>>> e3d823b (Feat/ingredients search (#103))

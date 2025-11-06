@@ -9,7 +9,11 @@ import SkinDiagnosis from './components/dashboard/SkinDiagnosis';
 import Survey from './components/dashboard/Survey';
 import ForgotPassword from './components/ForgotPassword';
 import { useUserStore } from './stores/auth';
+<<<<<<< HEAD
 import Chatbot from './components/Chatbot';
+=======
+import { ProfilePage } from './pages/profile';
+>>>>>>> e3d823b (Feat/ingredients search (#103))
 
 let theme: Theme = 'light';
 let container: Container = 'none';
@@ -163,7 +167,8 @@ function App() {
         return <Chatbot userName={userName} onNavigate={handleNavigate} />;
 
       case 'profile':
-        return <UserProfile onNavigate={handleNavigate} onLogout={handleLogout} />;
+        // return <UserProfile onNavigate={handleNavigate} onLogout={handleLogout} />;
+        return <ProfilePage onNavigate={handleNavigate} onLogout={handleLogout} />;
 
       case 'settings':
         return (
