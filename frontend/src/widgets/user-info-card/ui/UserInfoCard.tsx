@@ -6,10 +6,36 @@ export interface UserInfoCardProps {
   profile: UserProfile;
   isEditing: boolean;
   onUpdate: (updates: Partial<UserProfile>) => void;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page?: string) => void;
+}
+
+function toISODate(value: string | undefined | null) {
+  // 브라우저 date input은 항상 YYYY-MM-DD로 줍니다.
+  // 혹시 'YYYY/MM/DD', 'YYYY.MM.DD' 등 들어오면 정규화
+  if (!value) return '';
+  const v = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const cleaned = v.replace(/[./]/g, '-');
+  const m = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return '';
+  const [, y, mo, d] = m;
+  const mm = mo.padStart(2, '0');
+  const dd = d.padStart(2, '0');
+  return `${y}-${mm}-${dd}`;
 }
 
 export const UserInfoCard = ({ profile, isEditing, onUpdate, onNavigate }: UserInfoCardProps) => {
+  const birthDateValue = toISODate(profile.birthDate || '');
+
+  const handleBirthDateChange = (raw: string) => {
+    const iso = toISODate(raw);
+    if (!iso) return;
+    // 프론트 상태 업데이트
+    onUpdate({ birthDate: iso });
+    // (선택) 백엔드가 연도 컬럼을 쓰는 경우를 대비해 부모에서 매핑하도록 주석 참고
+    // onUpdate({ birthDate: iso, birthYear: Number(iso.slice(0, 4)) as any });
+  };
+
   return (
     <Card padding="lg">
       <div className="flex flex-col md:flex-row gap-6">
@@ -28,6 +54,7 @@ export const UserInfoCard = ({ profile, isEditing, onUpdate, onNavigate }: UserI
               </button>
             )}
           </div>
+
           {isEditing ? (
             <input
               type="text"
@@ -58,14 +85,12 @@ export const UserInfoCard = ({ profile, isEditing, onUpdate, onNavigate }: UserI
 
             {/* 이메일 */}
             <div>
-              <>
-                <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                  <Mail className="w-4 h-4 mr-2" /> 이메일 (수정 불가)
-                </label>
-                <p className="text-sm text-gray-600 px-4 py-2 bg-gray-50 rounded-lg break-all">
-                  {profile.email || '(미입력)'}
-                </p>
-              </>
+              <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                <Mail className="w-4 h-4 mr-2" /> 이메일 (수정 불가)
+              </label>
+              <p className="text-sm text-gray-600 px-4 py-2 bg-gray-50 rounded-lg break-all">
+                {profile.email || '(미입력)'}
+              </p>
             </div>
 
             {/* 생년월일 */}
@@ -74,8 +99,8 @@ export const UserInfoCard = ({ profile, isEditing, onUpdate, onNavigate }: UserI
                 <Input
                   label="생년월일"
                   type="date"
-                  value={profile.birthDate || ''}
-                  onChange={e => onUpdate({ birthDate: e.target.value })}
+                  value={birthDateValue}
+                  onChange={e => handleBirthDateChange(e.target.value)}
                   leftIcon={<Calendar className="w-4 h-4" />}
                 />
               ) : (
@@ -84,7 +109,7 @@ export const UserInfoCard = ({ profile, isEditing, onUpdate, onNavigate }: UserI
                     <Calendar className="w-4 h-4 mr-2" /> 생년월일
                   </label>
                   <p className="text-sm text-gray-600 px-4 py-2 bg-gray-50 rounded-lg">
-                    {profile.birthDate || ''}
+                    {birthDateValue || '(미입력)'}
                   </p>
                 </>
               )}

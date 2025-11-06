@@ -337,8 +337,8 @@ export default function Survey({ onDone }: { onDone: () => void }) {
     const userIdStr = localStorage.getItem('user_id') ?? '1';
     const user_id = Number.parseInt(userIdStr, 10) || 1;
     const nickname = localStorage.getItem('nickname') ?? null;
-    const birth_year_str = localStorage.getItem('birth_year') ?? '';
-    const birth_year = birth_year_str ? Number(birth_year_str) : undefined;
+    const birth_date_str = localStorage.getItem('birth_date') ?? '';
+    const birth_date = birth_date_str ? Number(birth_date_str) : undefined;
     const gender = localStorage.getItem('gender') ?? 'na';
 
     localStorage.setItem('skin_type_code', final.typeCode);
@@ -359,7 +359,7 @@ export default function Survey({ onDone }: { onDone: () => void }) {
           skin_type_code: final.typeCode,
           skin_axes_json: JSON.stringify(axesPayload),
           nickname,
-          birth_year,
+          birth_date,
           gender,
         }),
       });

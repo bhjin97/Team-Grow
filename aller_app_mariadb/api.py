@@ -66,7 +66,7 @@ class SkinDiagIn(BaseModel):
     skin_type_code: str                 # 예: "ORNT"
     skin_axes_json: str                 # JSON 문자열 {"OD":{...}, "SR":{...}, ...}
     nickname: str | None = None
-    birth_year: int | None = None
+    birth_date: int | None = None
     gender: str | None = "na"
 
 # ─────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ def ensure_profile_table():
         CREATE TABLE IF NOT EXISTS profile (
           user_id VARCHAR(64) PRIMARY KEY,
           nickname VARCHAR(100),
-          birth_year INT,
+          birth_date DATE,
           gender VARCHAR(10),
           skin_type_code CHAR(4),
           skin_axes_json LONGTEXT,
@@ -108,11 +108,11 @@ def save_skin_diag(data: SkinDiagIn):
         with engine.begin() as conn:
             conn.execute(
                 text("""
-                INSERT INTO profile (user_id, nickname, birth_year, gender, skin_type_code, skin_axes_json, updated_at)
+                INSERT INTO profile (user_id, nickname, birth_date, gender, skin_type_code, skin_axes_json, updated_at)
                 VALUES (:uid, :nick, :by, :gender, :type_code, :axes, NOW())
                 ON DUPLICATE KEY UPDATE
                   nickname = VALUES(nickname),
-                  birth_year = VALUES(birth_year),
+                  birth_date = VALUES(birth_date),
                   gender = VALUES(gender),
                   skin_type_code = VALUES(skin_type_code),
                   skin_axes_json = VALUES(skin_axes_json),
@@ -121,7 +121,7 @@ def save_skin_diag(data: SkinDiagIn):
                 dict(
                     uid=uid,
                     nick=data.nickname,
-                    by=data.birth_year,
+                    by=data.birth_date,
                     gender=(data.gender or "na"),
                     type_code=data.skin_type_code,
                     axes=data.skin_axes_json,  # 문자열(JSON) 그대로 저장
@@ -139,7 +139,7 @@ def get_profile(user_id: str) -> Dict[str, Any]:
     with engine.begin() as conn:
         row = conn.execute(
             text("""
-                SELECT user_id, nickname, birth_year, gender,
+                SELECT user_id, nickname, birth_date, gender,
                        skin_type_code, skin_axes_json, updated_at
                 FROM profile
                 WHERE user_id = :uid
