@@ -4954,10 +4954,10 @@ picomatch@^2.3.1:
   resolved "https://registry.npmjs.org/picomatch/-/picomatch-2.3.1.tgz"
   integrity sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==
 
-plotly.js@^3.1.2, plotly.js@>1.34.0:
-  version "3.1.2"
-  resolved "https://registry.npmjs.org/plotly.js/-/plotly.js-3.1.2.tgz"
-  integrity sha512-Yk1KQ1QHzZH1t/XYdub3b631Gc4t4kZYHdnf4G7DqnNg4CP3nJ9FP4hsNh3pNVO9LcpchE7NrmjPKJlaGzBJNg==
+plotly.js@^3.2.0, plotly.js@>1.34.0:
+  version "3.2.0"
+  resolved "https://registry.npmjs.org/plotly.js/-/plotly.js-3.2.0.tgz"
+  integrity sha512-VH4FRnWbO35rU3IEPrnZ4pxnjS5NbNz6Jk3Rp06jTIleYdAWCdyRrULSOqQB9UMm9XHRKaIKAZPYBOLqQ1svbA==
   dependencies:
     "@plotly/d3" "3.8.2"
     "@plotly/d3-sankey" "0.7.2"

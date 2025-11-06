@@ -3,8 +3,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 from urllib.parse import quote_plus
-from openai import OpenAI
 from pinecone import Pinecone
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from urllib.parse import quote_plus
+from typing import Generator
 
 load_dotenv()
 
@@ -31,19 +33,22 @@ def get_db():
 def get_engine():
     return engine
 
-# ── OpenAI ──
-oai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
-EMBED_MODEL = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-large")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+EMBED_MODEL = "text-embedding-3-large"
+llm = ChatOpenAI(model="gpt-4o-mini", api_key=OPENAI_API_KEY,)# llm 변동성 옵션 temperature=0.7(기본값)
 
 # ── Pinecone ──
-pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-INDEX_PRODUCT = os.getenv("PINECONE_INDEX", "rag-product")
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+pinecone_client = Pinecone(api_key=PINECONE_API_KEY)
+EMBEDDING_MODEL = "text-embedding-3-large"
+#index
+RAG_PRODUCT_INDEX_NAME = "rag-product"
+INGREDIENT_INDEX_NAME = "cosmetic-ingredients"
+PRODUCT_NAME_INDEX= "product-name"
+INGREDIENT_NAME_INDEX = "ingredients-name"
+BRAND_NAME_INDEX = "brand-name"
 
-# backend/db.py 맨 위쪽 (임시 디버그)
-import os
-from dotenv import load_dotenv, find_dotenv
-
-load_dotenv(find_dotenv(".env", raise_error_if_not_found=False) or ".env")
-print("[dotenv] OPENAI?", bool(os.getenv("OPENAI_API_KEY")))
-print("[dotenv] PINECONE?", bool(os.getenv("PINECONE_API_KEY")))
+embeddings_model = OpenAIEmbeddings(
+    model=EMBEDDING_MODEL,
+    openai_api_key=OPENAI_API_KEY
+)

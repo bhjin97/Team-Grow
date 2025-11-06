@@ -22,8 +22,8 @@ import {
 import { useUserStore } from '@/stores/auth/store';
 import { chatStream, fetchRecommendations, RecProduct } from '@/lib/api';
 import { uploadOcrImage /*, searchOcrByName (추후 필요 시)*/ } from '@/lib/api';
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export interface ChatInterfaceProps {
   userName?: string;
@@ -48,7 +48,6 @@ interface Message {
   ocrImageUrl?: string | null;
 }
 
-
 /* ─────────────────────────────
    세션 저장 관련 유틸
    ───────────────────────────── */
@@ -62,7 +61,11 @@ type PersistMsg = {
 };
 
 let saveTimer: any = null;
-function scheduleSessionSave(payload: { messages: PersistMsg[]; savedProducts: number[]; draft: string }) {
+function scheduleSessionSave(payload: {
+  messages: PersistMsg[];
+  savedProducts: number[];
+  draft: string;
+}) {
   try {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
@@ -73,7 +76,7 @@ function scheduleSessionSave(payload: { messages: PersistMsg[]; savedProducts: n
   } catch {}
 }
 
-export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatInterfaceProps) {
+export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
@@ -102,7 +105,11 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
       const raw = sessionStorage.getItem(SS_KEY);
       if (!raw) return;
 
-      const parsed = JSON.parse(raw) as { messages: PersistMsg[]; savedProducts: number[]; draft: string };
+      const parsed = JSON.parse(raw) as {
+        messages: PersistMsg[];
+        savedProducts: number[];
+        draft: string;
+      };
       const restored = (parsed.messages || []).map(m => ({
         id: m.id,
         type: m.type as 'user' | 'ai',
@@ -121,7 +128,9 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-  React.useEffect(() => { scrollToBottom(); }, [messages]);
+  React.useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   /* ─────────────────────────────
      상태 변경 시 세션 저장
@@ -170,23 +179,21 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
 
     try {
       // 3) LLM 스트리밍
-      const { iter } = await chatStream(text, 6);
+      const { iter, cacheKey } = await chatStream(text, 6); // ⬅️ cacheKey 받기
       for await (const chunk of iter()) {
-        setMessages(prev => prev.map(m =>
-          m.id === aiMsgId ? { ...m, content: (m.content || '') + chunk } : m
-        ));
+        setMessages(prev =>
+          prev.map(m => (m.id === aiMsgId ? { ...m, content: (m.content || '') + chunk } : m))
+        );
       }
       // 4) 추천 카드 가져오기
-      const { products } = await fetchRecommendations(text, 12);
-      setMessages(prev => prev.map(m =>
-        m.id === aiMsgId ? { ...m, products } : m
-      ));
+      const { products } = await fetchRecommendations(text, 12, cacheKey);
+      setMessages(prev => prev.map(m => (m.id === aiMsgId ? { ...m, products } : m)));
     } catch (err) {
-      setMessages(prev => prev.map(m =>
-        m.id === aiMsgId
-          ? { ...m, content: '죄송해요. 잠시 후 다시 시도해주세요.' }
-          : m
-      ));
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === aiMsgId ? { ...m, content: '죄송해요. 잠시 후 다시 시도해주세요.' } : m
+        )
+      );
       console.error(err);
     } finally {
       setIsTyping(false);
@@ -195,60 +202,64 @@ export default function ChatInterface({ userName = 'Sarah', onNavigate }: ChatIn
   // ⬆️ 끝
 
   // ChatInterface.tsx 내
-const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  // (1) 미리보기(선택): 업로드 직후 사용자 메시지에 이미지 붙이기
-  const localPreview = URL.createObjectURL(file);
-  const userMsg: Message = {
-    id: messages.length + 1,
-    type: 'user',
-    content: '이 제품 이미지 분석해줘',
-    image: localPreview,
-    timestamp: new Date(),
+    // (1) 미리보기(선택): 업로드 직후 사용자 메시지에 이미지 붙이기
+    const localPreview = URL.createObjectURL(file);
+    const userMsg: Message = {
+      id: messages.length + 1,
+      type: 'user',
+      content: '이 제품 이미지 분석해줘',
+      image: localPreview,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+
+    // (2) AI placeholder
+    const aiMsgId = userMsg.id + 1;
+    const aiMsg: Message = {
+      id: aiMsgId,
+      type: 'ai',
+      content: '분석 중입니다…',
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, aiMsg]);
+    setIsTyping(true);
+
+    try {
+      // (3) OCR 업로드 → 결과 수신
+      const { analysis, render } = await uploadOcrImage(file);
+
+      // (4) AI 메시지 내용을 실제 분석 텍스트로 교체
+      setMessages(prev =>
+        prev.map(m => {
+          if (m.id !== aiMsgId) return m;
+          return {
+            ...m,
+            content: render?.text || '분석 결과를 표시할 수 없습니다.',
+            image: render?.image_url || undefined, // 서버 이미지가 있으면 교체
+            analysis, // (선택) JSON 보관
+            ocrImageUrl: render?.image_url ?? null, // (선택)
+          };
+        })
+      );
+    } catch (err) {
+      console.error(err);
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === aiMsgId
+            ? { ...m, content: '❌ OCR 분석에 실패했습니다. 잠시 후 다시 시도해주세요.' }
+            : m
+        )
+      );
+    } finally {
+      setIsTyping(false);
+      // 파일 input 초기화(같은 파일 재업로드 허용)
+      if (e.target) e.target.value = '';
+    }
   };
-  setMessages(prev => [...prev, userMsg]);
-
-  // (2) AI placeholder
-  const aiMsgId = userMsg.id + 1;
-  const aiMsg: Message = {
-    id: aiMsgId,
-    type: 'ai',
-    content: '분석 중입니다…',
-    timestamp: new Date(),
-  };
-  setMessages(prev => [...prev, aiMsg]);
-  setIsTyping(true);
-
-  try {
-    // (3) OCR 업로드 → 결과 수신
-    const { analysis, render } = await uploadOcrImage(file);
-
-    // (4) AI 메시지 내용을 실제 분석 텍스트로 교체
-    setMessages(prev => prev.map(m => {
-      if (m.id !== aiMsgId) return m;
-      return {
-        ...m,
-        content: render?.text || "분석 결과를 표시할 수 없습니다.",
-        image: render?.image_url || undefined,  // 서버 이미지가 있으면 교체
-        analysis,                               // (선택) JSON 보관
-        ocrImageUrl: render?.image_url ?? null, // (선택)
-      };
-    }));
-  } catch (err) {
-    console.error(err);
-    setMessages(prev => prev.map(m =>
-      m.id === aiMsgId
-        ? { ...m, content: '❌ OCR 분석에 실패했습니다. 잠시 후 다시 시도해주세요.' }
-        : m
-    ));
-  } finally {
-    setIsTyping(false);
-    // 파일 input 초기화(같은 파일 재업로드 허용)
-    if (e.target) e.target.value = '';
-  }
-};
 
   const handleSaveProduct = (messageId: number) => {
     if (savedProducts.includes(messageId)) {
@@ -286,16 +297,29 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         <div className="container mx-auto px-3.5 sm:px--0.5 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <h1 className="text-5xl sm:text-6xl font-light tracking-wide" style={{ fontFamily: "'Italianno', cursive", color: '#9b87f5' }}>
+              <h1
+                className="text-5xl sm:text-6xl font-light tracking-wide"
+                style={{ fontFamily: "'Italianno', cursive", color: '#9b87f5' }}
+              >
                 aller
               </h1>
             </div>
             <nav className="hidden md:flex items-center space-x-1">
-              <button onClick={() => onNavigate?.('dashboard')} className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors">
+              <button
+                onClick={() => onNavigate?.('dashboard')}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
+              >
                 <LayoutDashboard className="w-5 h-5" />
                 <span>대시보드</span>
               </button>
-              <button onClick={() => onNavigate?.('chat')} className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors relative" style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)', color: 'white' }}>
+              <button
+                onClick={() => onNavigate?.('chat')}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors relative"
+                style={{
+                  background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+                  color: 'white',
+                }}
+              >
                 <MessageSquare className="w-5 h-5" />
                 <span>AI 상담</span>
                 {savedProducts.length > 0 && (
@@ -304,11 +328,17 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   </span>
                 )}
               </button>
-              <button onClick={() => onNavigate?.('profile')} className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors">
+              <button
+                onClick={() => onNavigate?.('profile')}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
+              >
                 <UserCircle className="w-5 h-5" />
                 <span>프로필</span>
               </button>
-              <button onClick={() => onNavigate?.('settings')} className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors">
+              <button
+                onClick={() => onNavigate?.('settings')}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
+              >
                 <SettingsIcon className="w-5 h-5" />
                 <span>설정</span>
               </button>
@@ -318,22 +348,46 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 <Bell className="w-6 h-6" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <button onClick={() => onNavigate?.('profile')} className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold" style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}>
+              <button
+                onClick={() => onNavigate?.('profile')}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
+                style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+              >
                 {name.charAt(0).toUpperCase()}
               </button>
             </div>
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden p-2 text-gray-700 hover:text-pink-600 transition-colors">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 text-gray-700 hover:text-pink-600 transition-colors"
+            >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
 
           {mobileMenuOpen && (
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="md:hidden mt-4 pb-4 space-y-3">
-              <button onClick={() => { onNavigate?.('dashboard'); setMobileMenuOpen(false); }} className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50">
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="md:hidden mt-4 pb-4 space-y-3"
+            >
+              <button
+                onClick={() => {
+                  onNavigate?.('dashboard');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
+              >
                 <LayoutDashboard className="w-5 h-5" />
                 <span>대시보드</span>
               </button>
-              <button onClick={() => { onNavigate?.('chat'); setMobileMenuOpen(false); }} style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }} className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-white font-semibold relative">
+              <button
+                onClick={() => {
+                  onNavigate?.('chat');
+                  setMobileMenuOpen(false);
+                }}
+                style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+                className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-white font-semibold relative"
+              >
                 <MessageSquare className="w-5 h-5" />
                 <span>AI 상담</span>
                 {savedProducts.length > 0 && (
@@ -342,11 +396,23 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   </span>
                 )}
               </button>
-              <button onClick={() => { onNavigate?.('profile'); setMobileMenuOpen(false); }} className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50">
+              <button
+                onClick={() => {
+                  onNavigate?.('profile');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
+              >
                 <UserCircle className="w-5 h-5" />
                 <span>프로필</span>
               </button>
-              <button onClick={() => { onNavigate?.('settings'); setMobileMenuOpen(false); }} className="flex items-center space-y-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50">
+              <button
+                onClick={() => {
+                  onNavigate?.('settings');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center space-y-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
+              >
                 <SettingsIcon className="w-5 h-5" />
                 <span>설정</span>
               </button>
@@ -358,22 +424,57 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       {/* Chat Container */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-4xl flex-1 flex flex-col min-h-0">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col flex-1 min-h-0"
+          >
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
               <AnimatePresence>
                 {messages.map(message => (
-                  <motion.div key={message.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`flex items-start space-x-2 sm:space-x-3 max-w-[85%] sm:max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                           style={{ background: message.type === 'user' ? 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' : 'linear-gradient(135deg, #dac4e8 0%, #c4d4f0 100%)' }}>
-                        {message.type === 'user' ? <User className="w-4 h-4 sm:w-5 sm:h-5 text-white" /> : <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />}
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`flex items-start space-x-2 sm:space-x-3 max-w-[85%] sm:max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}
+                    >
+                      <div
+                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{
+                          background:
+                            message.type === 'user'
+                              ? 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)'
+                              : 'linear-gradient(135deg, #dac4e8 0%, #c4d4f0 100%)',
+                        }}
+                      >
+                        {message.type === 'user' ? (
+                          <User className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                        ) : (
+                          <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                        )}
                       </div>
 
-                      <div className={`rounded-2xl p-3 sm:p-4 ${message.type === 'user' ? 'text-white' : 'bg-gray-100 text-gray-800'}`}
-                           style={ message.type === 'user' ? { background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' } : {} }>
+                      <div
+                        className={`rounded-2xl p-3 sm:p-4 ${message.type === 'user' ? 'text-white' : 'bg-gray-100 text-gray-800'}`}
+                        style={
+                          message.type === 'user'
+                            ? { background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }
+                            : {}
+                        }
+                      >
                         {message.image && message.type === 'user' && (
-                          <img src={message.image} alt="Uploaded product" className="rounded-lg mb-2 sm:mb-3 max-w-full w-full sm:max-w-xs" />
+                          <img
+                            src={message.image}
+                            alt="Uploaded product"
+                            className="rounded-lg mb-2 sm:mb-3 max-w-full w-full sm:max-w-xs"
+                          />
                         )}
                         {/* 본문 렌더링: user는 일반 텍스트, ai는 마크다운 */}
                         {message.type === 'ai' ? (
@@ -388,14 +489,17 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                           </p>
                         )}
 
-
-
                         {/* 추천 카드 섹션 */}
                         {message.products && message.products.length > 0 && (
                           <div className="mt-4 space-y-3">
-                            <h4 className="text-sm sm:text-base font-semibold text-pink-600">추천 제품</h4>
+                            <h4 className="text-sm sm:text-base font-semibold text-pink-600">
+                              추천 제품
+                            </h4>
                             {message.products.slice(0, 6).map((p, i) => (
-                              <div key={i} className="p-3 sm:p-4 bg-white rounded-lg border border-gray-200">
+                              <div
+                                key={i}
+                                className="p-3 sm:p-4 bg-white rounded-lg border border-gray-200"
+                              >
                                 <div className="flex items-start gap-3">
                                   {p.image_url && (
                                     <img
@@ -410,12 +514,18 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                                     </div>
                                     <div className="text-xs text-gray-500">{p.category || ''}</div>
                                     {p.price_krw != null && (
-                                      <div className="mt-1 text-sm text-gray-700">₩{p.price_krw.toLocaleString()}</div>
+                                      <div className="mt-1 text-sm text-gray-700">
+                                        ₩{p.price_krw.toLocaleString()}
+                                      </div>
                                     )}
                                     {p.rag_text && (
                                       <details className="mt-2">
-                                        <summary className="text-xs text-pink-600 cursor-pointer">리뷰 요약 보기</summary>
-                                        <p className="mt-1 text-xs text-gray-700 whitespace-pre-wrap">{p.rag_text}</p>
+                                        <summary className="text-xs text-pink-600 cursor-pointer">
+                                          리뷰 요약 보기
+                                        </summary>
+                                        <p className="mt-1 text-xs text-gray-700 whitespace-pre-wrap">
+                                          {p.rag_text}
+                                        </p>
                                       </details>
                                     )}
                                     {p.product_url && (
@@ -424,14 +534,19 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                                         target="_blank"
                                         rel="noreferrer"
                                         className="inline-block mt-2 text-xs text-white px-3 py-1 rounded-lg"
-                                        style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+                                        style={{
+                                          background:
+                                            'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+                                        }}
                                       >
                                         상품 페이지
                                       </a>
                                     )}
                                   </div>
                                   {typeof p.score === 'number' && (
-                                    <div className="text-[11px] text-gray-500 ml-2">sim {p.score.toFixed(3)}</div>
+                                    <div className="text-[11px] text-gray-500 ml-2">
+                                      sim {p.score.toFixed(3)}
+                                    </div>
                                   )}
                                 </div>
                               </div>
@@ -447,10 +562,15 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                               <span className="break-words">{message.productInfo.name}</span>
                             </h4>
                             <div className="mb-2 sm:mb-3">
-                              <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-2">Key Ingredients:</p>
+                              <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+                                Key Ingredients:
+                              </p>
                               <ul className="space-y-1">
                                 {message.productInfo.ingredients.map((ingredient, idx) => (
-                                  <li key={idx} className="text-xs sm:text-sm text-gray-600 flex items-start">
+                                  <li
+                                    key={idx}
+                                    className="text-xs sm:text-sm text-gray-600 flex items-start"
+                                  >
                                     <span className="text-green-500 mr-2 flex-shrink-0">✓</span>
                                     <span className="break-words">{ingredient}</span>
                                   </li>
@@ -458,17 +578,36 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                               </ul>
                             </div>
                             <div className="pt-2 sm:pt-3 border-t border-gray-200 mb-3">
-                              <p className="text-xs sm:text-sm text-gray-600 break-words">{message.productInfo.description}</p>
+                              <p className="text-xs sm:text-sm text-gray-600 break-words">
+                                {message.productInfo.description}
+                              </p>
                             </div>
-                            <button onClick={() => handleSaveProduct(message.id)}
-                                    className={`w-full py-2 px-3 rounded-lg flex items-center justify-center space-x-2 transition-all ${savedProducts.includes(message.id) ? 'bg-pink-500 text-white' : 'bg-pink-100 text-pink-700 hover:bg-pink-200'}`}>
-                              {savedProducts.includes(message.id) ? (<><BookmarkCheck className="w-4 h-4" /><span className="text-xs sm:text-sm font-medium">저장됨</span></>) : (<><Bookmark className="w-4 h-4" /><span className="text-xs sm:text-sm font-medium">제품 저장하기</span></>)}
+                            <button
+                              onClick={() => handleSaveProduct(message.id)}
+                              className={`w-full py-2 px-3 rounded-lg flex items-center justify-center space-x-2 transition-all ${savedProducts.includes(message.id) ? 'bg-pink-500 text-white' : 'bg-pink-100 text-pink-700 hover:bg-pink-200'}`}
+                            >
+                              {savedProducts.includes(message.id) ? (
+                                <>
+                                  <BookmarkCheck className="w-4 h-4" />
+                                  <span className="text-xs sm:text-sm font-medium">저장됨</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Bookmark className="w-4 h-4" />
+                                  <span className="text-xs sm:text-sm font-medium">
+                                    제품 저장하기
+                                  </span>
+                                </>
+                              )}
                             </button>
                           </div>
                         )}
 
                         <p className="text-xs mt-2 opacity-70">
-                          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {message.timestamp.toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </p>
                       </div>
                     </div>
@@ -477,15 +616,28 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
               </AnimatePresence>
 
               {isTyping && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start space-x-2 sm:space-x-3">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-start space-x-2 sm:space-x-3"
+                >
                   <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-purple-400 flex items-center justify-center">
                     <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
                   <div className="bg-gray-100 rounded-2xl p-3 sm:p-4">
                     <div className="flex space-x-2">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '0ms' }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '150ms' }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '300ms' }}
+                      />
                     </div>
                   </div>
                 </motion.div>
@@ -497,8 +649,18 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             {/* Input */}
             <div className="border-t border-gray-200 p-3 sm:p-4 bg-white flex-shrink-0">
               <div className="flex items-end space-x-2 sm:space-x-3">
-                <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
-                <button onClick={() => fileInputRef.current?.click()} className="p-2 sm:p-3 rounded-xl bg-pink-100 text-pink-600 hover:bg-pink-200 transition-colors flex-shrink-0" title="Upload product image">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 sm:p-3 rounded-xl bg-pink-100 text-pink-600 hover:bg-pink-200 transition-colors flex-shrink-0"
+                  title="Upload product image"
+                >
                   <Camera className="w-5 h-5 sm:w-5 sm:h-5" />
                 </button>
                 <div className="flex-1 flex items-end space-x-2">
@@ -535,11 +697,17 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-pink-100 z-50">
         <div className="flex items-center justify-around px-4 py-3">
-          <button onClick={() => onNavigate?.('dashboard')} className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors">
+          <button
+            onClick={() => onNavigate?.('dashboard')}
+            className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors"
+          >
             <LayoutDashboard className="w-6 h-6" />
             <span className="text-xs">대시보드</span>
           </button>
-          <button onClick={() => onNavigate?.('chat')} className="flex flex-col items-center space-y-1 text-pink-600 relative">
+          <button
+            onClick={() => onNavigate?.('chat')}
+            className="flex flex-col items-center space-y-1 text-pink-600 relative"
+          >
             <MessageSquare className="w-6 h-6" />
             <span className="text-xs font-semibold">AI 상담</span>
             {savedProducts.length > 0 && (
@@ -548,11 +716,17 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
               </span>
             )}
           </button>
-          <button onClick={() => onNavigate?.('profile')} className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors">
+          <button
+            onClick={() => onNavigate?.('profile')}
+            className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors"
+          >
             <UserCircle className="w-6 h-6" />
             <span className="text-xs">프로필</span>
           </button>
-          <button onClick={() => onNavigate?.('settings')} className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors">
+          <button
+            onClick={() => onNavigate?.('settings')}
+            className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors"
+          >
             <SettingsIcon className="w-6 h-6" />
             <span className="text-xs">설정</span>
           </button>

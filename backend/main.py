@@ -1,10 +1,7 @@
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from db import get_db
-from models import Base 
+from fastapi import FastAPI
 from routers import profile, analysis, auth, routine, perfume, user, trends, favorite_products, product, ocr
-from routers.chat import router as chat_router
+from routers.chat.routes import router as chat_router
+
 
 from fastapi.middleware.cors import CORSMiddleware
 
