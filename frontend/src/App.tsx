@@ -10,6 +10,7 @@ import SkinDiagnosis from './components/dashboard/SkinDiagnosis';
 import Survey from './components/dashboard/Survey';
 import ForgotPassword from './components/ForgotPassword';
 import { useUserStore } from './stores/auth';
+import { ProfilePage } from './pages/profile';
 
 let theme: Theme = 'light';
 let container: Container = 'none';
@@ -163,7 +164,8 @@ function App() {
         return <ChatInterface userName={userName} onNavigate={handleNavigate} />;
 
       case 'profile':
-        return <UserProfile onNavigate={handleNavigate} onLogout={handleLogout} />;
+        // return <UserProfile onNavigate={handleNavigate} onLogout={handleLogout} />;
+        return <ProfilePage onNavigate={handleNavigate} onLogout={handleLogout} />;
 
       case 'settings':
         return (

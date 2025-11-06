@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   User,
   Mail,
@@ -11,10 +11,8 @@ import {
   Save,
   Menu,
   X,
-  Home,
   MessageSquare,
   UserCircle,
-  Star,
   Clock,
   Bookmark,
   Plus,
@@ -27,9 +25,9 @@ import {
   LayoutDashboard,
   TrendingUp,
   Heart,
+  Search as SearchIcon,
 } from 'lucide-react';
 import { API_BASE } from '../lib/env';
-import { AnimatePresence } from 'framer-motion';
 import { fetchUserProfile, updateUserProfile } from '../lib/utils';
 import { useUserStore } from '@/stores/auth/store';
 import ProductDetailModal from './dashboard/ProductDetailModal';
@@ -41,58 +39,60 @@ export interface UserProfileProps {
 
 type TabType = 'activity' | 'ingredients';
 
-// 물방울 로더
+type Ingredient = {
+  id: number;
+  korean_name: string;
+  english_name?: string | null;
+  description?: string | null;
+  caution_grade?: string | null; // '주의', '고위험' 등
+};
+
+type PreferredItem = { id: number; name: string; benefit: string };
+type CautionItem = { id: number; name: string; reason: string; severity: 'low' | 'mid' | 'high' };
+
 const WaterDropletLoader = () => (
   <>
     <style>{`
-      @keyframes rise {
-        0% { transform: translateY(0); opacity: 1; }
-        50% { opacity: 0.8; }
-        100% { transform: translateY(-20px); opacity: 0; }
-      }
-      .droplet {
-        display: inline-block;
-        width: 6px; height: 6px;
-        background-color: white;
-        border-radius: 50%;
-        opacity: 0;
-        animation: rise 1s ease-in-out infinite;
-      }
+      @keyframes rise { 0%{transform:translateY(0);opacity:1} 50%{opacity:.8} 100%{transform:translateY(-20px);opacity:0} }
+      .droplet{display:inline-block;width:6px;height:6px;background:#fff;border-radius:50%;opacity:0;animation:rise 1s ease-in-out infinite}
     `}</style>
     <div className="flex justify-center items-center space-x-1 h-5">
-      <span className="droplet" style={{ animationDelay: '0s' }}></span>
-      <span className="droplet" style={{ animationDelay: '0.2s' }}></span>
-      <span className="droplet" style={{ animationDelay: '0.4s' }}></span>
+      <span className="droplet" style={{ animationDelay: '0s' }} />
+      <span className="droplet" style={{ animationDelay: '0.2s' }} />
+      <span className="droplet" style={{ animationDelay: '0.4s' }} />
     </div>
   </>
 );
 
-// 비눗방울
 const BubbleAnimation = () => {
-  const bubbles = Array.from({ length: 40 }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    delay: Math.random() * 0.8,
-    duration: 3 + Math.random() * 2,
-    size: 40 + Math.random() * 60,
-  }));
+  const bubbles = useMemo(
+    () =>
+      Array.from({ length: 40 }, (_, i) => ({
+        id: i,
+        left: Math.random() * 100,
+        delay: Math.random() * 0.8,
+        duration: 3 + Math.random() * 2,
+        size: 40 + Math.random() * 60,
+      })),
+    []
+  );
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-      {bubbles.map(bubble => (
+      {bubbles.map(b => (
         <motion.div
-          key={bubble.id}
+          key={b.id}
           className="absolute rounded-full"
           style={{
-            left: `${bubble.left}%`,
+            left: `${b.left}%`,
             bottom: '-100px',
-            width: `${bubble.size}px`,
-            height: `${bubble.size}px`,
+            width: `${b.size}px`,
+            height: `${b.size}px`,
             background:
-              'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.9), rgba(248, 215, 230, 0.7), rgba(232, 180, 212, 0.5))',
+              'radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(248,215,230,.7), rgba(232,180,212,.5))',
             boxShadow:
-              'inset -10px -10px 30px rgba(255, 255, 255, 0.8), inset 5px 5px 20px rgba(248, 215, 230, 0.5), 0 0 30px rgba(248, 215, 230, 0.4)',
-            border: '3px solid rgba(255, 255, 255, 0.5)',
+              'inset -10px -10px 30px rgba(255,255,255,.8), inset 5px 5px 20px rgba(248,215,230,.5), 0 0 30px rgba(248,215,230,.4)',
+            border: '3px solid rgba(255,255,255,.5)',
             backdropFilter: 'blur(2px)',
           }}
           animate={{
@@ -101,11 +101,7 @@ const BubbleAnimation = () => {
             opacity: [0, 1, 1, 0.8, 0],
             scale: [0.5, 1.2, 1, 1, 0.8],
           }}
-          transition={{
-            duration: bubble.duration,
-            delay: bubble.delay,
-            ease: [0.43, 0.13, 0.23, 0.96],
-          }}
+          transition={{ duration: b.duration, delay: b.delay, ease: [0.43, 0.13, 0.23, 0.96] }}
         />
       ))}
     </div>
@@ -119,8 +115,12 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
   const [isSaving, setIsSaving] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('activity');
+
+  // 성분 입력/타입
   const [newIngredient, setNewIngredient] = useState('');
   const [newIngredientType, setNewIngredientType] = useState<'preferred' | 'caution'>('preferred');
+
+  // 유저 데이터
   const [userData, setUserData] = useState({
     id: 0,
     name: '',
@@ -130,9 +130,8 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     gender: 'na',
     skinType: '',
   });
-  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
-  // ==================== 즐겨찾기 관련 추가 ====================
+  // 즐겨찾기/추천
   interface FavoriteProduct {
     product_id: number;
     product_name: string;
@@ -145,8 +144,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     product_url?: string;
     rag_text?: string;
   }
-
-  // ✅ 추가
   interface RecentRecommendation {
     product_pid: string;
     display_name: string;
@@ -159,77 +156,49 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
     type?: string;
     source?: string;
   }
-
   const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
   const [recentRecommendations, setRecentRecommendations] = useState<RecentRecommendation[]>([]);
-
-
-  // ✅ 최근 추천 제품 불러오기 (user별 localStorage key)
-  useEffect(() => {
-    const userId = localStorage.getItem('user_id');
-    if (!userId) {
-      console.warn('⚠️ 로그인된 사용자 정보가 없습니다.');
-      return;
-    }
-
-    const key = `recent_recommendations_${userId}`;
-    const stored = localStorage.getItem(key);
-    if (!stored) {
-      console.log(`ℹ️ ${key} 에 저장된 추천 기록이 없습니다.`);
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(stored);
-
-      // 세션별 products 배열 → 평탄화(flatMap)
-      const flatProducts = parsed
-        .flatMap((session: any) =>
-          (session.products || []).map((p: any) => ({
-            ...p,
-            created_at: session.created_at,
-            type: session.type,
-          }))
-        )
-        .sort(
-          (a: any, b: any) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-
-      console.log(`✅ ${key} 불러온 데이터:`, flatProducts);
-      setRecentRecommendations(flatProducts);
-    } catch (err) {
-      console.error('❌ 최근 추천 데이터 파싱 실패:', err);
-    }
-  }, []);
-
-
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
   const userId = Number(localStorage.getItem('user_id'));
 
-  // 토스트 메시지 표시 함수
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 2000);
   };
 
+  // 추천 히스토리
+  useEffect(() => {
+    const uid = localStorage.getItem('user_id');
+    if (!uid) return;
+    const key = `recent_recommendations_${uid}`;
+    const stored = localStorage.getItem(key);
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      const flat = parsed
+        .flatMap((s: any) =>
+          (s.products || []).map((p: any) => ({ ...p, created_at: s.created_at, type: s.type }))
+        )
+        .sort(
+          (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      setRecentRecommendations(flat);
+    } catch {}
+  }, []);
+
   // 즐겨찾기 불러오기
   useEffect(() => {
-    const loadFavorites = async () => {
+    const fn = async () => {
       try {
         const res = await fetch(`${API_BASE}/favorite_products/${userId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setFavorites(data);
-        }
-      } catch (err) {
-        console.error('❌ 즐겨찾기 불러오기 실패:', err);
-      }
+        if (res.ok) setFavorites(await res.json());
+      } catch {}
     };
-    loadFavorites();
+    if (userId) fn();
   }, [userId]);
 
-  // 즐겨찾기 삭제 함수
   const removeFavorite = async (productId: number) => {
     if (!userId) return;
     try {
@@ -241,86 +210,55 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         setFavorites(prev => prev.filter(f => f.product_id !== productId));
         showToast('즐겨찾기에서 제거되었습니다 💔');
       }
-    } catch (err) {
-      console.error('❌ 즐겨찾기 삭제 실패:', err);
-    }
+    } catch {}
   };
 
-  // ✅ 즐겨찾기 추가/삭제 토글 함수
   const toggleFavorite = async (productId: number) => {
     if (!userId) return;
-    const isAlreadyFavorite = favorites.some(f => f.product_id === productId);
-
+    const exists = favorites.some(f => f.product_id === productId);
     try {
-      if (isAlreadyFavorite) {
-        // --- 즐겨찾기 삭제 ---
+      if (exists) {
         const res = await fetch(
           `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
-          { method: "DELETE" }
+          { method: 'DELETE' }
         );
         if (res.ok) {
           setFavorites(prev => prev.filter(f => f.product_id !== productId));
-          showToast("즐겨찾기에서 제거되었습니다 💔");
-        } else {
-          console.error("❌ 즐겨찾기 삭제 실패:", await res.text());
+          showToast('즐겨찾기에서 제거되었습니다 💔');
         }
       } else {
-        // --- 즐겨찾기 추가 ---
         const res = await fetch(
           `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
-          { method: "POST" }
+          { method: 'POST' }
         );
         if (res.ok) {
-          // ✅ recentRecommendations 또는 selectedProduct 에서 제품 정보 찾기
-          const newProduct =
-            recentRecommendations.find(p => Number(p.product_pid) === productId) ||
-            favorites.find(f => f.product_id === productId) || // 혹시 중복 방지
-            null;
-
-            if (!newProduct) {
-              showToast("제품 정보를 찾을 수 없습니다 ⚠️");
-              return;
-            }
-
-          // ✅ 최소 데이터라도 favorites에 추가
-          const newFav = newProduct
-            ? ({
-                product_id: productId,
-                product_name: (newProduct as any).display_name ?? "이름 없음",
-                brand: (newProduct as any).brand ?? "",
-                category: (newProduct as any).category ?? "",
-                image_url: (newProduct as any).image_url ?? "",
-                price_krw: (newProduct as any).price_krw ?? 0,
-              })
-            : { product_id: productId };
-
-          // ✅ 즉시 즐겨찾기 리스트에 반영
-          setFavorites((prev) => [newFav as FavoriteProduct, ...prev]);
-          showToast("즐겨찾기에 추가되었습니다 ❤️");
-        } else {
-          console.error("❌ 즐겨찾기 추가 실패:", await res.text());
+          const src =
+            recentRecommendations.find(p => Number(p.product_pid) === productId) || ({} as any);
+          const newFav: FavoriteProduct = {
+            product_id: productId,
+            product_name: (src as any).display_name ?? '이름 없음',
+            brand: (src as any).brand ?? '',
+            category: (src as any).category ?? '',
+            image_url: (src as any).image_url ?? '',
+            price_krw: (src as any).price_krw ?? 0,
+          };
+          setFavorites(prev => [newFav, ...prev]);
+          showToast('즐겨찾기에 추가되었습니다 ❤️');
         }
       }
-    } catch (err) {
-      console.error("❌ toggleFavorite 오류:", err);
-    }
+    } catch {}
   };
 
-
+  // 로그인/프로필 로드
   useEffect(() => {
-    const userIdStr = localStorage.getItem('user_id');
-    const currentUserId = Number.parseInt(userIdStr || '0', 10);
-
-    // ✅ 로그인 상태가 아니라면 접근 불가
+    const idStr = localStorage.getItem('user_id');
+    const currentUserId = Number.parseInt(idStr || '0', 10);
     if (!currentUserId) {
-      console.error('로그인되지 않은 상태입니다.');
-      onNavigate?.('login'); // 로그인 페이지로 이동
+      onNavigate?.('login');
       return;
     }
-
     setUserData(prev => ({ ...prev, id: currentUserId }));
-
-    const loadData = async () => {
+    (async () => {
       try {
         const data = await fetchUserProfile(currentUserId);
         setUserData({
@@ -332,19 +270,13 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
           gender: data.gender || 'na',
           skinType: data.skinType || '진단 필요',
         });
-      } catch (error) {
-        console.error('프로필 로드 실패:', error);
-      }
-    };
-
-    loadData();
-  }, []);
-
+      } catch {}
+    })();
+  }, [onNavigate]);
 
   const handleSave = async () => {
     setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
+    await new Promise(r => setTimeout(r, 2000));
     try {
       const updateData = {
         name: userData.name,
@@ -354,43 +286,125 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         gender: userData.gender || 'na',
         skinTypeCode: userData.skinType === '진단 필요' ? null : userData.skinType,
       };
-
-      const updatedData = await updateUserProfile(userData.id, updateData as any);
-
+      const updated = await updateUserProfile(userData.id, updateData as any);
       setUserData({
-        id: updatedData.id,
-        name: updatedData.name || '',
-        nickname: updatedData.nickname || userData.name,
-        email: updatedData.email || '',
-        birthDate: updatedData.birthDate || '',
-        gender: updatedData.gender || 'na',
-        skinType: updatedData.skinType || '진단 필요',
+        id: updated.id,
+        name: updated.name || '',
+        nickname: updated.nickname || userData.name,
+        email: updated.email || '',
+        birthDate: updated.birthDate || '',
+        gender: updated.gender || 'na',
+        skinType: updated.skinType || '진단 필요',
       });
-
       setIsEditing(false);
-    } catch (error) {
-      console.error('프로필 저장 실패:', error);
+    } catch {
     } finally {
       setIsSaving(false);
     }
   };
 
-  const recentIngredients: any[] = [];
-  const favoriteProducts: any[] = [];
-  const [preferredIngredients, setPreferredIngredients] = useState<any[]>([]);
-  const [cautionIngredients, setCautionIngredients] = useState<any[]>([]);
-  const handleAddIngredient = () => {};
-  const removePreferredIngredient = (index: number) => {};
-  const removeCautionIngredient = (index: number) => {};
-  const getSeverityColor = (severity: string) => '';
-  const getSeverityBadge = (severity: string) => '';
+  // ───────────── 성분 DB 연동 ─────────────
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [ingLoading, setIngLoading] = useState(false);
+  const [ingSearch, setIngSearch] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      setIngLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/ingredients/list_all?limit=5000`);
+        if (res.ok) {
+          const raw = await res.json();
+          const cleaned: Ingredient[] = (raw || [])
+            .map((r: any) => ({
+              id: Number(r.id),
+              korean_name: r.korean_name,
+              english_name: r.english_name ?? null,
+              description: r.description ?? null,
+              caution_grade: r.caution_grade ?? r.caution ?? r.caution_g ?? null,
+            }))
+            .filter((x: Ingredient) => x.id && x.korean_name);
+          setIngredients(cleaned);
+        }
+      } catch {
+      } finally {
+        setIngLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const filteredIngredients = useMemo(() => {
+    const key = ingSearch.trim();
+    if (!key) return ingredients;
+    const lower = key.toLowerCase();
+    return ingredients.filter(
+      it =>
+        it.korean_name.includes(key) ||
+        (it.english_name ?? '').toLowerCase().includes(lower) ||
+        (it.description ?? '').toLowerCase().includes(lower)
+    );
+  }, [ingSearch, ingredients]);
+
+  // 선호/주의 목록 상태
+  const [preferredIngredients, setPreferredIngredients] = useState<PreferredItem[]>([]);
+  const [cautionIngredients, setCautionIngredients] = useState<CautionItem[]>([]);
+
+  const addPreferred = (ing: Ingredient) => {
+    if (preferredIngredients.some(i => i.id === ing.id)) return;
+    setPreferredIngredients(prev => [
+      { id: ing.id, name: ing.korean_name, benefit: ing.description || '' },
+      ...prev,
+    ]);
+  };
+  const addCaution = (ing: Ingredient) => {
+    if (cautionIngredients.some(i => i.id === ing.id)) return;
+    const sev: CautionItem['severity'] = (ing.caution_grade || '').includes('고')
+      ? 'high'
+      : (ing.caution_grade || '').includes('중')
+        ? 'mid'
+        : 'low';
+    setCautionIngredients(prev => [
+      { id: ing.id, name: ing.korean_name, reason: ing.description || '', severity: sev },
+      ...prev,
+    ]);
+  };
+
+  const handleAddIngredient = () => {
+    const key = newIngredient.trim();
+    if (!key) return;
+    const hit =
+      ingredients.find(i => i.korean_name === key) ||
+      ingredients.find(i => i.korean_name.includes(key)) ||
+      ingredients.find(i => (i.english_name || '').toLowerCase() === key.toLowerCase());
+    if (!hit) return;
+    if (newIngredientType === 'preferred') addPreferred(hit);
+    else addCaution(hit);
+    setNewIngredient('');
+  };
+  const removePreferredIngredient = (index: number) =>
+    setPreferredIngredients(prev => prev.filter((_, i) => i !== index));
+  const removeCautionIngredient = (index: number) =>
+    setCautionIngredients(prev => prev.filter((_, i) => i !== index));
+
+  const getSeverityColor = (severity: string) =>
+    severity === 'high'
+      ? 'bg-red-50 border-red-300'
+      : severity === 'mid'
+        ? 'bg-amber-50 border-amber-300'
+        : 'bg-yellow-50 border-yellow-300';
+
+  const getSeverityBadge = (severity: string) =>
+    severity === 'high'
+      ? 'bg-red-100 text-red-700'
+      : severity === 'mid'
+        ? 'bg-amber-100 text-amber-700'
+        : 'bg-yellow-100 text-yellow-700';
 
   return (
     <div
       className="min-h-screen w-full pb-16 md:pb-0"
-      style={{
-        background: 'linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%)',
-      }}
+      style={{ background: 'linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%)' }}
     >
       {isSaving && <BubbleAnimation />}
 
@@ -455,15 +469,12 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
-
           {mobileMenuOpen && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="md:hidden mt-4 pb-4 space-y-3"
-            >
-              {/* (모바일 메뉴 버튼들 ... 생략) */}
-            </motion.div>
+            />
           )}
         </div>
       </header>
@@ -477,7 +488,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">개인 정보</h2>
-
             {!isEditing ? (
               <button
                 onClick={() => setIsEditing(true)}
@@ -502,7 +512,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                     </>
                   )}
                 </button>
-
                 <button
                   onClick={() => setIsEditing(false)}
                   className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-pink-100 text-purple-700 text-sm sm:text-base font-medium hover:bg-pink-200 transition-colors"
@@ -583,12 +592,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                       <input
                         type="date"
                         value={userData.birthDate || ''}
-                        onChange={e =>
-                          setUserData({
-                            ...userData,
-                            birthDate: e.target.value,
-                          })
-                        }
+                        onChange={e => setUserData({ ...userData, birthDate: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
                       />
                     ) : (
@@ -626,7 +630,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                     )}
                   </div>
 
-                  {/* ★ 여기 수정됨 */}
                   <div className="sm:col-span-2">
                     <label className="text-sm font-semibold text-gray-700 mb-2 block">
                       피부 타입 (바우만)
@@ -646,11 +649,10 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                           {userData.skinType || '진단 필요'}
                         </span>
                       )}
-
                       {isEditing && (
                         <button
                           onClick={() => onNavigate?.('diagnosis')}
-                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-sm font-semibold sm:text-base font-small hover:bg-pink-200 transition-colors"
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-sm font-semibold hover:bg-pink-200 transition-colors"
                         >
                           다시 진단
                         </button>
@@ -663,18 +665,25 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
           </div>
         </motion.div>
 
-        {/* --- (Tabs, Tab Content (나의 활동, 성분 관리)는 기존과 동일) --- */}
         <div className="bg-white rounded-t-2xl shadow-lg mb-0">
           <div className="flex border-b border-gray-200">
             <button
               onClick={() => setActiveTab('activity')}
-              className={`flex-1 py-3 sm:py-4 px-4 sm:px-6 text-sm sm:text-base font-semibold transition-colors ${activeTab === 'activity' ? 'text-pink-600 border-b-2 border-pink-600' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 py-3 sm:py-4 px-4 sm:px-6 text-sm sm:text-base font-semibold transition-colors ${
+                activeTab === 'activity'
+                  ? 'text-pink-600 border-b-2 border-pink-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
             >
               나의 활동
             </button>
             <button
               onClick={() => setActiveTab('ingredients')}
-              className={`flex-1 py-3 sm:py-4 px-4 sm:px-6 text-sm sm:text-base font-semibold transition-colors ${activeTab === 'ingredients' ? 'text-pink-600 border-b-2 border-pink-600' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 py-3 sm:py-4 px-4 sm:px-6 text-sm sm:text-base font-semibold transition-colors ${
+                activeTab === 'ingredients'
+                  ? 'text-pink-600 border-b-2 border-pink-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
             >
               성분 관리
             </button>
@@ -690,31 +699,18 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         >
           {activeTab === 'activity' ? (
             <div className="flex flex-col space-y-6">
-              {/* 1️⃣ 최근 찾아본 성분 */}
               <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
                 <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
                   <Clock className="w-5 h-5 text-purple-500 mr-2" />
                   최근 찾아본 성분
                 </h3>
                 <div className="space-y-3">
-                  {recentIngredients.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-6">
-                      아직 조회한 성분이 없습니다.
-                    </p>
-                  ) : (
-                    recentIngredients.map((ingredient, index) => (
-                      <div key={index} className="bg-white rounded-lg p-3 shadow-sm">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-1">
-                          {ingredient.name}
-                        </h4>
-                        <p className="text-xs text-gray-600">{ingredient.effect}</p>
-                      </div>
-                    ))
-                  )}
+                  <p className="text-gray-500 text-sm text-center py-6">
+                    아직 조회한 성분이 없습니다.
+                  </p>
                 </div>
               </div>
 
-              {/* 2️⃣ 즐겨찾기 제품 */}
               <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
                 <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
                   <Heart className="w-5 h-5 text-pink-500 mr-2" />
@@ -727,7 +723,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 40 }}
                       transition={{ duration: 0.3 }}
-                      className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2 rounded-full shadow-lg z-[999]"
+                      className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2 rounded-full shadow-lg z-[999]"
                     >
                       {toastMsg}
                     </motion.div>
@@ -755,8 +751,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                               );
                               if (!res.ok) throw new Error('상세정보 불러오기 실패');
                               const data = await res.json();
-
-                              // ✅ API에서 받은 데이터 그대로 모달에 전달
                               setSelectedProduct({
                                 step: data.category || '단계 정보 없음',
                                 product_pid: data.product_pid,
@@ -770,21 +764,18 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                                 product_url: data.product_url || '',
                                 description: data.description || '제품 설명이 없습니다.',
                               });
-                            } catch (err) {
-                              console.error('❌ 제품 상세정보 로드 실패:', err);
-                            }
+                            } catch {}
                           }}
                         >
                           <button
                             onClick={e => {
-                              e.stopPropagation(); // ✅ 모달 열림 방지
+                              e.stopPropagation();
                               removeFavorite(product.product_id);
                             }}
                             className="absolute top-2 right-2 p-1.5 bg-white rounded-full text-gray-500 hover:text-red-500 shadow-sm"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-
                           <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center">
                             <img
                               src={product.image_url}
@@ -792,7 +783,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                               className="w-full h-full object-contain rounded-lg"
                             />
                           </div>
-
                           <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-tight line-clamp-2">
                             {product.product_name}
                           </p>
@@ -804,13 +794,11 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                 )}
               </div>
 
-              {/* 3️⃣ 최근 추천받은 제품 */}
               <div className="bg-pink-50 rounded-xl p-4 border border-pink-100">
                 <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
                   <TrendingUp className="w-5 h-5 text-pink-500 mr-2" />
                   최근 추천받은 제품
                 </h3>
-
                 {recentRecommendations.length === 0 ? (
                   <p className="text-gray-500 text-sm text-center py-6">
                     아직 추천받은 제품이 없습니다.
@@ -825,7 +813,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: index * 0.05 }}
                           className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border border-pink-100 hover:shadow-md relative"
-                          onClick={() => setSelectedProduct(item)} // 클릭 시 모달 열기
+                          onClick={() => setSelectedProduct(item)}
                         >
                           <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center">
                             <img
@@ -837,30 +825,22 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                           <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-tight line-clamp-2">
                             {item.display_name}
                           </p>
-                          <p className="text-[11px] text-gray-500">
-                            {item.category}
-                          </p>
-
-                          {/* ✅ 출처 표시 */}
+                          <p className="text-[11px] text-gray-500">{item.category}</p>
                           <p className="text-[11px] font-semibold text-pink-600 mt-0.5">
-                            {item.source === "routine"
-                              ? "맞춤 루틴 추천"
-                              : item.source === "chat"
-                              ? "AI 상담 추천"
-                              : "기타 추천"}
+                            {item.source === 'routine'
+                              ? '맞춤 루틴 추천'
+                              : item.source === 'chat'
+                                ? 'AI 상담 추천'
+                                : '기타 추천'}
                           </p>
-
-                          <p className="text-[10px] text-gray-400 truncate">
-                            {item.reason}
-                          </p>
-
+                          {item.reason && (
+                            <p className="text-[10px] text-gray-400 truncate">{item.reason}</p>
+                          )}
                           {item.review_count !== undefined && (
                             <p className="text-[10px] text-gray-400 mt-0.5">
                               리뷰 {item.review_count.toLocaleString()}개
                             </p>
                           )}
-
-
                         </motion.div>
                       ))}
                     </div>
@@ -870,20 +850,27 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
             </div>
           ) : (
             <div className="space-y-6">
-              {/* (성분 관리 UI ... 생략) */}
-              <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4 sm:p-6 border border-pink-200">
-                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
-                  <Plus className="w-5 h-5 text-pink-500 mr-2" />
-                  성분 추가하기
+              {/* 성분 DB 검색/목록(테이블 스타일 카드) */}
+              <div className="rounded-xl p-4 sm:p-6 border border-pink-200 bg-gradient-to-r from-pink-50 to-purple-50">
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 flex items-center">
+                  <SearchIcon className="w-5 h-5 text-pink-500 mr-2" />
+                  성분 DB
                 </h3>
+
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <input
-                    type="text"
-                    value={newIngredient}
-                    onChange={e => setNewIngredient(e.target.value)}
-                    placeholder="성분 이름을 입력하세요"
-                    className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      value={ingSearch}
+                      onChange={e => setIngSearch(e.target.value)}
+                      placeholder="한글/영문/설명으로 검색"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 bg-white"
+                    />
+                    {ingLoading && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <WaterDropletLoader />
+                      </div>
+                    )}
+                  </div>
                   <select
                     value={newIngredientType}
                     onChange={e => setNewIngredientType(e.target.value as 'preferred' | 'caution')}
@@ -900,7 +887,72 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                     추가
                   </button>
                 </div>
+
+                {/* 목록 */}
+                <div className="mt-4 border rounded-lg bg-white">
+                  <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-semibold text-gray-600 border-b">
+                    <div className="col-span-3">한글명</div>
+                    <div className="col-span-3">영문명</div>
+                    <div className="col-span-4">설명</div>
+                    <div className="col-span-1 text-center">주의</div>
+                  </div>
+                  <div className="max-h-[360px] overflow-auto divide-y">
+                    {filteredIngredients.map(it => (
+                      <div key={it.id} className="grid grid-cols-12 gap-2 px-3 py-2 items-center">
+                        <div className="col-span-3 font-semibold text-gray-800 line-clamp-1">
+                          {it.korean_name}
+                        </div>
+                        <div className="col-span-3 text-gray-600 text-xs line-clamp-1">
+                          {it.english_name || '-'}
+                        </div>
+                        <div className="col-span-4 text-gray-600 text-xs line-clamp-2">
+                          {it.description || '-'}
+                        </div>
+                        <div className="col-span-1 flex flex-col items-center gap-2">
+                          <span
+                            className={
+                              (it.caution_grade || '').includes('고')
+                                ? 'px-2 py-0.5 rounded-full text-[10px] bg-red-100 text-red-700'
+                                : (it.caution_grade || '').includes('중')
+                                  ? 'px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-700'
+                                  : 'px-2 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-600'
+                            }
+                          >
+                            {it.caution_grade || '-'}
+                          </span>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => addPreferred(it)}
+                              className="px-2 py-0.5 rounded text-[11px] bg-green-100 text-green-700"
+                            >
+                              선호
+                            </button>
+                            <button
+                              onClick={() => addCaution(it)}
+                              className="px-2 py-0.5 rounded text-[11px] bg-red-100 text-red-700"
+                            >
+                              주의
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {filteredIngredients.length === 0 ? (
+                      <div className="px-3 py-6 text-center text-sm text-gray-500">
+                        검색 결과가 없습니다.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="px-3 py-6 text-center text-sm text-gray-500">
+                          {filteredIngredients.length} 성분 검색 결과
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
+
+              {/* 선호/주의 보관함 (기존 UI 유지) */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <div className="bg-green-50 rounded-xl p-4 sm:p-6 border border-green-200">
                   <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
@@ -910,7 +962,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                   <div className="space-y-3">
                     {preferredIngredients.map((ingredient, index) => (
                       <motion.div
-                        key={index}
+                        key={ingredient.id}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: index * 0.05 }}
@@ -932,8 +984,14 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                         </div>
                       </motion.div>
                     ))}
+                    {preferredIngredients.length === 0 && (
+                      <div className="text-sm text-gray-500 text-center py-4">
+                        추가된 선호 성분이 없습니다.
+                      </div>
+                    )}
                   </div>
                 </div>
+
                 <div className="bg-red-50 rounded-xl p-4 sm:p-6 border border-red-200">
                   <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
                     <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
@@ -942,7 +1000,7 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                   <div className="space-y-3">
                     {cautionIngredients.map((ingredient, index) => (
                       <motion.div
-                        key={index}
+                        key={ingredient.id}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: index * 0.05 }}
@@ -971,6 +1029,11 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
                         </div>
                       </motion.div>
                     ))}
+                    {cautionIngredients.length === 0 && (
+                      <div className="text-sm text-gray-500 text-center py-4">
+                        추가된 주의 성분이 없습니다.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -979,7 +1042,6 @@ export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) 
         </motion.div>
       </main>
 
-      {/* ✅ 제품 상세보기 모달 */}
       <ProductDetailModal
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
