@@ -80,9 +80,9 @@ export default function SkinSummary({
 
   const oneLiner =
     `${intensityWord(pctByKey.OD)}${koAxisWord.OD}이고 ` +
-    `${intensityWord(pctByKey.SR)}${koAxisWord.SR}예요. ` +
+    `${intensityWord(pctByKey.SR)}${koAxisWord.SR}입니다. ` +
     `${intensityWord(pctByKey.PN)}${koAxisWord.PN}이고 ` +
-    `${intensityWord(pctByKey.WT)}${koAxisWord.WT}예요.`;
+    `${intensityWord(pctByKey.WT)}${koAxisWord.WT}입니다.`;
 
   // 타입 색상 기반 요약 박스 스타일
   const typeHex = TYPE_COLOR[code] ?? '#9ca3af';
@@ -144,15 +144,28 @@ export default function SkinSummary({
           const rightPct = Math.max(0, 100 - leftPct);
           const axisColor = AXIS_COLOR[c.key];
 
+          const showLeft  = !(leftPct <= 10);   // 0~10 구간이면 왼쪽 숨김
+          const showRight = !(leftPct >= 90);   // 90~100 구간이면 오른쪽 숨김
+
+
           return (
             <div key={c.key}>
               {/* 라벨 행 */}
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[13px] text-gray-700">{c.label}</span>
-                <span className="text-[11px] text-gray-400">
+                <span
+                  className={`text-[13px] text-gray-700 ${showLeft ? '' : 'invisible'}`}
+                  aria-hidden={!showLeft}
+                >
+                  {c.label}
+                </span>
+                <span
+                  className={`text-[11px] text-gray-400 ${showRight ? '' : 'invisible'}`}
+                  aria-hidden={!showRight}
+                >
                   {OPPOSITE[c.label] ?? ''}
                 </span>
               </div>
+
 
               {/* 바 컨테이너 */}
               <div className="relative w-full h-3 rounded-full overflow-hidden bg-gray-100">
