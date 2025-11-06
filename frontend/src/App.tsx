@@ -1,15 +1,16 @@
+// frontend/src/App.tsx (merged & resolved)
 import { useState, useMemo } from 'react';
 import { Container, Theme } from './settings/types';
 import BeautyAILogin from './components/BeautyAILogin';
 import SignupForm from './components/SignupForm';
 import Dashboard from './components/dashboard/Dashboard';
-import ChatInterface from './components/ChatInterface';
 import UserProfile from './components/UserProfile';
 import Settings from './components/Settings';
 import SkinDiagnosis from './components/dashboard/SkinDiagnosis';
 import Survey from './components/dashboard/Survey';
 import ForgotPassword from './components/ForgotPassword';
 import { useUserStore } from './stores/auth';
+import Chatbot from './components/Chatbot';
 import { ProfilePage } from './pages/profile';
 
 let theme: Theme = 'light';
@@ -66,12 +67,7 @@ function App() {
     console.log('Logging in with:', email);
     setIsLoggedIn(true);
     setCurrentPage('dashboard');
-    // const name = email.split('@')[0];
-
     login({ name: name, email: email });
-
-    // TODO: 삭제 예정 - 상태 관리로 대체
-    // setUserName(name.charAt(0).toUpperCase() + name.slice(1));
   };
 
   // ✅ 회원가입 처리
@@ -161,7 +157,7 @@ function App() {
         return <Survey onDone={() => setCurrentPage('dashboard')} />;
 
       case 'chat':
-        return <ChatInterface userName={userName} onNavigate={handleNavigate} />;
+        return <Chatbot userName={userName} onNavigate={handleNavigate} />;
 
       case 'profile':
         // return <UserProfile onNavigate={handleNavigate} onLogout={handleLogout} />;

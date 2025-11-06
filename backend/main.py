@@ -1,18 +1,22 @@
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from db import get_db
-from models import Base 
-from routers import profile, analysis, auth, routine, perfume, user, trends, favorite_products, product, ocr, stats, delete, ingredients
-from routers.chat import router as chat_router
-
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# 주의: 프로젝트 구조에 맞춰 필요한 라우터만 임포트
+from routers import (
+    profile, analysis, auth, routine, perfume, user, trends,
+    favorite_products, product, ocr, stats, delete, ingredients
+)
+# chat 라우터는 프로젝트에 따라 경로가 다를 수 있음
+# 기본 시도:
+from routers.chat import router as chat_router
+# 만약 위 임포트에서 ModuleNotFoundError가 나면 ↓로 교체
+# from routers.chat.routes import router as chat_router
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 필요하면 ["http://localhost:3000"] 이런 식으로 제한
+    allow_origins=["*"],  # 필요 시 ["http://localhost:5173"] 등으로 제한
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,10 +34,14 @@ app.include_router(routine.router)
 app.include_router(perfume.router)
 app.include_router(user.router)
 app.include_router(trends.router)
-app.include_router(chat_router)
 app.include_router(favorite_products.router)
 app.include_router(product.router)
+
+# prefix가 필요한 라우터
 app.include_router(ocr.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
-app.include_router(delete.router) 
+
+# 기타
+app.include_router(delete.router)
 app.include_router(ingredients.router)
+app.include_router(chat_router)

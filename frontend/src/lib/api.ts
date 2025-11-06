@@ -1,4 +1,4 @@
-// frontend/src/lib/utils.ts
+// frontend/src/lib/api.ts
 // ------------------------------------------------------------------
 // 공용 타입
 // ------------------------------------------------------------------
@@ -28,10 +28,12 @@ export async function chatStream(query: string, top_k = 6, signal?: AbortSignal)
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   if (!res.body) throw new Error('No response body');
 
+  const cacheKey = res.headers.get('x-cache-key') || undefined;
   const reader = res.body.getReader();
   const decoder = new TextDecoder('utf-8');
 
   return {
+    cacheKey,
     async *iter() {
       while (true) {
         const { value, done } = await reader.read();
@@ -46,11 +48,11 @@ export async function chatStream(query: string, top_k = 6, signal?: AbortSignal)
 // 추천 카드 조회 (기존 유지)
 //  - 프록시(/api/*) 경유
 // ------------------------------------------------------------------
-export async function fetchRecommendations(query: string, top_k = 12) {
+export async function fetchRecommendations(query: string, top_k = 12, cache_key?: string) {
   const res = await fetch('/api/chat/recommend', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, top_k }),
+    body: JSON.stringify({ query, top_k, cache_key }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<{ products: RecProduct[] }>;
@@ -73,15 +75,15 @@ export async function uploadOcrImage(
   file: File
 ): Promise<{ analysis: any; render: { text: string; image_url?: string } }> {
   const fd = new FormData();
-  fd.append("image", file);  // ✅ 필드명 image 유지
+  fd.append('image', file); // ✅ 필드명 image 유지
 
   const res = await fetch(`${API_BASE}/api/ocr/analyze-image`, {
-    method: "POST",
+    method: 'POST',
     body: fd,
   });
 
   if (!res.ok) {
-    const msg = await res.text().catch(() => "");
+    const msg = await res.text().catch(() => '');
     throw new Error(`OCR 업로드 실패: ${res.status} ${msg}`);
   }
 
@@ -91,7 +93,7 @@ export async function uploadOcrImage(
   return {
     analysis: json?.raw?.data ?? null,
     render: {
-      text: json?.markdown ?? "분석 결과가 없습니다.",
+      text: json?.markdown ?? '분석 결과가 없습니다.',
       image_url: json?.image_url ?? undefined,
     },
   };
