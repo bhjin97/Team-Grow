@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useUserStore } from '@/stores/auth/store';
 import { chatStream, fetchRecommendations, RecProduct } from '@/lib/api';
-import { uploadOcrImage /*, searchOcrByName (추후 필요 시)*/ } from '@/lib/api';
+import { uploadOcrImage /*, searchOcrByName*/ } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -42,8 +42,6 @@ interface Message {
     description: string;
   };
   products?: RecProduct[];
-
-  // ⬇️ 추가
   analysis?: any;
   ocrImageUrl?: string | null;
 }
@@ -82,7 +80,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       id: 1,
       type: 'ai',
       content:
-        "안녕하세요! 저는 여러분의 뷰티 AI 어시스턴트입니다. 제품 이미지를 업로드하여 성분을 분석하거나, 맞춤형 제품 추천을 요청하실 수 있습니다. 오늘 무엇을 도와드릴까요?",
+        '안녕하세요! 저는 여러분의 뷰티 AI 어시스턴트입니다. 제품 이미지를 업로드하여 성분을 분석하거나, 맞춤형 제품 추천을 요청하실 수 있습니다. 오늘 무엇을 도와드릴까요?',
       timestamp: new Date(),
     },
   ]);
@@ -191,7 +189,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
     } catch (err) {
       setMessages(prev =>
         prev.map(m =>
-          m.id === aiMsgId ? { ...m, content: '죄송해요. 잠시 후 다시 시도해주세요.' } : m
+          m.id === aiMsgId ? { ...m, content: '잠시 후 다시 시도해주세요.' } : m
         )
       );
       console.error(err);
@@ -201,12 +199,12 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
   };
   // ⬆️ 끝
 
-  // ChatInterface.tsx 내
+  // 이미지 업로드 → OCR
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // (1) 미리보기(선택): 업로드 직후 사용자 메시지에 이미지 붙이기
+    // (1) 미리보기
     const localPreview = URL.createObjectURL(file);
     const userMsg: Message = {
       id: messages.length + 1,
@@ -229,10 +227,10 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
     setIsTyping(true);
 
     try {
-      // (3) OCR 업로드 → 결과 수신
+      // (3) OCR 업로드 → 결과
       const { analysis, render } = await uploadOcrImage(file);
 
-      // (4) AI 메시지 내용을 실제 분석 텍스트로 교체
+      // (4) AI 메시지 갱신
       setMessages(prev =>
         prev.map(m => {
           if (m.id !== aiMsgId) return m;
@@ -240,8 +238,8 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
             ...m,
             content: render?.text || '분석 결과를 표시할 수 없습니다.',
             image: render?.image_url || undefined, // 서버 이미지가 있으면 교체
-            analysis, // (선택) JSON 보관
-            ocrImageUrl: render?.image_url ?? null, // (선택)
+            analysis,
+            ocrImageUrl: render?.image_url ?? null,
           };
         })
       );
@@ -256,8 +254,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       );
     } finally {
       setIsTyping(false);
-      // 파일 input 초기화(같은 파일 재업로드 허용)
-      if (e.target) e.target.value = '';
+      if (e.target) e.target.value = ''; // 같은 파일 재업로드 허용
     }
   };
 
@@ -443,26 +440,36 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                     className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`flex items-start space-x-2 sm:space-x-3 max-w-[85%] sm:max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}
+                      className={`flex items-start ${
+                        message.type === 'user'
+                          ? 'flex-row-reverse space-x-reverse gap-3 sm:gap-4'
+                          : 'space-x-2 sm:space-x-3'
+                      } max-w-[85%] sm:max-w-[80%]`}
                     >
-                      <div
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{
-                          background:
-                            message.type === 'user'
-                              ? 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)'
-                              : 'linear-gradient(135deg, #dac4e8 0%, #c4d4f0 100%)',
-                        }}
-                      >
-                        {message.type === 'user' ? (
-                          <User className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                        ) : (
-                          <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                        )}
-                      </div>
+                      {/* 아바타 */}
+                      {message.type === 'ai' ? (
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 flex-shrink-0">
+                          <img
+                            src="/ai-droplet.png"
+                            alt="AI"
+                            className="w-full h-full object-contain"
+                            style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.15))' }}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+                        >
+                          <User className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                        </div>
+                      )}
 
+                      {/* 버블 */}
                       <div
-                        className={`rounded-2xl p-3 sm:p-4 ${message.type === 'user' ? 'text-white' : 'bg-gray-100 text-gray-800'}`}
+                        className={`rounded-2xl p-3 sm:p-4 ${
+                          message.type === 'user' ? 'text-white' : 'bg-gray-100 text-gray-800'
+                        }`}
                         style={
                           message.type === 'user'
                             ? { background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }
@@ -476,7 +483,8 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                             className="rounded-lg mb-2 sm:mb-3 max-w-full w-full sm:max-w-xs"
                           />
                         )}
-                        {/* 본문 렌더링: user는 일반 텍스트, ai는 마크다운 */}
+
+                        {/* 본문: user=plain, ai=markdown */}
                         {message.type === 'ai' ? (
                           <div className="prose prose-sm max-w-none leading-relaxed">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -489,7 +497,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                           </p>
                         )}
 
-                        {/* 추천 카드 섹션 */}
+                        {/* 추천 카드 */}
                         {message.products && message.products.length > 0 && (
                           <div className="mt-4 space-y-3">
                             <h4 className="text-sm sm:text-base font-semibold text-pink-600">
@@ -554,7 +562,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                           </div>
                         )}
 
-                        {/* 기존 이미지 분석 카드 (mock) */}
+                        {/* 이미지 분석 카드 (옵션) */}
                         {message.productInfo && (
                           <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-white rounded-lg">
                             <h4 className="text-sm sm:text-base font-bold text-pink-600 mb-2 flex items-center">
@@ -584,7 +592,11 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                             </div>
                             <button
                               onClick={() => handleSaveProduct(message.id)}
-                              className={`w-full py-2 px-3 rounded-lg flex items-center justify-center space-x-2 transition-all ${savedProducts.includes(message.id) ? 'bg-pink-500 text-white' : 'bg-pink-100 text-pink-700 hover:bg-pink-200'}`}
+                              className={`w-full py-2 px-3 rounded-lg flex items-center justify-center space-x-2 transition-all ${
+                                savedProducts.includes(message.id)
+                                  ? 'bg-pink-500 text-white'
+                                  : 'bg-pink-100 text-pink-700 hover:bg-pink-200'
+                              }`}
                             >
                               {savedProducts.includes(message.id) ? (
                                 <>
@@ -614,33 +626,24 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                   </motion.div>
                 ))}
               </AnimatePresence>
+
+              {/* 타이핑 인디케이터 */}
               {isTyping && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-start space-x-2 sm:space-x-3"
-                >
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-purple-400 flex items-center justify-center">
-                    <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start space-x-2 sm:space-x-3">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 flex-shrink-0">
+                    <img src="/ai-droplet.png" alt="AI" className="w-full h-full object-contain" />
                   </div>
                   <div className="bg-gray-100 rounded-2xl p-3 sm:p-4">
                     <div className="flex space-x-2">
-                      <div
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                        style={{ animationDelay: '0ms' }}
-                      />
-                      <div
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                        style={{ animationDelay: '150ms' }}
-                      />
-                      <div
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                        style={{ animationDelay: '300ms' }}
-                      />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   </div>
                 </motion.div>
               )}
+
+              {/* 하단 포커스 */}
               <div ref={messagesEndRef} />
             </div>
 
