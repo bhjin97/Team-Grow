@@ -58,25 +58,14 @@ export const UserInfoCard = ({ profile, isEditing, onUpdate, onNavigate }: UserI
 
             {/* 이메일 */}
             <div>
-              {isEditing ? (
-                <Input
-                  label="이메일"
-                  type="email"
-                  value={profile.email || ''}
-                  onChange={e => onUpdate({ email: e.target.value })}
-                  placeholder="example@email.com"
-                  leftIcon={<Mail className="w-4 h-4" />}
-                />
-              ) : (
-                <>
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
-                    <Mail className="w-4 h-4 mr-2" /> 이메일
-                  </label>
-                  <p className="text-sm text-gray-600 px-4 py-2 bg-gray-50 rounded-lg break-all">
-                    {profile.email || '(미입력)'}
-                  </p>
-                </>
-              )}
+              <>
+                <label className="text-sm font-semibold text-gray-700 mb-2 block flex items-center">
+                  <Mail className="w-4 h-4 mr-2" /> 이메일 (수정 불가)
+                </label>
+                <p className="text-sm text-gray-600 px-4 py-2 bg-gray-50 rounded-lg break-all">
+                  {profile.email || '(미입력)'}
+                </p>
+              </>
             </div>
 
             {/* 생년월일 */}
@@ -95,7 +84,7 @@ export const UserInfoCard = ({ profile, isEditing, onUpdate, onNavigate }: UserI
                     <Calendar className="w-4 h-4 mr-2" /> 생년월일
                   </label>
                   <p className="text-sm text-gray-600 px-4 py-2 bg-gray-50 rounded-lg">
-                    {profile.birthDate || '(미입력)'}
+                    {profile.birthDate || ''}
                   </p>
                 </>
               )}
@@ -109,9 +98,7 @@ export const UserInfoCard = ({ profile, isEditing, onUpdate, onNavigate }: UserI
               {isEditing ? (
                 <select
                   value={profile.gender || 'na'}
-                  onChange={e =>
-                    onUpdate({ gender: e.target.value as UserProfile['gender'] })
-                  }
+                  onChange={e => onUpdate({ gender: e.target.value as UserProfile['gender'] })}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 bg-white"
                 >
                   <option value="na">선택 안함</option>
