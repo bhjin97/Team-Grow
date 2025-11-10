@@ -84,6 +84,9 @@ export default function TrendsSection() {
   const [catTs, setCatTs] = useState<CategoryTsResp | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
 
+  // ✅ 정규화 토글 상태 (sum=합계, avg=리뷰/제품)
+  const [normalize, setNormalize] = useState<'sum' | 'avg'>('avg');
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -129,19 +132,21 @@ export default function TrendsSection() {
     return () => { mounted = false; };
   }, [category, sort]);
 
-  // 카테고리 타임시리즈
+  // ✅ 카테고리 타임시리즈 (정규화 반영)
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/trends/category_timeseries`);
+        const url = new URL(`${API_BASE}/api/trends/category_timeseries`);
+        url.searchParams.set('normalize', normalize); // ← sum | avg
+        const res = await fetch(url.toString());
         const data: CategoryTsResp = await res.json();
         if (!mounted) return;
         setCatTs(data);
       } catch {}
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [normalize]); // ← 의존성에 normalize 추가
 
   const headerNote = useMemo(() => {
     if (!meta) return '';
@@ -149,19 +154,19 @@ export default function TrendsSection() {
     return `A=${meta.a_date} → B=${meta.b_date} · 기준=${tag} · 베이스 하한≥${meta.min_base}`;
   }, [meta, sort]);
 
-const donutData = useMemo(() => {
-  if (!catTs?.series?.length || !catTs?.categories?.length) return null;
-  const rows = catTs.series;
-  const last = rows[rows.length - 1];
-  const prev = rows.length >= 2 ? rows[rows.length - 2] : null;
+  const donutData = useMemo(() => {
+    if (!catTs?.series?.length || !catTs?.categories?.length) return null;
+    const rows = catTs.series;
+    const last = rows[rows.length - 1];
+    const prev = rows.length >= 2 ? rows[rows.length - 2] : null;
 
-  return catTs.categories.map((c) => {
-    const b = Number(last?.[c]?.sum ?? 0);
-    const a = Number(prev?.[c]?.sum ?? 0);
-    const inc = Math.max(0, b - a);           // 감소는 0으로 클램프
-    return { label: c, value: inc };
-  });
-}, [catTs]);
+    return catTs.categories.map((c) => {
+      const b = Number(last?.[c]?.sum ?? 0);
+      const a = Number(prev?.[c]?.sum ?? 0);
+      const inc = Math.max(0, b - a);           // 감소는 0으로 클램프
+      return { label: c, value: inc };
+    });
+  }, [catTs]);
 
   return (
     <SectionShell
@@ -195,10 +200,23 @@ const donutData = useMemo(() => {
             ))}
           </div>
         </div>
+
+        {/* ✅ 정규화 토글 */}
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">단위</label>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={normalize === 'avg'}
+              onChange={(e) => setNormalize(e.target.checked ? 'avg' : 'sum')}
+            />
+            <span>{normalize === 'avg' ? '리뷰/제품(정규화)' : '리뷰수(합계)'}</span>
+          </label>
+        </div>
+
         <div className="text-[11px] text-gray-500 sm:ml-auto">{headerNote}</div>
       </div>
 
-      
       <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr_2fr] gap-3">
         {/* (1) 도넛 - 3fr */}
         <div className="bg-white rounded-xl border border-gray-200 p-3 min-w-0">
@@ -232,7 +250,6 @@ const donutData = useMemo(() => {
             <div className="text-sm text-gray-500">데이터가 없습니다.</div>
           )}
         </div>
-
 
         {/* (3) 카드 - 2fr (compact 2개) */}
         <div className="bg-white rounded-xl border border-gray-200 p-3">
