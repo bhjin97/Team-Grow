@@ -19,7 +19,14 @@ import {
   Bell,
 } from 'lucide-react';
 import { useUserStore } from '@/stores/auth/store';
-import { chatStream, fetchRecommendations, RecProduct, uploadOcrImage } from '@/lib/api';
+import {
+  chatStream,
+  fetchRecommendations,
+  RecProduct,
+  uploadOcrImage,
+  IngredientInfo,
+  fetchIngredientDetail, // 성분 상세 조회
+} from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -53,6 +60,121 @@ interface Message {
   ocrImageUrl?: string | null;
 }
 
+/** caution 등급 뱃지 스타일 */
+function gradeStyle(grade: '위험' | '주의' | '안전' | null | undefined) {
+  if (grade === '위험') return { label: '위험', cls: 'bg-red-50 text-red-700 border-red-200' };
+  if (grade === '주의')
+    return { label: '주의', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+  if (grade === '안전')
+    return { label: '안전', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  return { label: '정보 없음', cls: 'bg-gray-50 text-gray-600 border-gray-200' };
+}
+
+/** 성분 상세 모달 UI (DB: korean_name, description, caution_grade 기준) */
+function IngredientModal({
+  open,
+  onClose,
+  targetName,
+  loading,
+  error,
+  detail,
+}: {
+  open: boolean;
+  onClose: () => void;
+  targetName: string | null;
+  loading: boolean;
+  error: string | null;
+  detail: IngredientInfo | null;
+}) {
+  // Esc로 닫기
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const badge = gradeStyle(detail?.caution_grade ?? null);
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="modal-backdrop"
+        className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        key="modal-panel"
+        className="fixed inset-0 z-[101] flex items-center justify-center p-4"
+        initial={{ opacity: 0, y: 24, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 24, scale: 0.98 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+        aria-modal="true"
+        role="dialog"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-gray-200">
+          <div className="flex items-center justify-between px-5 py-4 border-b">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800">
+              {targetName ? `성분 정보 · ${targetName}` : '성분 정보'}
+            </h3>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+              aria-label="닫기"
+              title="닫기"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="px-5 py-4">
+            {loading && <div className="text-sm text-gray-600">불러오는 중입니다…</div>}
+
+            {!loading && error && <div className="text-sm text-red-600">{error}</div>}
+
+            {!loading && !error && detail && (
+              <div className="space-y-4">
+                {/* 등급 뱃지 */}
+                <div>
+                  <span className="text-sm font-semibold text-gray-700 mr-2">주의 등급</span>
+                  <span
+                    className={`inline-block text-xs px-2 py-0.5 rounded-full border ${badge.cls}`}
+                  >
+                    {badge.label}
+                  </span>
+                </div>
+
+                {/* 설명 */}
+                <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                  {detail.description?.trim() || '설명 정보가 없습니다.'}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="px-5 py-3 border-t bg-gray-50 rounded-b-2xl flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:opacity-90"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -76,6 +198,14 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
   );
   const name = useUserStore(state => state.name);
   const nextIdRef = useRef<number>(2);
+
+  // 성분 모달 상태
+  const [ingModalOpen, setIngModalOpen] = useState(false);
+  const [ingTargetName, setIngTargetName] = useState<string | null>(null);
+  const [ingDetail, setIngDetail] = useState<IngredientInfo | null>(null);
+  const [ingLoading, setIngLoading] = useState(false);
+  const [ingError, setIngError] = useState<string | null>(null);
+  const ingCacheRef = useRef<Map<string, IngredientInfo>>(new Map());
 
   // ── 세션 복원
   useEffect(() => {
@@ -105,6 +235,36 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       scheduleSave(payload);
     } catch {}
   }, [messages, scheduleSave]);
+
+  // ── 성분 모달 열기
+  async function openIngredientModal(name: string) {
+    setIngModalOpen(true);
+    setIngTargetName(name);
+    setIngError(null);
+    setIngDetail(null);
+    setIngLoading(true);
+
+    try {
+      if (ingCacheRef.current.has(name)) {
+        setIngDetail(ingCacheRef.current.get(name)!);
+      } else {
+        const detail = await fetchIngredientDetail(name);
+        ingCacheRef.current.set(name, detail);
+        setIngDetail(detail);
+      }
+    } catch (e) {
+      setIngError('성분 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      console.error(e);
+    } finally {
+      setIngLoading(false);
+    }
+  }
+  function closeIngredientModal() {
+    setIngModalOpen(false);
+    setIngTargetName(null);
+    setIngDetail(null);
+    setIngError(null);
+  }
 
   // ── 전송 핸들러 (스트리밍 + 추천카드)
   const handleSendMessage = async () => {
@@ -543,13 +703,15 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                                           <div className="mt-2">
                                             <div className="flex flex-wrap gap-1.5">
                                               {p.ingredients.slice(0, 60).map((ing, idx) => (
-                                                <span
+                                                <button
                                                   key={`${cardKey}-${idx}`}
-                                                  className="inline-block text-[11px] px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-700"
-                                                  title={ing}
+                                                  type="button"
+                                                  onClick={() => openIngredientModal(ing)}
+                                                  className="inline-block text-[11px] px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-700 hover:bg-violet-50 hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-300"
+                                                  title={`${ing} 상세 보기`}
                                                 >
                                                   {ing}
-                                                </span>
+                                                </button>
                                               ))}
                                             </div>
                                           </div>
@@ -643,10 +805,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                   </div>
                   <div className="bg-gray-100 rounded-2xl p-3 sm:p-4">
                     <div className="flex space-x-2">
-                      <div
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                        style={{ animationDelay: '0ms' }}
-                      />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
                       <div
                         className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
                         style={{ animationDelay: '150ms' }}
@@ -749,6 +908,16 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
           </button>
         </div>
       </nav>
+
+      {/* 성분 상세 모달 */}
+      <IngredientModal
+        open={ingModalOpen}
+        onClose={closeIngredientModal}
+        targetName={ingTargetName}
+        loading={ingLoading}
+        error={ingError}
+        detail={ingDetail}
+      />
     </div>
   );
 }
