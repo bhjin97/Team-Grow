@@ -360,6 +360,22 @@ def _normalize_ingredients(val) -> List[str]:
     return list(dict.fromkeys(items))
 
 
+
+# 성분 등급 일괄 조회
+def fetch_ingredient_grades(names: List[str]) -> Dict[str, Optional[str]]:
+    if not names:
+        return {}
+    sql = text("""
+        SELECT korean_name, caution_grade
+        FROM ingredients
+        WHERE korean_name IN :names
+    """).bindparams(bindparam("names", expanding=True))
+    with engine.connect() as conn:
+        rows = conn.execute(sql, {"names": tuple(sorted(set(names))) }).mappings().all()
+    return {r["korean_name"]: r["caution_grade"] for r in rows}
+
+
+
 # =============================================================================
 # 3) RDB 유틸
 # =============================================================================
@@ -731,6 +747,14 @@ def answer(user_query: str) -> Dict[str, Any]:
         }
         
     final_markdown  = finalize_from_rag_texts(user_query, rows)  # 최대 3개
+    top_rows = rows[:5]
+    all_ings: List[str] = []
+    for r in top_rows:
+        for n in (r.get("ingredients") or []):
+            if isinstance(n, str) and n.strip():
+                all_ings.append(n.strip())
+    grade_map = fetch_ingredient_grades(all_ings)
+
     # 상세 모달용: 상위 5개
     presented = []
     for r in rows[:5]:
@@ -747,6 +771,11 @@ def answer(user_query: str) -> Dict[str, Any]:
             "image_url": r.get("image_url") or None,
             "product_url": r.get("product_url") or None,
             "ingredients": r.get("ingredients", []),
+            "ingredients_detail": [
+                {"name": n, "caution_grade": grade_map.get(n)}
+                for n in (r.get("ingredients", []) or [])
+                ],
+
         })
     return {
         "intent": "PRODUCT_FIND",

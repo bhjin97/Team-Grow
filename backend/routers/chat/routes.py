@@ -256,6 +256,8 @@ def recommend(req: RecommendReq):
                 item["product_url"] = r["product_url"]
             if r.get("ingredients"):
                 item["ingredients"] = r["ingredients"]
+            if r.get("ingredients_detail"):
+                item["ingredients_detail"] = r["ingredients_detail"]  # ← 추가
             products.append(item)
 
     return {"products": products}

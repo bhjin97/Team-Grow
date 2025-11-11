@@ -13,6 +13,7 @@ export type RecProduct = {
   score?: number;
   product_url?: string;
   ingredients?: string[];
+  ingredients_detail?: { name: string; caution_grade: '위험' | '주의' | '안전' | null }[];
 };
 
 export interface IngredientInfo {
