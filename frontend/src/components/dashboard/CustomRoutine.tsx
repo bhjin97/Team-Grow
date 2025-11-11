@@ -14,7 +14,7 @@ interface Product {
   image_url: string;
   display_name: string;
   reason: string;
-  review_count?: number; 
+  review_count?: number;
   price_krw?: number;
   capacity?: string;
   product_url?: string;
@@ -37,7 +37,7 @@ interface CustomRoutineProps {
   routineProducts: Product[];
   setRoutineProducts: (v: Product[]) => void;
   onFetchRoutine: () => Promise<void>;
-  resetKeywords: () => void; 
+  resetKeywords: () => void;
 }
 
 export default function CustomRoutine({
@@ -58,10 +58,10 @@ export default function CustomRoutine({
 }: CustomRoutineProps) {
   const [favorites, setFavorites] = React.useState<number[]>([]);
   const [toastMsg, setToastMsg] = React.useState<string | null>(null);
-  const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null); // ✅ 모달용
+  const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null);
   const userId = localStorage.getItem('user_id');
 
-  // ✅ 즐겨찾기 목록 불러오기
+  // ✅ 즐겨찾기 불러오기
   React.useEffect(() => {
     const loadFavorites = async () => {
       if (!userId) return;
@@ -78,7 +78,7 @@ export default function CustomRoutine({
     loadFavorites();
   }, [userId]);
 
-  // ✅ 토스트 표시 함수
+  // ✅ 토스트
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 2000);
@@ -121,7 +121,7 @@ export default function CustomRoutine({
 
   return (
     <>
-      {/* ✅ 토스트 메시지 표시 */}
+      {/* ✅ 토스트 메시지 */}
       <AnimatePresence>
         {toastMsg && (
           <motion.div
@@ -136,6 +136,7 @@ export default function CustomRoutine({
         )}
       </AnimatePresence>
 
+      {/* ✅ 전체 UI */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -147,9 +148,8 @@ export default function CustomRoutine({
           맞춤 케어 루틴
         </h3>
 
-        {/* 선택 영역 */}
+        {/* ✅ 선택 영역 */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-6">
-          {/* 계절 */}
           <div>
             <label className="text-xs text-gray-600 mb-1 block">계절</label>
             <select
@@ -162,7 +162,6 @@ export default function CustomRoutine({
             </select>
           </div>
 
-          {/* 시간 */}
           <div>
             <label className="text-xs text-gray-600 mb-1 block">시간</label>
             <select
@@ -175,7 +174,6 @@ export default function CustomRoutine({
             </select>
           </div>
 
-          {/* 피부 타입 */}
           <div>
             <label className="text-xs text-gray-600 mb-1 block">피부 타입</label>
             <select
@@ -193,7 +191,7 @@ export default function CustomRoutine({
           </div>
         </div>
 
-        {/* 키워드 선택 */}
+        {/* ✅ 키워드 선택 */}
         <div>
           <label className="text-xs text-gray-600 mb-1 block">
             키워드 선택 (최대 2개)
@@ -224,7 +222,7 @@ export default function CustomRoutine({
           </div>
         </div>
 
-        {/* 추천된 제품 카드 */}
+        {/* ✅ 추천된 제품 카드 */}
         <div className="overflow-x-auto pb-2">
           <div className="flex gap-3 sm:gap-4 min-w-max">
             {routineProducts.map((product, index) => (
@@ -234,13 +232,11 @@ export default function CustomRoutine({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.6 + index * 0.1 }}
                 className="flex-shrink-0 w-40 sm:w-48 p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 hover:shadow-lg transition-shadow relative cursor-pointer"
-                onClick={() =>
-                  setSelectedProduct(product)} // ✅ 클릭 시 모달 열기
+                onClick={() => setSelectedProduct(product)}
               >
-                {/* ❤️ 하트 버튼 */}
                 <button
                   onClick={(e) => {
-                    e.stopPropagation(); // ✅ 부모 클릭 방지
+                    e.stopPropagation();
                     toggleFavorite(Number(product.product_pid));
                   }}
                   className={`absolute top-2 right-2 p-1.5 rounded-full transition ${
@@ -261,6 +257,7 @@ export default function CustomRoutine({
                 <div className="text-xs sm:text-sm font-semibold text-pink-600 mb-1">
                   {product.step}
                 </div>
+
                 <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center">
                   <img
                     src={product.image_url}
@@ -268,19 +265,17 @@ export default function CustomRoutine({
                     className="w-full h-full object-contain rounded-lg"
                   />
                 </div>
+
                 <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-tight line-clamp-2">
                   {product.display_name}
                 </p>
-                {/* 추천 근거 (reason) */}
+
                 {product.reason ? (
-                  <p className="text-[11px] text-gray-500">
-                    {product.reason}
-                  </p>
+                  <p className="text-[11px] text-gray-500">{product.reason}</p>
                 ) : (
                   <p className="text-[11px] text-gray-400 italic"></p>
                 )}
 
-                {/* 리뷰 개수는 따로, 작게 회색으로 */}
                 {product.review_count !== undefined && product.review_count > 0 && (
                   <p className="text-[10px] text-gray-400 mt-0.5">
                     리뷰 {product.review_count.toLocaleString()}개
@@ -291,11 +286,10 @@ export default function CustomRoutine({
           </div>
         </div>
 
-        {/* 추천 버튼 */}
+        {/* ✅ 추천 버튼 */}
         <button
           onClick={async () => {
             try {
-              // ✅ 1️⃣ 루틴 추천 API 호출
               const data = await fetchRoutine(
                 baumannType,
                 season,
@@ -303,63 +297,43 @@ export default function CustomRoutine({
                 selectedKeywords
               );
 
-              // ✅ 2️⃣ 화면에 추천 결과 반영
               setRoutineProducts(data);
 
-              // ✅ 3️⃣ localStorage에 저장 (용량 자동 정리 포함)
+              // ✅ 최근 추천 기록 저장 (flat & 최신 우선)
               try {
-                const key = `recent_recommendations_${userId}`; // ✅ 회원별 key 분리
-                const prev = JSON.parse(localStorage.getItem(key) || "[]");
+                const key = `recent_recommendations_${userId}`;
+                const prev = JSON.parse(localStorage.getItem(key) || '[]');
 
-                // ✅ 이미 저장된 product_pid 중복 제거
-                const existingPids = new Set(
-                  prev.flatMap((session: any) => session.products.map((p: any) => p.product_pid))
+                // ✅ 동일 product_pid 제거
+                const filtered = prev.filter(
+                  (item: any) => !data.some((p: Product) => p.product_pid === item.product_pid)
                 );
 
-                // ✅ 새로 추천된 제품 중, 기존에 없는 것만 추가
-                const newProducts = data.filter(p => !existingPids.has(p.product_pid));
+                // ✅ 새 레코드 구성
+                const newEntries = data.map((p: Product) => ({
+                  product_pid: p.product_pid,
+                  display_name: p.display_name,
+                  image_url: p.image_url,
+                  reason: p.reason,
+                  review_count: p.review_count || 0,
+                  category: p.step || '기타',
+                  price_krw: p.price_krw || 0,
+                  source: 'routine',
+                  created_at: new Date().toISOString(),
+                }));
 
-                if (newProducts.length > 0) {
-                  const newSession = {
-                    id: `rec_${Date.now()}`,
-                    type: "routine",
-                    created_at: new Date().toISOString(),
-                    products: newProducts.map(p => ({
-                      product_pid: p.product_pid,
-                      display_name: p.display_name,
-                      image_url: p.image_url,
-                      reason: p.reason,
-                      review_count: p.review_count || 0,
-                      category: p.step || "기타",
-                      price_krw: p.price_krw || 0,
-                      source: "routine",
-                    })),
-                  };
+                // ✅ 최신순 + 최대 300개 유지
+                const updated = [...newEntries, ...filtered].slice(0, 30);
 
-                  // ✅ 새로운 세션을 앞에 추가 (최신 순)
-                  let updated = [newSession, ...prev];
+                localStorage.setItem(key, JSON.stringify(updated));
+                console.log('💾 최근 추천 저장 완료:', newEntries);
 
-                  // ✅ localStorage 용량 계산 및 오래된 세션 삭제
-                  const MAX_STORAGE = 4.5 * 1024 * 1024; // 약 4.5MB
-                  let size = new Blob([JSON.stringify(updated)]).size;
-
-                  while (size > MAX_STORAGE && updated.length > 1) {
-                    updated.pop(); // 오래된 세션부터 제거
-                    size = new Blob([JSON.stringify(updated)]).size;
-                    console.warn("⚠️ 용량 초과로 오래된 추천 기록 삭제됨");
-                  }
-
-                  localStorage.setItem(key, JSON.stringify(updated));
-                  console.log("💾 최근 추천 저장 완료:", newSession);
-                } else {
-                  console.log("⚠️ 이미 저장된 제품만 존재하므로 추가 안 함");
-                }
               } catch (err) {
-                console.error("❌ 최근 추천 저장 실패:", err);
+                console.error('❌ 최근 추천 저장 실패:', err);
               }
 
             } catch (err) {
-              console.error("❌ 루틴 추천 실패:", err);
+              console.error('❌ 루틴 추천 실패:', err);
             }
           }}
           className="w-full mt-3 sm:mt-4 py-2.5 sm:py-3 rounded-xl bg-pink-100 text-pink-700 text-sm sm:text-base font-medium hover:bg-pink-200 transition-colors"
@@ -375,7 +349,7 @@ export default function CustomRoutine({
         onClose={() => setSelectedProduct(null)}
         onToggleFavorite={(pid) => toggleFavorite(Number(pid))}
         favorites={favorites}
-        mode="routine" 
+        mode="routine"
       />
     </>
   );
