@@ -190,6 +190,9 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
+          userName: name || profile?.name || '', // ← 이 한 줄 추가!
+          koreanName: ingredient.korean_name,
+          ingType: type,
           ingredientId: ingredient.id,
           ingredientName: ingredient.korean_name,
           type: type,
