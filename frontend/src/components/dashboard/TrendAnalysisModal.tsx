@@ -105,46 +105,70 @@ const BarRow: React.FC<{
   );
 };
 
+// 1) 컨테이너 폭을 관찰하는 훅
+const useContainerWidth = <T extends HTMLElement>(min = 320, max = 1200) => {
+  const ref = React.useRef<T | null>(null);
+  const [w, setW] = React.useState<number>(min);
+  React.useEffect(() => {
+    if (!ref.current) return;
+    const el = ref.current;
+    const onResize = () => {
+      const cw = el.clientWidth || min;
+      setW(Math.max(min, Math.min(max, cw)));
+    };
+    onResize();
+    const obs = new ResizeObserver(onResize);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [min, max]);
+  return { ref, width: w };
+};
+
 /** ─────────────────────────────────────────────────────────
  *  버블 차트 (브랜드 포지셔닝)
  *  - 호버 시 브랜드 라벨/요약 박스 표시
  *  ───────────────────────────────────────────────────────── */
-const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number }> = ({
+// 2) 반응형 버블 차트
+const BubbleChart: React.FC<{ data: BrandItem[]; height?: number }> = ({
   data,
-  width = 980,
-  height = 360,
+  height = 340,
 }) => {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  // 컨테이너 폭 자동 측정
+  const { ref, width } = useContainerWidth<HTMLDivElement>(320, 1400);
+  const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
 
-  const pad = 40;
+  // 점 개수에 따라 반경 상한 가변
+  const n = Math.max(1, data.length);
+  const R_MIN = 5;
+  const R_MAX = n <= 40 ? 22 : n <= 80 ? 18 : 14;
+
+  const pad = 36;
   const maxA = Math.max(1, ...data.map((d) => d.base_sum));
   const minDelta = Math.min(0, ...data.map((d) => d.delta_sum));
   const maxDelta = Math.max(1, ...data.map((d) => d.delta_sum));
   const maxB = Math.max(1, ...data.map((d) => d.current_sum));
 
-  const log1pSafe = (n: number) => Math.log1p(Math.max(0, n));
-  const symlog = (n: number, c: number) => {
-    const a = Math.abs(n);
-    const linZone = c * 0.4;
-    const scaled = a < linZone ? a / linZone : Math.log1p((a - linZone) / c) + 1;
-    return Math.sign(n) * scaled;
+  const log1pSafe = (v: number) => Math.log1p(Math.max(0, v));
+  const symlog = (v: number, c: number) => {
+    const a = Math.abs(v);
+    const lin = c * 0.4;
+    const scaled = a < lin ? a / lin : Math.log1p((a - lin) / c) + 1;
+    return Math.sign(v) * scaled;
   };
 
   const maxA_t = log1pSafe(maxA);
   const c = Math.max(1, Math.max(Math.abs(minDelta), Math.abs(maxDelta)) / 12);
-  const minD_t = symlog(minDelta, c),
-    maxD_t = symlog(maxDelta, c);
+  const minD_t = symlog(minDelta, c);
+  const maxD_t = symlog(maxDelta, c);
 
   const sx = (v: number) => pad + (log1pSafe(v) / maxA_t) * (width - pad * 2);
   const sy = (v: number) => {
     const t = symlog(v, c);
     return height - pad - ((t - minD_t) / (maxD_t - minD_t)) * (height - pad * 2);
   };
-  const sr = (v: number) => 6 + Math.sqrt(v / Math.max(1, maxB)) * (24 - 6);
+  const sr = (v: number) => R_MIN + Math.sqrt(v / Math.max(1, maxB)) * (R_MAX - R_MIN);
 
-  const zeroY = sy(0);
-
-  const points = useMemo(
+  const points = React.useMemo(
     () =>
       data.map((d) => ({
         ...d,
@@ -152,26 +176,38 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
         y: sy(d.delta_sum),
         r: sr(d.current_sum),
       })),
-    [data]
+    // width/height 변화를 반영
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, width, height]
   );
 
   const hovered = hoverIdx !== null ? points[hoverIdx] : null;
+  const zeroY = sy(0);
 
   return (
-    <div className="relative">
-      <svg width={width} height={height} className="rounded-lg border border-gray-200 bg-white">
+    <div ref={ref} className="relative w-full">
+      {/* width="100%" + viewBox로 반응형 */}
+      <svg
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className="rounded-lg border border-gray-200 bg-white"
+      >
+        {/* 축 */}
         <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#e5e7eb" />
         <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="#e5e7eb" />
         <line x1={pad} y1={zeroY} x2={width - pad} y2={zeroY} stroke="#eab308" strokeDasharray="4 4" />
 
+        {/* 점 */}
         {points.map((p, i) => {
           const isHover = i === hoverIdx;
           return (
             <g
-              key={p.brand}
+              key={`${p.brand}-${i}`}
               onMouseEnter={() => setHoverIdx(i)}
               onMouseLeave={() => setHoverIdx(null)}
               style={{ cursor: 'pointer' }}
+              opacity={hovered ? (isHover ? 1 : 0.5) : 1}
             >
               <circle
                 cx={p.x}
@@ -181,28 +217,18 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
                 stroke="#9b87f5"
                 strokeWidth={isHover ? 3 : 1.5}
               />
-              {isHover && (
-                <>
-                  <rect
-                    x={p.x - Math.min(80, Math.max(40, p.brand.length * 6)) / 2}
-                    y={p.y - p.r - 22}
-                    width={Math.min(80, Math.max(40, p.brand.length * 6))}
-                    height={16}
-                    rx={6}
-                    fill="white"
-                    stroke="#e5e7eb"
-                  />
-                  <text
-                    x={p.x}
-                    y={p.y - p.r - 10}
-                    textAnchor="middle"
-                    fontSize="11"
-                    fill="#374151"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {p.brand}
-                  </text>
-                </>
+              {/* 큰 버블만 라벨 표기해서 겹침 완화 */}
+              {p.r >= 14 && (
+                <text
+                  x={p.x}
+                  y={p.y - p.r - 4}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fill="#374151"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {p.brand}
+                </text>
               )}
             </g>
           );
@@ -216,6 +242,7 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
         </text>
       </svg>
 
+      {/* 호버 패널 */}
       {hovered && (
         <div
           className="absolute top-2 right-2 rounded-lg border border-gray-200 bg-white shadow px-3 py-2 text-xs"
