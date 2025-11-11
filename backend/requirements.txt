@@ -1,0 +1,26 @@
+# Core Dependencies
+streamlit>=1.30.0
+openai>=1.0.0
+
+# Database (MariaDB + SQLAlchemy)
+SQLAlchemy>=2.0.0
+PyMySQL>=1.1.0
+cryptography  # for PyMySQL secure connections
+pinecone>=5.0.0
+
+# OCR & Image Processing
+google-cloud-vision>=3.0.0
+pillow>=10.0.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# Utilities
+typing-extensions>=4.0.0
+
+# Backend (FastAPI + Server)
+fastapi>=0.110.0
+uvicorn[standard]>=0.30.0
+pydantic[email]>=2.0.0
+python-multipart>=0.0.9
+langchain-openai>=0.1.7
