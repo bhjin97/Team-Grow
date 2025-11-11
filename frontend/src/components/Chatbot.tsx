@@ -60,7 +60,7 @@ interface Message {
   ocrImageUrl?: string | null;
 }
 
-/** caution 등급 뱃지 스타일 */
+/** caution 등급 뱃지 스타일 (모달 헤더용) */
 function gradeStyle(grade: '위험' | '주의' | '안전' | null | undefined) {
   if (grade === '위험') return { label: '위험', cls: 'bg-red-50 text-red-700 border-red-200' };
   if (grade === '주의')
@@ -68,6 +68,14 @@ function gradeStyle(grade: '위험' | '주의' | '안전' | null | undefined) {
   if (grade === '안전')
     return { label: '안전', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
   return { label: '정보 없음', cls: 'bg-gray-50 text-gray-600 border-gray-200' };
+}
+
+/** caution 등급 텍스트 색상 (성분 칩용) */
+function gradeTextClass(grade: '위험' | '주의' | '안전' | null | undefined) {
+  if (grade === '위험') return 'text-red-600';
+  if (grade === '주의') return 'text-amber-600';
+  if (grade === '안전') return 'text-emerald-600';
+  return 'text-gray-700';
 }
 
 /** 성분 상세 모달 UI (DB: korean_name, description, caution_grade 기준) */
@@ -253,7 +261,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
         setIngDetail(detail);
       }
     } catch (e) {
-      setIngError('성분 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      setIngError('해당 성분 정보를 찾을 수 없습니다. 배합 목적의 성분일 수도 있어요.');
       console.error(e);
     } finally {
       setIngLoading(false);
@@ -615,6 +623,17 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                                   [cardKey]: prev[cardKey] === which ? null : which,
                                 }));
 
+                              // 🔸 등급 정보 우선 사용, 없으면 이름만으로 폴백
+                              const ingList = (p as any).ingredients_detail?.length
+                                ? ((p as any).ingredients_detail as {
+                                    name: string;
+                                    caution_grade: '위험' | '주의' | '안전' | null;
+                                  }[])
+                                : (p.ingredients || []).map(n => ({
+                                    name: n,
+                                    caution_grade: null as null,
+                                  }));
+
                               return (
                                 <div
                                   key={cardKey}
@@ -659,21 +678,20 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                                           </button>
                                         )}
 
-                                        {Array.isArray(p.ingredients) &&
-                                          p.ingredients.length > 0 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => toggle('ings')}
-                                              aria-expanded={open === 'ings'}
-                                              className={`text-xs px-2 py-1 rounded-lg border transition ${
-                                                open === 'ings'
-                                                  ? 'bg-violet-50 text-violet-700 border-violet-200'
-                                                  : 'bg-white text-violet-600 border-violet-200 hover:bg-violet-50'
-                                              }`}
-                                            >
-                                              성분 보기
-                                            </button>
-                                          )}
+                                        {ingList.length > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggle('ings')}
+                                            aria-expanded={open === 'ings'}
+                                            className={`text-xs px-2 py-1 rounded-lg border transition ${
+                                              open === 'ings'
+                                                ? 'bg-violet-50 text-violet-700 border-violet-200'
+                                                : 'bg-white text-violet-600 border-violet-200 hover:bg-violet-50'
+                                            }`}
+                                          >
+                                            성분 보기
+                                          </button>
+                                        )}
 
                                         {p.product_url && (
                                           <a
@@ -697,30 +715,28 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                                         </div>
                                       )}
 
-                                      {open === 'ings' &&
-                                        Array.isArray(p.ingredients) &&
-                                        p.ingredients.length > 0 && (
-                                          <div className="mt-2">
-                                            <div className="flex flex-wrap gap-1.5">
-                                              {p.ingredients.slice(0, 60).map((ing, idx) => (
-                                                <button
-                                                  key={`${cardKey}-${idx}`}
-                                                  type="button"
-                                                  onClick={() => openIngredientModal(ing)}
-                                                  className="inline-block text-[11px] px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-700 hover:bg-violet-50 hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-300"
-                                                  title={`${ing} 상세 보기`}
-                                                >
-                                                  {ing}
-                                                </button>
-                                              ))}
-                                            </div>
+                                      {open === 'ings' && ingList.length > 0 && (
+                                        <div className="mt-2">
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {ingList.slice(0, 60).map((ing, idx) => (
+                                              <button
+                                                key={`${cardKey}-${idx}`}
+                                                type="button"
+                                                onClick={() => openIngredientModal(ing.name)}
+                                                className={`inline-block text-[11px] px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 hover:bg-violet-50 hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-300 ${gradeTextClass(ing.caution_grade)}`}
+                                                title={`${ing.name} 상세 보기`}
+                                              >
+                                                {ing.name}
+                                              </button>
+                                            ))}
                                           </div>
-                                        )}
+                                        </div>
+                                      )}
                                     </div>
 
-                                    {typeof p.score === 'number' && (
+                                    {typeof (p as any).score === 'number' && (
                                       <div className="text-[11px] text-gray-500 ml-2">
-                                        sim {p.score.toFixed(3)}
+                                        sim {(p as any).score.toFixed(3)}
                                       </div>
                                     )}
                                   </div>
