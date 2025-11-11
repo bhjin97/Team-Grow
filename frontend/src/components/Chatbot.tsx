@@ -1,5 +1,6 @@
 'use client';
 
+import { API_BASE } from '@/lib/env';
 import * as React from 'react';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -185,6 +186,30 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       timestamp: new Date(),
     },
   ]);
+
+  const userId = typeof window !== 'undefined' ? localStorage.getItem('user_id') : null;
+  const [favorites, setFavorites] = useState<number[]>([]);
+
+  // ✅ 즐겨찾기 불러오기
+  useEffect(() => {
+    const loadFavorites = async () => {
+      if (!userId) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/favorite_products/${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setFavorites(data.map((item: any) => Number(item.product_id)));
+        }
+      } catch (err) {
+        console.error("즐겨찾기 불러오기 실패", err);
+      }
+    };
+
+    loadFavorites();
+  }, [userId]);
+
+
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -266,6 +291,46 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
     setIngError(null);
   }
 
+  // ✅ 즐겨찾기 토글
+  const toggleFavorite = async (productId: number) => {
+    if (!userId) {
+      setToastMessage("로그인이 필요합니다.");
+      setShowToast(true);
+      return;
+    }
+
+    const isFavorited = favorites.includes(productId);
+
+    try {
+      if (isFavorited) {
+        // ✅ DB에서 삭제
+        const res = await fetch(
+          `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
+          { method: "DELETE" }
+        );
+        if (res.ok) {
+          setFavorites(prev => prev.filter(id => id !== productId));
+          setToastMessage("즐겨찾기에서 제거되었습니다 💔");
+          setShowToast(true);
+        }
+      } else {
+        // ✅ DB에 추가
+        const res = await fetch(
+          `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
+          { method: "POST" }
+        );
+        if (res.ok) {
+          setFavorites(prev => [...prev, productId]);
+          setToastMessage("즐겨찾기에 추가되었습니다 💗");
+          setShowToast(true);
+        }
+      }
+    } catch (err) {
+      console.error("즐겨찾기 토글 실패", err);
+    }
+  };
+
+
   // ── 전송 핸들러 (스트리밍 + 추천카드)
   const handleSendMessage = async () => {
     const text = inputValue.trim();
@@ -294,6 +359,33 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       }
       const { products } = await fetchRecommendations(text, 12, cacheKey);
       setMessages(prev => prev.map(m => (m.id === aiMsgId ? { ...m, products } : m)));
+      // ✅ 최근 추천 기록 저장
+      try {
+        const key = `recent_recommendations_${userId}`;
+        const prev = JSON.parse(localStorage.getItem(key) || "[]");
+
+        const newEntries = products.map((p: RecProduct) => ({
+          product_pid: p.pid,
+          display_name: p.product_name,
+          image_url: p.image_url,
+          price_krw: p.price_krw ?? 0,
+          category: p.category,
+          source: "chatbot",
+          created_at: new Date().toISOString(),
+        }));
+
+        // ✅ 중복 제거 → 기존 중복 삭제
+        const filtered = prev.filter(
+          (item: any) => !newEntries.some(n => n.product_pid === item.product_pid)
+        );
+
+        // ✅ 최신순 + 최대 30개 유지
+        const updated = [...newEntries, ...filtered].slice(0, 30);
+
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch (err) {
+        console.error("최근 추천 저장 실패:", err);
+      }
       setOpenPanelByCard({});
     } catch (err) {
       setMessages(prev =>
@@ -618,9 +710,34 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                               return (
                                 <div
                                   key={cardKey}
-                                  className="p-3 sm:p-4 bg-white rounded-lg border border-gray-200"
+                                  className="relative p-3 sm:p-4 bg-white rounded-lg border border-gray-200"
                                 >
                                   <div className="flex items-start gap-3">
+                                    {/* ✅ 즐겨찾기 하트 버튼 */}
+                                    <button
+                                      onClick={() => toggleFavorite(Number(p.pid))}
+                                      className={`absolute top-2 right-2 p-1.5 rounded-full transition ${
+                                        favorites.includes(Number(p.pid))
+                                          ? "bg-pink-500 text-white"
+                                          : "bg-white text-pink-500 hover:bg-pink-100"
+                                      }`}
+                                    >
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className={`w-4 h-4 ${
+                                          favorites.includes(Number(p.pid)) ? "fill-white" : "fill-none"
+                                        }`}
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z"
+                                        />
+                                      </svg>
+                                    </button>
                                     {p.image_url && (
                                       <img
                                         src={p.image_url}
