@@ -15,6 +15,13 @@ export type RecProduct = {
   ingredients?: string[];
 };
 
+export interface IngredientInfo {
+  name: string;
+  description: string | null;
+  caution_grade: CautionGrade;
+}
+export type CautionGrade = '위험' | '주의' | '안전' | null;
+
 // ------------------------------------------------------------------
 // LLM 채팅 스트리밍 (기존 유지)
 //  - 프록시(/api/*) 경유: vite dev proxy 또는 nginx 프록시 기준
@@ -121,4 +128,13 @@ export async function searchOcrByName(
     };
   }
   return { analysis: json.analysis, render: json.render };
+}
+
+/** 성분 상세 정보 조회 */
+export async function fetchIngredientDetail(name: string): Promise<IngredientInfo> {
+  const res = await fetch(`/api/chat/ingredient/${encodeURIComponent(name)}`, {
+    method: 'GET',
+  });
+  if (!res.ok) throw new Error('성분 정보를 불러오지 못했습니다.');
+  return res.json();
 }
