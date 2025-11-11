@@ -3,7 +3,7 @@
 // 공용 타입
 // ------------------------------------------------------------------
 export type RecProduct = {
-  pid: string;
+  pid: number;
   brand?: string;
   product_name?: string;
   category?: string;
@@ -12,6 +12,7 @@ export type RecProduct = {
   rag_text?: string;
   score?: number;
   product_url?: string;
+  ingredients?: string[];
 };
 
 // ------------------------------------------------------------------

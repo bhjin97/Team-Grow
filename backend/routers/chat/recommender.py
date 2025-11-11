@@ -328,6 +328,38 @@ def dedup_keep_best(candidate_pids: List[int], score_map: Dict[int, float]) -> T
     unique_sorted_pids = sorted(best.keys(), key=lambda x: -best[x])
     return unique_sorted_pids, best
 
+def _normalize_ingredients(val) -> List[str]:
+    """
+    product_data_chain.ingredients 컬럼을 배열[str]로 정규화.
+    - JSON 배열이면 그대로 사용
+    - 문자열이면 구분자(, | ; \n / · •)로 스플릿
+    - 공백/중복 제거
+    """
+    if val is None:
+        return []
+    if isinstance(val, list):
+        items = [str(x).strip() for x in val if str(x).strip()]
+        return list(dict.fromkeys(items))
+
+    s = str(val).strip()
+    if not s:
+        return []
+    # JSON 배열일 가능성 먼저
+    if (s.startswith("[") and s.endswith("]")) or (s.startswith('"') and s.endswith('"')):
+        try:
+            j = json.loads(s)
+            if isinstance(j, list):
+                items = [str(x).strip() for x in j if str(x).strip()]
+                return list(dict.fromkeys(items))
+        except Exception:
+            pass
+
+    # 구분자로 분리
+    parts = re.split(r"[,\|\;\n\/·•]+", s)
+    items = [p.strip() for p in parts if p and p.strip()]
+    return list(dict.fromkeys(items))
+
+
 # =============================================================================
 # 3) RDB 유틸
 # =============================================================================
@@ -372,12 +404,12 @@ def rdb_filter(
     LOG.section("RDB FILTER"); LOG.sql(where_sql, having_clause, params)
 
     sql = text(f"""
-        SELECT p.pid, p.brand, p.product_name, p.price_krw, p.category, p.rag_text, p.image_url, p.product_url
+        SELECT p.pid, p.brand, p.product_name, p.price_krw, p.category, p.rag_text, p.image_url, p.product_url,  p.ingredients
 
         FROM product_data_chain AS p
         LEFT JOIN product_ingredient_map AS m ON m.product_pid = p.pid
         WHERE {where_sql}
-        GROUP BY p.pid, p.brand, p.product_name, p.price_krw, p.category, p.rag_text
+        GROUP BY p.pid, p.brand, p.product_name, p.price_krw, p.category, p.rag_text, p.ingredients
         {having_clause}
         ORDER BY (p.price_krw IS NULL) ASC, p.price_krw ASC, p.pid
         LIMIT :limit
@@ -388,8 +420,13 @@ def rdb_filter(
     try:
         with engine.connect() as conn:
             rows = conn.execute(sql, params).mappings().all()
-        LOG.kv("rows_count", len(rows)); LOG.sample_rows(rows, n=10)
-        return [dict(r) for r in rows]
+            items = []
+            for r in rows:
+                d = dict(r)
+                d["ingredients"] = _normalize_ingredients(d.pop("ingredients", None))
+                items.append(d)
+        LOG.kv("rows_count", len(items)); LOG.sample_rows(items, n=10)
+        return items
     except Exception as e:
         LOG.kv("ERROR", repr(e)); LOG.kv("PARAMS_AGAIN", params); return []
 
@@ -397,7 +434,7 @@ def rdb_fetch_by_pids(pids: List[int], limit: int = 30) -> List[Dict]:
     if not pids: return []
     LOG.section("RDB FETCH BY PIDS"); LOG.kv("request_count", len(pids)); LOG.kv("sample_pids", pids[:10])
     sql = text("""
-        SELECT p.pid, p.brand, p.product_name, p.price_krw, p.category, p.rag_text, p.image_url, p.product_url
+        SELECT p.pid, p.brand, p.product_name, p.price_krw, p.category, p.rag_text, p.image_url, p.product_url, p.ingredients
         FROM product_data_chain AS p
         WHERE p.pid IN :pids
         LIMIT :limit
@@ -405,7 +442,11 @@ def rdb_fetch_by_pids(pids: List[int], limit: int = 30) -> List[Dict]:
     try:
         with engine.connect() as conn:
             rows = conn.execute(sql, {"pids": tuple(pids), "limit": limit}).mappings().all()
-        items = [dict(r) for r in rows]
+        items = []
+        for r in rows:
+            d = dict(r)
+            d["ingredients"] = _normalize_ingredients(d.pop("ingredients", None))
+            items.append(d)
         by_pid = {it["pid"]: it for it in items}
         ordered = [by_pid[pid] for pid in pids if pid in by_pid]
         LOG.kv("rows_count", len(ordered))
@@ -426,6 +467,8 @@ def rdb_fetch_rag_texts(pids: List[int]) -> List[Dict]:
         return [dict(r) for r in rows]
     except Exception:
         return []
+    
+
 
 # =============================================================================
 # 4) 검색 파이프라인 (추천 경로 내부)
@@ -550,24 +593,42 @@ def search_pipeline_from_parsed(parsed: Dict[str, Any], user_query: str, use_raw
 # =============================================================================
 # 5) 출력 생성 (상위 5 → 3개, rag_text만으로 요약)
 # =============================================================================
+# _FINALIZE_FROM_RAG_SYSTEM = (
+#     "너는 화장품 추천 챗봇이다. 아래 입력의 'items'는 제품별 rag_text가 포함된 JSON 배열이다.\n"
+#     "너의 임무는 이 중에서 사용자 질의에 가장 잘 맞는 가능한 최대 3개의 제품을 고르고,"
+#     "3개 미만이면 가능한 최대 개수까지만 출력하라"
+#     "각 제품명(name)과 설명(desc)을 아래 형식의 JSON 배열로만 반환하는 것이다.\n\n"
+#     "[출력 예시]\n"
+#     "[\n"
+#     "  {\"name\": \"제품명1\", \"desc\": \"설명1\"},\n"
+#     "  {\"name\": \"제품명2\", \"desc\": \"설명2\"},\n"
+#     "  {\"name\": \"제품명3\", \"desc\": \"설명3\"}\n"
+#     "]\n\n"
+#     "설명은 사용자 질의 q와 rag_text 내용을 확인하여, 약90자 내외로 작성한다.\n"
+#     "주어진 자료 이외의 "
+#     "JSON 외의 다른 텍스트는 절대 출력하지 마라.\n"
+#     "가격 언급이 필요하면 price_krw만 사용하고, rag_text에 없는 기능/수치/효과는 쓰지 말 것.\n"
+#     "브랜드 언급이 필요하면 brand를 사용하라"
+# )
 _FINALIZE_FROM_RAG_SYSTEM = (
     "너는 화장품 추천 챗봇이다. 아래 입력의 'items'는 제품별 rag_text가 포함된 JSON 배열이다.\n"
-    "너의 임무는 이 중에서 사용자 질의에 가장 잘 맞는 가능한 최대 3개의 제품을 고르고,"
-    "3개 미만이면 가능한 최대 개수까지만 출력하라"
-    "각 제품명(name)과 설명(desc)을 아래 형식의 JSON 배열로만 반환하는 것이다.\n\n"
-    "[출력 예시]\n"
-    "[\n"
-    "  {\"pid\": 123, \"name\": \"제품명1\", \"desc\": \"설명1\"},\n"
-    "  {\"pid\": 456, \"name\": \"제품명2\", \"desc\": \"설명2\"},\n"
-    "  {\"pid\": 789, \"name\": \"제품명3\", \"desc\": \"설명3\"}\n"
-    "]\n\n"
-    "pid는 반드시 items의 pid를 그대로 사용.\n"
-    "설명은 사용자 질의 q와 rag_text 내용을 확인하여, 약90자 내외로 작성한다.\n"
-    "주어진 자료 이외의 "
-    "JSON 외의 다른 텍스트는 절대 출력하지 마라.\n"
-    "가격 언급이 필요하면 price_krw만 사용하고, rag_text에 없는 기능/수치/효과는 쓰지 말 것.\n"
-    "브랜드 언급이 필요하면 brand를 사용하라"
+    "사용자 질의(q)를 바탕으로 제품 후보 중 가장 관련성 높은 최대 3개의 제품을 선택하고, "
+    "친절하게 자연스러운 한국어로 추천 결과를 구성하라.\n\n"
+    "출력 형식은 마크다운으로 다음과 같이 작성한다:\n"
+    "각 제품의 rag_text를 참고해 제품명을 추정해 작성하라.\n"
+    "1. 질의 요약 또는 서문 1~2줄 (자연스러운 말투)\n"
+    "2. 빈 줄 1줄\n"
+    "3. 최대 3개의 불릿 리스트로 각 제품 소개 (**제품명** — 설명)\n\n"
+    "규칙:\n"
+    "- 제품명은 **굵게(**)** 표시한다.\n"
+    "- 설명은 약 150~200자 내외로, rag_text 내용을 참고해 간결하게 요약한다.\n"
+    "- 제품 성분·특징·효과는 rag_text에 기반해야 한다.\n"
+    "- JSON, 코드블록, 따옴표, 추가 해설 없이 마크다운 문장만 출력한다.\n"
+    "- 친근하고 자연스럽지만 과장된 표현은 피한다."
+    "- 반드시 마지막 줄에는 아래 문장을 그대로 추가하라:\n"
+    "  '※ 위 추천 내용은 사용자 리뷰 데이터를 기반으로 한 정보입니다.'"
 )
+
 
 _FINALIZE_FROM_RAG_TMPL = """
 [사용자 질의]
@@ -577,11 +638,10 @@ _FINALIZE_FROM_RAG_TMPL = """
 {items}
 """
 
-def finalize_from_rag_texts(user_query: str, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def finalize_from_rag_texts(user_query: str, results: List[Dict[str, Any]]) -> str:
     top5 = results[:5]
-    items = [{"pid": r.get("pid"),
+    items = [{
               "brand": r.get("brand"),
-              # "price_krw": r.get("price_krw"),
               "price_krw": int(r["price_krw"]) if r.get("price_krw") is not None else None,
               "rag_text": (r.get("rag_text") or "")[:2000]
               } for r in top5]
@@ -597,34 +657,19 @@ def finalize_from_rag_texts(user_query: str, results: List[Dict[str, Any]]) -> L
     ])
 
     txt = (getattr(resp, "content", "") or "").strip()
-    data = _safe_json_extract(txt) or {}
-    
-    # ✅ 배열만 정식 처리, 객체가 오면 1개짜리 배열로 폴백
-    if isinstance(data, dict):
-        data = [data]
-    if isinstance(data, list):
-        valid = []
-        for it in data:
-            if isinstance(it, dict) and {"pid","name","desc"} <= set(it.keys()):
-                valid.append({
-                    "pid": int(it["pid"]),
-                    "name": str(it["name"]),
-                    "desc": str(it["desc"])[:200],
-                })
-        if valid:
-            # pid 중복 제거
-            seen, dedup = set(), []
-            for v in valid:
-                if v["pid"] not in seen:
-                    dedup.append(v); seen.add(v["pid"])
-            return dedup[:3]
+    if not txt:
+        lines = [
+            "요청하신 조건에 맞는 제품을 정리했어요.",
+            "",
+            "추천 제품:",
+        ]
+        for r in top5[:3]:
+            nm = (r.get("brand") or "알 수 없는 브랜드")
+            desc = (r.get("rag_text") or "")[:90].replace("\n", " ")
+            lines.append(f"- **{nm} 제품** — {desc}")
+        return "\n".join(lines)
 
-    # 실패 시 안전 폴백
-    return [{
-        "pid": items[0]["pid"] if items else None,
-        "name": "응답 파싱 실패",
-        "desc": txt[:200],
-    }]
+    return txt
 
 # =============================================================================
 # 6) 일반 질의용
@@ -669,13 +714,13 @@ def answer(user_query: str) -> Dict[str, Any]:
     parsed = extract_with_llm(user_query)           # LLM 호출 2 (파싱)
     LOG.json("parsed", parsed)
 
-    out = search_pipeline_from_parsed(parsed, user_query, use_raw_for_features=True)
+    out = search_pipeline_from_parsed(parsed, user_query)
     rows = out.get("results") or []
     
     if not rows:
         return {
             "intent": "PRODUCT_FIND",
-            "text": [],                # ✅ 리스트 유지
+            "text": "",                
             "presented": [],           # ✅ 리스트 유지
             "message": (
                 "죄송합니다. 조건에 맞는 제품을 찾을 수 없습니다.\n"
@@ -685,7 +730,7 @@ def answer(user_query: str) -> Dict[str, Any]:
             )
         }
         
-    final_items = finalize_from_rag_texts(user_query, rows)  # 최대 3개
+    final_markdown  = finalize_from_rag_texts(user_query, rows)  # 최대 3개
     # 상세 모달용: 상위 5개
     presented = []
     for r in rows[:5]:
@@ -701,10 +746,11 @@ def answer(user_query: str) -> Dict[str, Any]:
             "rag_text": full_rag,  
             "image_url": r.get("image_url") or None,
             "product_url": r.get("product_url") or None,
+            "ingredients": r.get("ingredients", []),
         })
     return {
         "intent": "PRODUCT_FIND",
-        "text": final_items,       # [{pid, name, desc}] x up to 3
+        "text": final_markdown ,       # [{pid, name, desc}] x up to 3
         "presented": presented     # [{pid, brand, product_name, ...}] x up to 5
     }
 
@@ -734,10 +780,9 @@ if __name__ == "__main__":
         print("\n=== Intent ===", out["intent"])
         
         if out["intent"] == "PRODUCT_FIND":
-            print("\n=== Text (up to 3) ===")
-            for t in out["text"]:
-               print(f"- ({t['pid']}) {t['name']}: {t['desc']}")
-            
+            print("\n=== Text (LLM Markdown) ===")
+            print(out["text"])  # ← 문자열 그대로 출력
+
             print("\n=== Presented (up to 5) ===")
             for r in out["presented"]:
                 print(f"[{r['brand']}] {r['product_name']} | {r.get('price_krw')}원 | {r.get('category')} (pid={r['pid']})")
