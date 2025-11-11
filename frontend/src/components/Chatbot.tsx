@@ -1,12 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send,
   User,
-  Bot,
   Camera,
   Sparkles,
   Menu,
@@ -20,10 +19,18 @@ import {
   Bell,
 } from 'lucide-react';
 import { useUserStore } from '@/stores/auth/store';
-import { chatStream, fetchRecommendations, RecProduct } from '@/lib/api';
-import { uploadOcrImage /*, searchOcrByName*/ } from '@/lib/api';
+import { chatStream, fetchRecommendations, RecProduct, uploadOcrImage } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {
+  SS_KEY,
+  MAX_KEEP,
+  PersistMsg,
+  MessageLike,
+  loadSession,
+  toPersist,
+  createSessionSaver,
+} from '@/lib/chatSession';
 
 export interface ChatInterfaceProps {
   userName?: string;
@@ -46,34 +53,6 @@ interface Message {
   ocrImageUrl?: string | null;
 }
 
-/* ─────────────────────────────
-   세션 저장 관련 유틸
-   ───────────────────────────── */
-const SS_KEY = 'aller_chat_session_v1';
-
-type PersistMsg = {
-  id: number;
-  type: 'user' | 'ai';
-  content: string;
-  ts: number; // Date 직렬화용 timestamp
-};
-
-let saveTimer: any = null;
-function scheduleSessionSave(payload: {
-  messages: PersistMsg[];
-  savedProducts: number[];
-  draft: string;
-}) {
-  try {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      try {
-        sessionStorage.setItem(SS_KEY, JSON.stringify(payload));
-      } catch {}
-    }, 200);
-  } catch {}
-}
-
 export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -92,71 +71,48 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
   const [toastMessage, setToastMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const [openPanelByCard, setOpenPanelByCard] = useState<Record<string, 'review' | 'ings' | null>>(
+    {}
+  );
   const name = useUserStore(state => state.name);
+  const nextIdRef = useRef<number>(2);
 
-  /* ─────────────────────────────
-     세션에서 복원 (마운트 시 1회)
-     ───────────────────────────── */
-  React.useEffect(() => {
+  // ── 세션 복원
+  useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(SS_KEY);
-      if (!raw) return;
-
-      const parsed = JSON.parse(raw) as {
-        messages: PersistMsg[];
-        savedProducts: number[];
-        draft: string;
-      };
-      const restored = (parsed.messages || []).map(m => ({
-        id: m.id,
-        type: m.type as 'user' | 'ai',
-        content: m.content,
-        timestamp: new Date(m.ts),
-      }));
-
-      if (restored.length) setMessages(restored);
-      if (Array.isArray(parsed.savedProducts)) setSavedProducts(parsed.savedProducts);
-      if (typeof parsed.draft === 'string') setInputValue(parsed.draft);
+      const restored = loadSession(SS_KEY);
+      if (restored.length) {
+        setMessages(restored as Message[]);
+        const maxId = restored.reduce((m, x) => Math.max(m, x.id), 0);
+        nextIdRef.current = Math.max(maxId + 1, 2);
+      }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* 스크롤 하단 고정 */
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-  React.useEffect(() => {
+  // ── 스크롤 하단 고정
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  /* ─────────────────────────────
-     상태 변경 시 세션 저장
-     ───────────────────────────── */
-  React.useEffect(() => {
+  // ── 세션 저장(디바운스 + 안전저장)
+  const scheduleSave = useMemo(() => createSessionSaver(SS_KEY, 200), []);
+  useEffect(() => {
     try {
-      const payload: PersistMsg[] = messages.map(m => ({
-        id: m.id,
-        type: m.type,
-        content: m.content,
-        ts: m.timestamp.getTime(),
-      }));
-      scheduleSessionSave({
-        messages: payload,
-        savedProducts,
-        draft: inputValue,
-      });
+      const recent = messages.slice(-MAX_KEEP);
+      const payload: PersistMsg[] = toPersist(recent as MessageLike[]);
+      scheduleSave(payload);
     } catch {}
-  }, [messages, savedProducts, inputValue]);
+  }, [messages, scheduleSave]);
 
-  // ⬇️ 핵심: 스트리밍 + 추천 카드 호출
+  // ── 전송 핸들러 (스트리밍 + 추천카드)
   const handleSendMessage = async () => {
     const text = inputValue.trim();
     if (!text) return;
 
-    // 1) 사용자 메시지 추가
     const userMsg: Message = {
-      id: messages.length + 1,
+      id: nextIdRef.current++,
       type: 'user',
       content: text,
       timestamp: new Date(),
@@ -164,50 +120,39 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
 
-    // 2) AI placeholder 추가
-    const aiMsgId = userMsg.id + 1;
-    const aiMsg: Message = {
-      id: aiMsgId,
-      type: 'ai',
-      content: '',
-      timestamp: new Date(),
-    };
+    const aiMsgId = nextIdRef.current++;
+    const aiMsg: Message = { id: aiMsgId, type: 'ai', content: '', timestamp: new Date() };
     setMessages(prev => [...prev, aiMsg]);
     setIsTyping(true);
 
     try {
-      // 3) LLM 스트리밍
-      const { iter, cacheKey } = await chatStream(text, 6); // ⬅️ cacheKey 받기
+      const { iter, cacheKey } = await chatStream(text, 6);
       for await (const chunk of iter()) {
         setMessages(prev =>
           prev.map(m => (m.id === aiMsgId ? { ...m, content: (m.content || '') + chunk } : m))
         );
       }
-      // 4) 추천 카드 가져오기
       const { products } = await fetchRecommendations(text, 12, cacheKey);
       setMessages(prev => prev.map(m => (m.id === aiMsgId ? { ...m, products } : m)));
+      setOpenPanelByCard({});
     } catch (err) {
       setMessages(prev =>
-        prev.map(m =>
-          m.id === aiMsgId ? { ...m, content: '잠시 후 다시 시도해주세요.' } : m
-        )
+        prev.map(m => (m.id === aiMsgId ? { ...m, content: '잠시 후 다시 시도해주세요.' } : m))
       );
       console.error(err);
     } finally {
       setIsTyping(false);
     }
   };
-  // ⬆️ 끝
 
-  // 이미지 업로드 → OCR
+  // ── 이미지 업로드 → OCR
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // (1) 미리보기
     const localPreview = URL.createObjectURL(file);
     const userMsg: Message = {
-      id: messages.length + 1,
+      id: nextIdRef.current++,
       type: 'user',
       content: '이 제품 이미지 분석해줘',
       image: localPreview,
@@ -215,8 +160,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
     };
     setMessages(prev => [...prev, userMsg]);
 
-    // (2) AI placeholder
-    const aiMsgId = userMsg.id + 1;
+    const aiMsgId = nextIdRef.current++;
     const aiMsg: Message = {
       id: aiMsgId,
       type: 'ai',
@@ -227,21 +171,19 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
     setIsTyping(true);
 
     try {
-      // (3) OCR 업로드 → 결과
       const { analysis, render } = await uploadOcrImage(file);
-
-      // (4) AI 메시지 갱신
       setMessages(prev =>
-        prev.map(m => {
-          if (m.id !== aiMsgId) return m;
-          return {
-            ...m,
-            content: render?.text || '분석 결과를 표시할 수 없습니다.',
-            image: render?.image_url || undefined, // 서버 이미지가 있으면 교체
-            analysis,
-            ocrImageUrl: render?.image_url ?? null,
-          };
-        })
+        prev.map(m =>
+          m.id === aiMsgId
+            ? {
+                ...m,
+                content: render?.text || '분석 결과를 표시할 수 없습니다.',
+                image: render?.image_url || undefined,
+                analysis,
+                ocrImageUrl: render?.image_url ?? null,
+              }
+            : m
+        )
       );
     } catch (err) {
       console.error(err);
@@ -254,7 +196,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       );
     } finally {
       setIsTyping(false);
-      if (e.target) e.target.value = ''; // 같은 파일 재업로드 허용
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -418,7 +360,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
         </div>
       </header>
 
-      {/* Chat Container */}
+      {/* Chat */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-4xl flex-1 flex flex-col min-h-0">
           <motion.div
@@ -427,7 +369,6 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
             transition={{ duration: 0.5 }}
             className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col flex-1 min-h-0"
           >
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
               <AnimatePresence>
                 {messages.map(message => (
@@ -446,7 +387,6 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                           : 'space-x-2 sm:space-x-3'
                       } max-w-[85%] sm:max-w-[80%]`}
                     >
-                      {/* 아바타 */}
                       {message.type === 'ai' ? (
                         <div className="w-8 h-8 sm:w-9 sm:h-9 flex-shrink-0">
                           <img
@@ -459,13 +399,14 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                       ) : (
                         <div
                           className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+                          style={{
+                            background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+                          }}
                         >
                           <User className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
                       )}
 
-                      {/* 버블 */}
                       <div
                         className={`rounded-2xl p-3 sm:p-4 ${
                           message.type === 'user' ? 'text-white' : 'bg-gray-100 text-gray-800'
@@ -484,7 +425,6 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                           />
                         )}
 
-                        {/* 본문: user=plain, ai=markdown */}
                         {message.type === 'ai' ? (
                           <div className="prose prose-sm max-w-none leading-relaxed">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -497,72 +437,137 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                           </p>
                         )}
 
-                        {/* 추천 카드 */}
                         {message.products && message.products.length > 0 && (
                           <div className="mt-4 space-y-3">
                             <h4 className="text-sm sm:text-base font-semibold text-pink-600">
                               추천 제품
                             </h4>
-                            {message.products.slice(0, 6).map((p, i) => (
-                              <div
-                                key={i}
-                                className="p-3 sm:p-4 bg-white rounded-lg border border-gray-200"
-                              >
-                                <div className="flex items-start gap-3">
-                                  {p.image_url && (
-                                    <img
-                                      src={p.image_url}
-                                      alt={p.product_name || ''}
-                                      className="w-16 h-16 object-cover rounded-md flex-shrink-0"
-                                    />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm sm:text-base font-bold text-gray-800 truncate">
-                                      {(p.brand ? `${p.brand} · ` : '') + (p.product_name || '')}
+
+                            {message.products.slice(0, 6).map((p, i) => {
+                              const cardKey = String(
+                                `${message.id}-` +
+                                  (p.pid ?? `${p.brand ?? ''}-${p.product_name ?? ''}-${i}`)
+                              );
+                              const open = openPanelByCard[cardKey] ?? null;
+                              const toggle = (which: 'review' | 'ings') =>
+                                setOpenPanelByCard(prev => ({
+                                  ...prev,
+                                  [cardKey]: prev[cardKey] === which ? null : which,
+                                }));
+
+                              return (
+                                <div
+                                  key={cardKey}
+                                  className="p-3 sm:p-4 bg-white rounded-lg border border-gray-200"
+                                >
+                                  <div className="flex items-start gap-3">
+                                    {p.image_url && (
+                                      <img
+                                        src={p.image_url}
+                                        alt={p.product_name || ''}
+                                        className="w-16 h-16 object-cover rounded-md flex-shrink-0"
+                                      />
+                                    )}
+
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm sm:text-base font-bold text-gray-800 truncate">
+                                        {(p.brand ? `${p.brand} · ` : '') + (p.product_name || '')}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {p.category || ''}
+                                      </div>
+
+                                      {p.price_krw != null && (
+                                        <div className="mt-1 text-sm text-gray-700">
+                                          ₩{p.price_krw.toLocaleString()}
+                                        </div>
+                                      )}
+
+                                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        {!!p.rag_text && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggle('review')}
+                                            aria-expanded={open === 'review'}
+                                            className={`text-xs px-2 py-1 rounded-lg border transition ${
+                                              open === 'review'
+                                                ? 'bg-pink-50 text-pink-700 border-pink-200'
+                                                : 'bg-white text-pink-600 border-pink-200 hover:bg-pink-50'
+                                            }`}
+                                          >
+                                            리뷰 요약 보기
+                                          </button>
+                                        )}
+
+                                        {Array.isArray(p.ingredients) &&
+                                          p.ingredients.length > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => toggle('ings')}
+                                              aria-expanded={open === 'ings'}
+                                              className={`text-xs px-2 py-1 rounded-lg border transition ${
+                                                open === 'ings'
+                                                  ? 'bg-violet-50 text-violet-700 border-violet-200'
+                                                  : 'bg-white text-violet-600 border-violet-200 hover:bg-violet-50'
+                                              }`}
+                                            >
+                                              성분 보기
+                                            </button>
+                                          )}
+
+                                        {p.product_url && (
+                                          <a
+                                            href={p.product_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-xs text-white px-3 py-1 rounded-lg"
+                                            style={{
+                                              background:
+                                                'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+                                            }}
+                                          >
+                                            상품 페이지
+                                          </a>
+                                        )}
+                                      </div>
+
+                                      {open === 'review' && !!p.rag_text && (
+                                        <div className="mt-2 text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                          {p.rag_text}
+                                        </div>
+                                      )}
+
+                                      {open === 'ings' &&
+                                        Array.isArray(p.ingredients) &&
+                                        p.ingredients.length > 0 && (
+                                          <div className="mt-2">
+                                            <div className="flex flex-wrap gap-1.5">
+                                              {p.ingredients.slice(0, 60).map((ing, idx) => (
+                                                <span
+                                                  key={`${cardKey}-${idx}`}
+                                                  className="inline-block text-[11px] px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-700"
+                                                  title={ing}
+                                                >
+                                                  {ing}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                     </div>
-                                    <div className="text-xs text-gray-500">{p.category || ''}</div>
-                                    {p.price_krw != null && (
-                                      <div className="mt-1 text-sm text-gray-700">
-                                        ₩{p.price_krw.toLocaleString()}
+
+                                    {typeof p.score === 'number' && (
+                                      <div className="text-[11px] text-gray-500 ml-2">
+                                        sim {p.score.toFixed(3)}
                                       </div>
                                     )}
-                                    {p.rag_text && (
-                                      <details className="mt-2">
-                                        <summary className="text-xs text-pink-600 cursor-pointer">
-                                          리뷰 요약 보기
-                                        </summary>
-                                        <p className="mt-1 text-xs text-gray-700 whitespace-pre-wrap">
-                                          {p.rag_text}
-                                        </p>
-                                      </details>
-                                    )}
-                                    {p.product_url && (
-                                      <a
-                                        href={p.product_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="inline-block mt-2 text-xs text-white px-3 py-1 rounded-lg"
-                                        style={{
-                                          background:
-                                            'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
-                                        }}
-                                      >
-                                        상품 페이지
-                                      </a>
-                                    )}
                                   </div>
-                                  {typeof p.score === 'number' && (
-                                    <div className="text-[11px] text-gray-500 ml-2">
-                                      sim {p.score.toFixed(3)}
-                                    </div>
-                                  )}
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
 
-                        {/* 이미지 분석 카드 (옵션) */}
                         {message.productInfo && (
                           <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-white rounded-lg">
                             <h4 className="text-sm sm:text-base font-bold text-pink-600 mb-2 flex items-center">
@@ -627,23 +632,34 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                 ))}
               </AnimatePresence>
 
-              {/* 타이핑 인디케이터 */}
               {isTyping && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start space-x-2 sm:space-x-3">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-start space-x-2 sm:space-x-3"
+                >
                   <div className="w-8 h-8 sm:w-9 sm:h-9 flex-shrink-0">
                     <img src="/ai-droplet.png" alt="AI" className="w-full h-full object-contain" />
                   </div>
                   <div className="bg-gray-100 rounded-2xl p-3 sm:p-4">
                     <div className="flex space-x-2">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '0ms' }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '150ms' }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '300ms' }}
+                      />
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* 하단 포커스 */}
               <div ref={messagesEndRef} />
             </div>
 
