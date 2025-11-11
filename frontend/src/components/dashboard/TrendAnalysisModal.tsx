@@ -105,46 +105,70 @@ const BarRow: React.FC<{
   );
 };
 
+// 1) 컨테이너 폭을 관찰하는 훅
+const useContainerWidth = <T extends HTMLElement>(min = 320, max = 1200) => {
+  const ref = React.useRef<T | null>(null);
+  const [w, setW] = React.useState<number>(min);
+  React.useEffect(() => {
+    if (!ref.current) return;
+    const el = ref.current;
+    const onResize = () => {
+      const cw = el.clientWidth || min;
+      setW(Math.max(min, Math.min(max, cw)));
+    };
+    onResize();
+    const obs = new ResizeObserver(onResize);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [min, max]);
+  return { ref, width: w };
+};
+
 /** ─────────────────────────────────────────────────────────
  *  버블 차트 (브랜드 포지셔닝)
  *  - 호버 시 브랜드 라벨/요약 박스 표시
  *  ───────────────────────────────────────────────────────── */
-const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number }> = ({
+// 2) 반응형 버블 차트
+const BubbleChart: React.FC<{ data: BrandItem[]; height?: number }> = ({
   data,
-  width = 980,
-  height = 360,
+  height = 340,
 }) => {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  // 컨테이너 폭 자동 측정
+  const { ref, width } = useContainerWidth<HTMLDivElement>(320, 1400);
+  const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
 
-  const pad = 40;
+  // 점 개수에 따라 반경 상한 가변
+  const n = Math.max(1, data.length);
+  const R_MIN = 5;
+  const R_MAX = n <= 40 ? 22 : n <= 80 ? 18 : 14;
+
+  const pad = 36;
   const maxA = Math.max(1, ...data.map((d) => d.base_sum));
   const minDelta = Math.min(0, ...data.map((d) => d.delta_sum));
   const maxDelta = Math.max(1, ...data.map((d) => d.delta_sum));
   const maxB = Math.max(1, ...data.map((d) => d.current_sum));
 
-  const log1pSafe = (n: number) => Math.log1p(Math.max(0, n));
-  const symlog = (n: number, c: number) => {
-    const a = Math.abs(n);
-    const linZone = c * 0.4;
-    const scaled = a < linZone ? a / linZone : Math.log1p((a - linZone) / c) + 1;
-    return Math.sign(n) * scaled;
+  const log1pSafe = (v: number) => Math.log1p(Math.max(0, v));
+  const symlog = (v: number, c: number) => {
+    const a = Math.abs(v);
+    const lin = c * 0.4;
+    const scaled = a < lin ? a / lin : Math.log1p((a - lin) / c) + 1;
+    return Math.sign(v) * scaled;
   };
 
   const maxA_t = log1pSafe(maxA);
   const c = Math.max(1, Math.max(Math.abs(minDelta), Math.abs(maxDelta)) / 12);
-  const minD_t = symlog(minDelta, c),
-    maxD_t = symlog(maxDelta, c);
+  const minD_t = symlog(minDelta, c);
+  const maxD_t = symlog(maxDelta, c);
 
   const sx = (v: number) => pad + (log1pSafe(v) / maxA_t) * (width - pad * 2);
   const sy = (v: number) => {
     const t = symlog(v, c);
     return height - pad - ((t - minD_t) / (maxD_t - minD_t)) * (height - pad * 2);
   };
-  const sr = (v: number) => 6 + Math.sqrt(v / Math.max(1, maxB)) * (24 - 6);
+  const sr = (v: number) => R_MIN + Math.sqrt(v / Math.max(1, maxB)) * (R_MAX - R_MIN);
 
-  const zeroY = sy(0);
-
-  const points = useMemo(
+  const points = React.useMemo(
     () =>
       data.map((d) => ({
         ...d,
@@ -152,26 +176,38 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
         y: sy(d.delta_sum),
         r: sr(d.current_sum),
       })),
-    [data]
+    // width/height 변화를 반영
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, width, height]
   );
 
   const hovered = hoverIdx !== null ? points[hoverIdx] : null;
+  const zeroY = sy(0);
 
   return (
-    <div className="relative">
-      <svg width={width} height={height} className="rounded-lg border border-gray-200 bg-white">
+    <div ref={ref} className="relative w-full">
+      {/* width="100%" + viewBox로 반응형 */}
+      <svg
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className="rounded-lg border border-gray-200 bg-white"
+      >
+        {/* 축 */}
         <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#e5e7eb" />
         <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="#e5e7eb" />
         <line x1={pad} y1={zeroY} x2={width - pad} y2={zeroY} stroke="#eab308" strokeDasharray="4 4" />
 
+        {/* 점 */}
         {points.map((p, i) => {
           const isHover = i === hoverIdx;
           return (
             <g
-              key={p.brand}
+              key={`${p.brand}-${i}`}
               onMouseEnter={() => setHoverIdx(i)}
               onMouseLeave={() => setHoverIdx(null)}
               style={{ cursor: 'pointer' }}
+              opacity={hovered ? (isHover ? 1 : 0.5) : 1}
             >
               <circle
                 cx={p.x}
@@ -181,28 +217,18 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
                 stroke="#9b87f5"
                 strokeWidth={isHover ? 3 : 1.5}
               />
-              {isHover && (
-                <>
-                  <rect
-                    x={p.x - Math.min(80, Math.max(40, p.brand.length * 6)) / 2}
-                    y={p.y - p.r - 22}
-                    width={Math.min(80, Math.max(40, p.brand.length * 6))}
-                    height={16}
-                    rx={6}
-                    fill="white"
-                    stroke="#e5e7eb"
-                  />
-                  <text
-                    x={p.x}
-                    y={p.y - p.r - 10}
-                    textAnchor="middle"
-                    fontSize="11"
-                    fill="#374151"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {p.brand}
-                  </text>
-                </>
+              {/* 큰 버블만 라벨 표기해서 겹침 완화 */}
+              {p.r >= 14 && (
+                <text
+                  x={p.x}
+                  y={p.y - p.r - 4}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fill="#374151"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {p.brand}
+                </text>
               )}
             </g>
           );
@@ -216,6 +242,7 @@ const BubbleChart: React.FC<{ data: BrandItem[]; width?: number; height?: number
         </text>
       </svg>
 
+      {/* 호버 패널 */}
       {hovered && (
         <div
           className="absolute top-2 right-2 rounded-lg border border-gray-200 bg-white shadow px-3 py-2 text-xs"
@@ -252,7 +279,8 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
       try {
         const [brandRes, tsRes] = await Promise.all([
           fetch(`${API_BASE}/api/trends/brand_positioning?category=${encodeURIComponent(category)}`),
-          fetch(`${API_BASE}/api/trends/category_timeseries`),
+          // ✅ 썸네일과 동일한 정규화(avg) 타임시리즈 사용
+          fetch(`${API_BASE}/api/trends/category_timeseries?normalize=avg`),
         ]);
         if (!brandRes.ok) throw new Error('brand_positioning 실패');
         if (!tsRes.ok) throw new Error('category_timeseries 실패');
@@ -281,7 +309,7 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center">
       <button aria-label="close overlay" onClick={onClose} className="absolute inset-0 bg-black/40" />
-      <div className="relative w=[min(980px,92vw)] w-[min(980px,92vw)] max-h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col h-full">
+      <div className="relative w-[min(980px,92vw)] max-h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col h-full">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
@@ -401,7 +429,7 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
           {/* 카테고리 탭 */}
           {!loading && !err && tab === 'category' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* (좌) 도넛 + Δ비중 캡션  ←↓↓ 여기만 변경됨 */}
+              {/* (좌) 도넛 + Δ비중 캡션 — 전략 A: 직전주 없으면 비교하지 않음 */}
               <div className="bg-white rounded-xl border border-gray-200 p-4 min-w-0">
                 {(() => {
                   const lastRow = catTs?.series?.[catTs.series.length - 1];
@@ -417,18 +445,19 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                     };
                   })();
 
-                  // ⬇ Δ 비중 데이터(현재 주 Δ)
+                  // Δ 비중 데이터(현재 주 Δ)
+                  // ▶ 전략 A: 직전주가 없으면 비교하지 않음 → 빈 배열
                   const donutData =
-                    row && catTs
+                    row && catTs && prevSource
                       ? catTs.categories.map((c) => {
                           const cur = Number(row[c]?.sum ?? 0);
                           const prev = Number(prevSource?.[c]?.sum ?? 0);
-                          const delta = Math.max(0, cur - prev); // 음수 방지 원하면 유지
+                          const delta = Math.max(0, cur - prev);
                           return { label: c, value: delta };
                         })
                       : [];
 
-                  // ⬇ 직전 주 Δ (캡션 비교용). 직전 주와 직전-1주가 모두 있어야 계산 가능
+                  // 직전 주 Δ (캡션 비교용) — 전주와 전전주가 모두 있을 때만 계산
                   const prevDonut =
                     prevSource && prevPrevSource && catTs
                       ? catTs.categories.map((c) => {
@@ -451,11 +480,15 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                       />
                       <div className="mt-3">
                         <DonutDeltaCaption current={donutData} prev={prevDonut} weekLabel={row?.date ?? ''} />
+                        {!prevSource && (
+                          <div className="text-xs text-gray-500 mt-1">전주 데이터가 없어 Δ 비교를 표시하지 않습니다.</div>
+                        )}
                       </div>
                     </>
                   );
                 })()}
               </div>
+
 
               {/* (우) 합쳐 그린 라인 오버레이 + 캡션 */}
               <div className="bg-white rounded-xl border border-gray-200 p-4 min-w-0">
@@ -467,7 +500,8 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                       categories={catTs.categories}
                       hoveredDate={hoveredDate}
                       onHover={setHoveredDate}
-                      useIndex={true} /* ✅ 기본 뷰를 '상대지수(index)'로 고정 */
+                      // ✅ 썸네일과 동일: 베이스 대비 누적 증가선
+                      plotMode="cumDelta"
                       padFrac={0.15}
                       minSpan={80}
                     />
