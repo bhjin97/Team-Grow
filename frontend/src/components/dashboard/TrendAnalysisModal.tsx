@@ -252,7 +252,8 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
       try {
         const [brandRes, tsRes] = await Promise.all([
           fetch(`${API_BASE}/api/trends/brand_positioning?category=${encodeURIComponent(category)}`),
-          fetch(`${API_BASE}/api/trends/category_timeseries`),
+          // ✅ 썸네일과 동일한 정규화(avg) 타임시리즈 사용
+          fetch(`${API_BASE}/api/trends/category_timeseries?normalize=avg`),
         ]);
         if (!brandRes.ok) throw new Error('brand_positioning 실패');
         if (!tsRes.ok) throw new Error('category_timeseries 실패');
@@ -281,7 +282,7 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center">
       <button aria-label="close overlay" onClick={onClose} className="absolute inset-0 bg-black/40" />
-      <div className="relative w=[min(980px,92vw)] w-[min(980px,92vw)] max-h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col h-full">
+      <div className="relative w-[min(980px,92vw)] max-h-[90vh] bg-white rounded-2xl shadow-xl flex flex-col h-full">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
@@ -401,7 +402,7 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
           {/* 카테고리 탭 */}
           {!loading && !err && tab === 'category' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* (좌) 도넛 + Δ비중 캡션  ←↓↓ 여기만 변경됨 */}
+              {/* (좌) 도넛 + Δ비중 캡션 — 전략 A: 직전주 없으면 비교하지 않음 */}
               <div className="bg-white rounded-xl border border-gray-200 p-4 min-w-0">
                 {(() => {
                   const lastRow = catTs?.series?.[catTs.series.length - 1];
@@ -417,18 +418,19 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                     };
                   })();
 
-                  // ⬇ Δ 비중 데이터(현재 주 Δ)
+                  // Δ 비중 데이터(현재 주 Δ)
+                  // ▶ 전략 A: 직전주가 없으면 비교하지 않음 → 빈 배열
                   const donutData =
-                    row && catTs
+                    row && catTs && prevSource
                       ? catTs.categories.map((c) => {
                           const cur = Number(row[c]?.sum ?? 0);
                           const prev = Number(prevSource?.[c]?.sum ?? 0);
-                          const delta = Math.max(0, cur - prev); // 음수 방지 원하면 유지
+                          const delta = Math.max(0, cur - prev);
                           return { label: c, value: delta };
                         })
                       : [];
 
-                  // ⬇ 직전 주 Δ (캡션 비교용). 직전 주와 직전-1주가 모두 있어야 계산 가능
+                  // 직전 주 Δ (캡션 비교용) — 전주와 전전주가 모두 있을 때만 계산
                   const prevDonut =
                     prevSource && prevPrevSource && catTs
                       ? catTs.categories.map((c) => {
@@ -451,11 +453,15 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                       />
                       <div className="mt-3">
                         <DonutDeltaCaption current={donutData} prev={prevDonut} weekLabel={row?.date ?? ''} />
+                        {!prevSource && (
+                          <div className="text-xs text-gray-500 mt-1">전주 데이터가 없어 Δ 비교를 표시하지 않습니다.</div>
+                        )}
                       </div>
                     </>
                   );
                 })()}
               </div>
+
 
               {/* (우) 합쳐 그린 라인 오버레이 + 캡션 */}
               <div className="bg-white rounded-xl border border-gray-200 p-4 min-w-0">
@@ -467,7 +473,8 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                       categories={catTs.categories}
                       hoveredDate={hoveredDate}
                       onHover={setHoveredDate}
-                      useIndex={true} /* ✅ 기본 뷰를 '상대지수(index)'로 고정 */
+                      // ✅ 썸네일과 동일: 베이스 대비 누적 증가선
+                      plotMode="cumDelta"
                       padFrac={0.15}
                       minSpan={80}
                     />
