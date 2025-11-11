@@ -6,6 +6,12 @@ from routers import (
     profile, analysis, auth, routine, perfume, user, trends,
     favorite_products, product, ocr, stats, delete, ingredients
 )
+
+try:
+    from .routers import user_ingredients as user_ingredients_router
+except ImportError:
+    from routers import user_ingredients as user_ingredients_router
+
 # chat 라우터는 프로젝트에 따라 경로가 다를 수 있음
 # 기본 시도:
 from routers.chat import router as chat_router
@@ -21,6 +27,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(user_ingredients_router.router, prefix="/api/user-ingredients")
+app.include_router(user_ingredients_router.router, prefix="/user-ingredients", include_in_schema=False)
 
 @app.get("/")
 def root():
