@@ -33,16 +33,16 @@ export default function CategoryOverlay({
   categories,
   hoveredDate,
   onHover,
-  useIndex = false,
+  useIndex = false,            // ✅ index 사용 여부
   padFrac = 0.12,
   minSpan = 60,
-  plotMode = 'cumDelta',      // 'sum' | 'delta' | 'cumDelta'  ← 추가
+  plotMode = 'cumDelta',       // 'sum' | 'delta' | 'cumDelta'
 }: {
   series: CategoryPoint[];
   categories: string[];
   hoveredDate: string | null;
   onHover: (d: string | null) => void;
-  useIndex?: boolean;
+  useIndex?: boolean;          // ✅ 추가된 props 설명 유지
   padFrac?: number;
   minSpan?: number;
   plotMode?: 'sum' | 'delta' | 'cumDelta';
@@ -53,44 +53,53 @@ export default function CategoryOverlay({
     [series]
   );
 
-// 공유 y-domain 계산부에서 y 선택 로직 교체
-const { domain, lines } = React.useMemo(() => {
-  if (rows.length === 0)
-    return { domain: { min: 0, max: 1 }, lines: {} as Record<string, { x: string; y: number }[]> };
+  // ✅ 공유 y-domain 계산: useIndex가 true면 index를, false면 plotMode(sum/delta/cumDelta)를 사용
+  const { domain, lines } = React.useMemo(() => {
+    if (rows.length === 0)
+      return { domain: { min: 0, max: 1 }, lines: {} as Record<string, { x: string; y: number }[]> };
 
-  let mn = Number.POSITIVE_INFINITY;
-  let mx = Number.NEGATIVE_INFINITY;
-  const map: Record<string, { x: string; y: number }[]> = {};
+    let mn = Number.POSITIVE_INFINITY;
+    let mx = Number.NEGATIVE_INFINITY;
+    const map: Record<string, { x: string; y: number }[]> = {};
 
-  for (const c of categories) {
-    const base = Number(rows[0]?.[c]?.sum ?? 0);                         // 첫 주(베이스)
-    const pts = rows.map((r, i) => {
-      const cur = Number(r[c]?.sum ?? 0);
-      let y: number;
+    for (const c of categories) {
+      // 첫 주(베이스) — cumDelta용
+      const baseSum = Number(rows[0]?.[c]?.sum ?? 0);
 
-      if (plotMode === 'delta') {
-        const prev = i > 0 ? Number(rows[i - 1]?.[c]?.sum ?? 0) : cur;
-        y = Math.max(0, cur - prev);                                     // 주간 Δ (음수 0 클램프)
-      } else if (plotMode === 'cumDelta') {
-        y = Math.max(0, cur - base);                                     // 베이스 대비 누적 증가분
-      } else {
-        y = cur;                                                         // 절대합(sum)
-      }
+      const pts = rows.map((r, i) => {
+        const curSum = Number(r[c]?.sum ?? 0);
+        // ✅ index 모드일 때는 서버의 index 값을 그대로 사용
+        const curIdx = Number(r[c]?.index ?? 100);
 
-      mn = Math.min(mn, y);
-      mx = Math.max(mx, y);
-      return { x: r.date, y };
-    });
-    map[c] = pts;
-  }
+        let y: number;
+        if (useIndex) {
+          y = curIdx; // 첫 주 = 100, 상대지수
+        } else {
+          if (plotMode === 'delta') {
+            const prevSum = i > 0 ? Number(rows[i - 1]?.[c]?.sum ?? 0) : curSum;
+            y = Math.max(0, curSum - prevSum);             // 주간 Δ (음수 0 클램프)
+          } else if (plotMode === 'cumDelta') {
+            y = Math.max(0, curSum - baseSum);             // 베이스 대비 누적 증가분
+          } else {
+            y = curSum;                                     // 절대합(sum)
+          }
+        }
 
-  if (!isFinite(mn) || !isFinite(mx)) mn = 0, mx = 1;
-  if (mx <= mn) mx = mn + 1;
-  const span = mx - mn;
-  const pad = Math.max(span * padFrac, minSpan - span, 1);
-  return { domain: { min: Math.max(0, mn - pad), max: mx + pad }, lines: map };
-}, [rows, categories, padFrac, minSpan, plotMode]);
+        mn = Math.min(mn, y);
+        mx = Math.max(mx, y);
+        return { x: r.date, y };
+      });
 
+      map[c] = pts;
+    }
+
+    if (!isFinite(mn) || !isFinite(mx)) (mn = 0), (mx = 1);
+    if (mx <= mn) mx = mn + 1;
+    const span = mx - mn;
+    const pad = Math.max(span * padFrac, minSpan - span, 1);
+    // index 모드여도 동일한 패딩 규칙 적용
+    return { domain: { min: Math.max(0, mn - pad), max: mx + pad }, lines: map };
+  }, [rows, categories, padFrac, minSpan, plotMode, useIndex]); // ✅ useIndex 의존성 추가
 
   // 차트 사이즈/패딩
   const { ref, width } = useContainerWidth<HTMLDivElement>(280, 900);
@@ -222,4 +231,3 @@ const { domain, lines } = React.useMemo(() => {
     </div>
   );
 }
-

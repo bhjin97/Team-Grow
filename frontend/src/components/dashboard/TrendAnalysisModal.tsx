@@ -467,7 +467,7 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                       categories={catTs.categories}
                       hoveredDate={hoveredDate}
                       onHover={setHoveredDate}
-                      useIndex={false} // 누적 증가량(sum) 기준
+                      useIndex={true} /* ✅ 기본 뷰를 '상대지수(index)'로 고정 */
                       padFrac={0.15}
                       minSpan={80}
                     />

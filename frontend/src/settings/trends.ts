@@ -87,3 +87,40 @@ export const fmtDate = (dateStr: string): string => {
   // YYYY-MM-DD만 출력 (dayjs나 luxon 없이 처리)
   return dateStr.split('T')[0];
 };
+
+// ───────────────────────────────────────────────
+//  ✅ [추가] 요일/기준주(목) 상수 & 유틸
+//  - JS Date#getDay(): 0=Sun … 6=Sat
+//  - 기준 요일을 바꾸고 싶다면 ANCHOR_WEEKDAY만 수정
+// ───────────────────────────────────────────────
+
+/** 요일 라벨 */
+export const WEEKDAY_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+export const WEEKDAY_KR = ['일', '월', '화', '수', '목', '금', '토'] as const;
+
+/** 기준 요일(목요일) — 차트 보조선/라벨 등에 사용 */
+export const ANCHOR_WEEKDAY = 4; // Thu
+
+/** 'YYYY-MM-DD' → JS Date */
+const parseYmd = (s: string): Date => {
+  const [y, m, d] = s.split('-').map(Number);
+  // 로컬 타임존 영향이 싫으면 new Date(Date.UTC(y, m-1, d)) 사용
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+/** 'YYYY-MM-DD' → 요일(영문) */
+export function weekdayEN(dateStr: string): string {
+  const day = parseYmd(dateStr).getDay();
+  return WEEKDAY_EN[day];
+}
+
+/** 'YYYY-MM-DD' → 요일(한글) */
+export function weekdayKR(dateStr: string): string {
+  const day = parseYmd(dateStr).getDay();
+  return WEEKDAY_KR[day];
+}
+
+/** 기준 주(목)인지 여부 */
+export function isAnchorWeek(dateStr: string, anchor: number = ANCHOR_WEEKDAY): boolean {
+  return parseYmd(dateStr).getDay() === anchor;
+}

@@ -7,13 +7,26 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from db import get_db  # 같은 프로젝트의 db.py
+from datetime import date
+
+WEEKDAY_EN = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+WEEKDAY_KR = ["월","화","수","목","금","토","일"]
+
+def _weekday_note(d: date):
+    wd = d.weekday()  # Mon=0..Sun=6
+    return {
+        "weekday_en": WEEKDAY_EN[wd],
+        "weekday_kr": WEEKDAY_KR[wd],
+        "is_thursday": (wd == 3),
+    }
+
 
 # ---------------------------------------------
 # 상수
 # ---------------------------------------------
 ALLOWED_CATEGORIES = ["스킨/토너", "에센스/세럼/앰플", "크림", "선크림"]
 TBL_PRODUCT = "product_data"                # pid, brand, product_name, review_count, category, ...
-TBL_HISTORY = "product_review_history_tmp"  # product_pid, period_start(date), review_count
+TBL_HISTORY = "product_review_history_weekly_v"  # product_pid, period_start(date), review_count
 TBL_CHAIN   = "product_data_chain"          # pid, rag_text
 
 router = APIRouter(prefix="/api/trends", tags=["trends"])
@@ -287,6 +300,7 @@ def product_timeseries(
 
 # ---------------------------------------------
 # 4) 카테고리 요약(합계) — outlier 보정 + 비감소 보장
+#    ▶ normalize(sum|avg) 추가
 # ---------------------------------------------
 @router.get("/category_summary")
 def category_summary(
@@ -299,6 +313,9 @@ def category_summary(
     allow_negative: bool = Query(False),
     max_ratio: float = Query(3.0),
     max_jump: int = Query(5000),
+
+    # ▶ 추가: 합계 vs 평균(제품수 보정) 토글
+    normalize: str = Query("sum", description="sum | avg"),
 ):
     a_date, b_date = _get_latest_and_prev_weeks(db, b)
 
@@ -321,6 +338,9 @@ def category_summary(
 
     a_sum = 0
     b_sum = 0
+    a_n = 0      # ▶ 추가: A 제품수
+    b_n = 0      # ▶ 추가: B 제품수
+
     for a_cnt, b_cnt in rows:
         a_val = int(a_cnt or 0)
         b_val = int(b_cnt or 0)
@@ -346,26 +366,40 @@ def category_summary(
 
         a_sum += a_val
         b_sum += b_eff
+        a_n += 1
+        b_n += 1
 
-    delta = b_sum - a_sum
-    pct = ((b_sum / a_sum) - 1.0) * 100.0 if a_sum > 0 else 0.0
-    index = (b_sum / a_sum) * 100.0 if a_sum > 0 else 100.0
+    # ▶ 합계/평균 선택
+    if normalize == "avg":
+        a_metric = (a_sum / max(1, a_n))
+        b_metric = (b_sum / max(1, b_n))
+    else:
+        a_metric = float(a_sum)
+        b_metric = float(b_sum)
+
+    delta = b_metric - a_metric
+    pct = ((b_metric / a_metric) - 1.0) * 100.0 if a_metric > 0 else 0.0
+    index = (b_metric / a_metric) * 100.0 if a_metric > 0 else 100.0
 
     return {
         "category": category,
         "a_date": "BASE" if a_date is None else str(a_date),
         "b_date": str(b_date),
-        "a_sum": int(a_sum),
-        "b_sum": int(b_sum),
-        "delta": int(delta),
+        # 주의: normalize=avg일 때도 키 이름은 기존 호환을 위해 유지
+        "a_sum": int(a_sum) if normalize == "sum" else round(a_metric, 2),
+        "b_sum": int(b_sum) if normalize == "sum" else round(b_metric, 2),
+        "delta": int(delta) if normalize == "sum" else round(delta, 2),
         "pct": round(pct, 1),
-        "index": round(index, 1)
+        "index": round(index, 1),
+        "normalize": normalize,
+        "counts": {"a_n": a_n, "b_n": b_n}  # 참고용 메타
     }
 
 
 # ---------------------------------------------
 # 4.5) 카테고리 시계열(절대량/지수)
 #     - per-product 주간 Δ 보정(감소→carry-forward, 급증→클램프)
+#     - ▶ normalize(sum|avg) 추가
 # ---------------------------------------------
 @router.get("/category_timeseries")
 def category_timeseries(
@@ -374,6 +408,8 @@ def category_timeseries(
     allow_negative: bool = Query(False, description="감소 허용 여부"),
     max_ratio: float = Query(3.0, description="전주 대비 배율 상한"),
     max_jump: int = Query(5000, description="전주 대비 절대 증가량 상한"),
+    # ▶ 추가: 합계 vs 평균(제품수 보정) 토글
+    normalize: str = Query("sum", description="sum | avg"),
     db: Session = Depends(get_db),
 ):
     placeholders = ", ".join([f":c{i}" for i, _ in enumerate(ALLOWED_CATEGORIES)])
@@ -406,16 +442,16 @@ def category_timeseries(
     if len(days_sorted) > weeks:
         days_sorted = days_sorted[-weeks:]
 
+    # ▶ 합계와 제품수(분모) 동시 집계
     per_day_cat_sum = {str(d): {c: 0 for c in ALLOWED_CATEGORIES} for d in days_sorted}
+    per_day_cat_n   = {str(d): {c: 0 for c in ALLOWED_CATEGORIES} for d in days_sorted}
 
     for pid, seq in per_pid.items():
         prev_cnt: Optional[int] = None
-        prev_day = None
-        prev_cat = None
 
         for (d, cat, cnt) in seq:
             if d not in days_sorted:
-                prev_cnt, prev_day, prev_cat = cnt, d, cat
+                prev_cnt = cnt
                 continue
 
             a_val = prev_cnt if prev_cnt is not None else cnt
@@ -440,27 +476,41 @@ def category_timeseries(
                 else:
                     eff = max(b_val, a_val) if not allow_negative else b_val
 
-            per_day_cat_sum[str(d)][cat] += max(0, eff)
+            key = str(d)
+            per_day_cat_sum[key][cat] += max(0, eff)
+            per_day_cat_n[key][cat]   += 1          # ▶ 분모(제품수) 카운트
 
-            prev_cnt, prev_day, prev_cat = eff, d, cat  # eff를 다음 주의 기준으로 사용
+            prev_cnt = eff  # eff를 다음 주의 기준으로 사용
 
     days_final = [str(d) for d in days_sorted]
     if not days_final:
         return {"series": [], "categories": ALLOWED_CATEGORIES}
 
-    base = per_day_cat_sum[days_final[0]]
-    base_total = {c: max(1, int(base.get(c, 0))) for c in ALLOWED_CATEGORIES}
+    # ▶ 기준(첫 주) 값도 normalize에 맞춰 계산
+    def metric(day: str, c: str) -> float:
+        s = int(per_day_cat_sum[day].get(c, 0))
+        n = int(per_day_cat_n[day].get(c, 0))
+        if normalize == "avg":
+            return s / max(1, n)
+        return float(s)
+
+    base_vals = {c: max(1e-9, metric(days_final[0], c)) for c in ALLOWED_CATEGORIES}
 
     series = []
     for ds in days_final:
         row = {"date": ds}
         for c in ALLOWED_CATEGORIES:
-            v = int(per_day_cat_sum[ds].get(c, 0))
-            idx = round((v / base_total[c]) * 100.0, 1) if base_total[c] > 0 else 100.0
-            row[c] = {"sum": v, "index": idx}
+            v = metric(ds, c)
+            idx = round((v / base_vals[c]) * 100.0, 1) if base_vals[c] > 0 else 100.0
+            # 주의: 프런트 호환을 위해 키 이름은 유지하되 값만 토글 반영
+            row[c] = {"sum": (v if normalize == "sum" else round(v, 4)), "index": idx}
         series.append(row)
 
-    return {"series": series, "categories": ALLOWED_CATEGORIES}
+    return {
+        "series": series,
+        "categories": ALLOWED_CATEGORIES,
+        "normalize": normalize,  # 참고용 메타
+    }
 
 
 # ---------------------------------------------

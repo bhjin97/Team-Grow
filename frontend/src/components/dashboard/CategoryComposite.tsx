@@ -12,7 +12,7 @@ type CategoryPoint = {
 type Props = {
   series: CategoryPoint[];
   categories: string[];
-  /** 기본 'delta' 추천: 증가폭 한 눈에 */
+  /** 기본 'index' 추천: 성장률 비교에 유리 */
   mode?: 'delta' | 'sum' | 'index';
   /** y축 스케일: shared(선형) | symlog(추천) */
   yScale?: 'shared' | 'symlog';
@@ -23,10 +23,19 @@ type Props = {
 
 const log1p = (v: number) => Math.log1p(Math.max(0, v));
 
+// ✅ 기준 요일 판별(기본: 목요일=4)
+const isAnchorDay = (dateStr: string, anchor = 4) => {
+  // 'YYYY-MM-DD' 파싱 시 timezone 차이를 최소화하려고 안전 변환
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1)); // UTC 기준
+  return dt.getUTCDay() === anchor; // 0=Sun .. 4=Thu
+};
+
 export default function CategoryComposite({
   series,
   categories,
-  mode = 'delta',
+  // ✅ 기본 모드를 'index'로 변경
+  mode = 'index',
   yScale = 'symlog',
   window = 8,
   className,
@@ -41,6 +50,15 @@ export default function CategoryComposite({
     const arr = [...(series ?? [])].sort((a,b)=> a.date < b.date ? -1 : 1);
     return arr.slice(Math.max(0, arr.length - win));
   }, [series, win]);
+
+  // ✅ 기준 주차(목요일)만 추출하여 x위치에 세로 보조선 표시
+  const anchorIdxs = React.useMemo(() => {
+    const idxs: number[] = [];
+    rows.forEach((r, i) => {
+      if (isAnchorDay(r.date, 4)) idxs.push(i);
+    });
+    return idxs;
+  }, [rows]);
 
   // 카테고리별 points 계산
   const lines = React.useMemo(() => {
@@ -148,6 +166,17 @@ export default function CategoryComposite({
       {/* 그래프 */}
       <div className="rounded-xl border border-gray-200 bg-white p-2">
         <svg width={size.w} height={size.h}>
+          {/* ✅ 기준 주차(목요일) 세로 보조선: 텍스트 표기 없음 */}
+          {anchorIdxs.map((i) => (
+            <line
+              key={`anchor-${i}`}
+              x1={xs(i)} x2={xs(i)}
+              y1={size.pad} y2={size.h - size.pad}
+              stroke="#cbd5e1" /* slate-300 */
+              strokeDasharray="3 3"
+            />
+          ))}
+
           {/* 축 */}
           <line x1={size.pad} y1={size.h - size.pad} x2={size.w - size.pad} y2={size.h - size.pad} stroke="#e5e7eb"/>
           <line x1={size.pad} y1={size.pad} x2={size.pad} y2={size.h - size.pad} stroke="#e5e7eb"/>
