@@ -72,6 +72,13 @@ export const useFavorites = (userId: number | null) => {
     } else {
       await addFavorite(productId, productData);
     }
+    // ✅ 서버 기준 최신 즐겨찾기 다시 불러오기
+    try {
+      const updated = await productApi.fetchFavorites(userId!);
+      setFavorites(updated);
+    } catch (err) {
+      console.log("Failed to refresh favorites:", err);
+    }
   };
 
   return {
@@ -98,14 +105,14 @@ export const useRecentRecommendations = () => {
 
     try {
       const parsed = JSON.parse(stored);
-      const flat = parsed
-        .flatMap((s: any) =>
-          (s.products || []).map((p: any) => ({ ...p, created_at: s.created_at, type: s.type }))
-        )
-        .sort(
-          (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      setRecommendations(flat);
+
+      // ✅ 이미 flat 구조이므로 그대로 정렬만 하면 됨
+      const sorted = parsed.sort(
+        (a: any, b: any) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setRecommendations(sorted);
     } catch (err) {
       console.error('Failed to load recent recommendations:', err);
     }
@@ -113,3 +120,4 @@ export const useRecentRecommendations = () => {
 
   return { recommendations };
 };
+
