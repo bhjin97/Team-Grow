@@ -137,21 +137,25 @@
 
 
 
+# backend/routers/chat/routes.py
+# -*- coding: utf-8 -*-
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Any, List
 from uuid import uuid4
 import time, asyncio
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from db import get_db
 
-from .recommender import answer
+from db import get_db
+from routers.chat.recommender import answer
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-# ── 아주 간단한 in-memory 캐시 (원하면 Redis로 교체)
+# ──────────────────────────────────────────────────────────────────────────────
+# Simple in-memory cache (replace with Redis if needed)
+# ──────────────────────────────────────────────────────────────────────────────
 _CACHE: Dict[str, Dict[str, Any]] = {}
 _TTL_SEC = 60
 
@@ -167,10 +171,23 @@ def _cache_get(key: str):
         return None
     return item["data"]
 
-# ── 요청/응답 모델
+# ──────────────────────────────────────────────────────────────────────────────
+# Schemas
+# ──────────────────────────────────────────────────────────────────────────────
 class ChatReq(BaseModel):
-    query: str
+    # 프런트가 message로 보내도 수용
+    query: Optional[str] = None
+    message: Optional[str] = None
     top_k: Optional[int] = 6
+
+    @field_validator("query", mode="before")
+    @classmethod
+    def accept_message_as_query(cls, v, info):
+        if v is None and isinstance(info.data, dict):
+            m = info.data.get("message")
+            if isinstance(m, str) and m.strip():
+                return m
+        return v
 
 class RecommendReq(BaseModel):
     query: str
@@ -185,25 +202,23 @@ class IngredientDetail(BaseModel):
     description: Optional[str] = None
     caution_grade: Optional[str] = None  # "위험" | "주의" | "안전" | None
 
-# ── 채팅 스트림
+# ──────────────────────────────────────────────────────────────────────────────
+# Chat stream
+# ──────────────────────────────────────────────────────────────────────────────
 @router.post("/")
 async def chat_stream(req: ChatReq):
     q = (req.query or "").strip()
     if not q:
         raise HTTPException(status_code=400, detail="query is required")
 
-    # 1) 여기서 answer() 한 번만 실행
     data = answer(q)
 
-    # 2) 캐시에 저장하고 키 발급
     cache_key = uuid4().hex
     _cache_set(cache_key, data)
 
-    # 3) 스트림 텍스트 구성
     if data.get("intent") == "GENERAL":
         text_out = (data.get("text") or "").strip() or " "
     else:
-        # PRODUCT_FIND에서도 data["text"]는 LLM의 마크다운 문자열
         t = (data.get("text") or "").strip()
         if t:
             text_out = t
@@ -212,36 +227,40 @@ async def chat_stream(req: ChatReq):
             text_out = msg or "조건에 맞는 제품을 찾지 못했어요. 필터를 조금 완화해서 다시 시도해보세요."
 
     async def gen():
-        # 실제 LLM 스트리밍이 있으면 그 청크를 yield
         for i in range(0, len(text_out), 200):
             yield text_out[i:i+200]
             await asyncio.sleep(0)
 
-    # 4) 🔑 헤더에 cache key 넣어서 내려주기
     return StreamingResponse(
         gen(),
         media_type="text/plain; charset=utf-8",
         headers={"X-Cache-Key": cache_key},
     )
 
-# ── 추천 카드
+# 슬래시 없는 경로도 허용 (307 회피)
+@router.post("", include_in_schema=False)
+async def chat_stream_no_slash(req: ChatReq):
+    return await chat_stream(req)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Recommend cards
+# ──────────────────────────────────────────────────────────────────────────────
 @router.post("/recommend", response_model=RecommendRes)
 def recommend(req: RecommendReq):
     q = (req.query or "").strip()
     if not q:
         raise HTTPException(status_code=400, detail="query is required")
 
-    # 1) cache_key가 있으면 캐시에서 꺼내고, 없으면 새로 계산
     data = _cache_get(req.cache_key) if req.cache_key else None
     if data is None:
-        data = answer(q)  # fallback (캐시 미스)
+        data = answer(q)
 
     products: List[Dict[str, Any]] = []
     if data.get("intent") == "PRODUCT_FIND":
         rows = (data.get("presented") or [])[: (req.top_k or 12)]
         for r in rows:
             item: Dict[str, Any] = {
-                "pid": int(r["pid"]) if r.get("pid") is not None else None,  # 🔧 숫자 유지
+                "pid": int(r["pid"]) if r.get("pid") is not None else None,
                 "brand": r.get("brand"),
                 "product_name": r.get("product_name"),
                 "category": r.get("category"),
@@ -257,12 +276,14 @@ def recommend(req: RecommendReq):
             if r.get("ingredients"):
                 item["ingredients"] = r["ingredients"]
             if r.get("ingredients_detail"):
-                item["ingredients_detail"] = r["ingredients_detail"]  # ← 추가
+                item["ingredients_detail"] = r["ingredients_detail"]
             products.append(item)
 
     return {"products": products}
 
-# ── 성분 상세
+# ──────────────────────────────────────────────────────────────────────────────
+# Ingredient detail
+# ──────────────────────────────────────────────────────────────────────────────
 ALLOWED = {"위험", "주의", "안전"}
 
 def _normalize_grade(val: Optional[str]) -> Optional[str]:
@@ -273,22 +294,13 @@ def _normalize_grade(val: Optional[str]) -> Optional[str]:
 
 @router.get("/ingredient/{name}", response_model=IngredientDetail)
 def get_ingredient_detail(name: str, db: Session = Depends(get_db)):
-    """
-    성분 이름(korean_name)으로 ingredients 테이블 조회.
-    반환: name(=korean_name), description, caution_grade(위험|주의|안전|None)
-    """
-    name = name.strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="name is required")
-
     sql = text("""
         SELECT korean_name, description, caution_grade
         FROM ingredients
         WHERE korean_name = :name
         LIMIT 1
     """)
-    row = db.execute(sql, {"name": name}).fetchone()
-
+    row = db.execute(sql, {"name": name.strip()}).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Ingredient not found")
 
@@ -297,3 +309,4 @@ def get_ingredient_detail(name: str, db: Session = Depends(get_db)):
         description=row.description,
         caution_grade=_normalize_grade(row.caution_grade)
     )
+
