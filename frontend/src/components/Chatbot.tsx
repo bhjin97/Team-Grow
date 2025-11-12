@@ -79,6 +79,25 @@ function gradeTextClass(grade: '위험' | '주의' | '안전' | null | undefined
   return 'text-gray-700';
 }
 
+/** 등급 정렬/라벨 유틸 */
+type Grade = '위험' | '주의' | '안전' | null | undefined;
+
+/** 내부 키(정보없음)로 정규화 */
+const gradeKey = (g: Grade): '안전' | '주의' | '위험' | '정보없음' =>
+  g === '안전' ? '안전' : g === '주의' ? '주의' : g === '위험' ? '위험' : '정보없음';
+
+/** 표시 라벨(“정보 없음”) 변환 */
+const gradeLabel = (k: '안전' | '주의' | '위험' | '정보없음') =>
+  k === '정보없음' ? '정보 없음' : k;
+
+/** 섹션 표시 순서: 안전 → 주의 → 위험 → 정보 없음 */
+const GRADE_ORDER: Array<'안전' | '주의' | '위험' | '정보없음'> = [
+  '안전',
+  '주의',
+  '위험',
+  '정보없음',
+];
+
 /** 성분 상세 모달 UI (DB: korean_name, description, caution_grade 기준) */
 function IngredientModal({
   open,
@@ -210,13 +229,12 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
           setFavorites(data.map((item: any) => Number(item.product_id)));
         }
       } catch (err) {
-        console.error("즐겨찾기 불러오기 실패", err);
+        console.error('즐겨찾기 불러오기 실패', err);
       }
     };
 
     loadFavorites();
   }, [userId]);
-
 
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -302,7 +320,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
   // ✅ 즐겨찾기 토글
   const toggleFavorite = async (productId: number) => {
     if (!userId) {
-      setToastMessage("로그인이 필요합니다.");
+      setToastMessage('로그인이 필요합니다.');
       setShowToast(true);
       return;
     }
@@ -314,11 +332,11 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
         // ✅ DB에서 삭제
         const res = await fetch(
           `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
-          { method: "DELETE" }
+          { method: 'DELETE' }
         );
         if (res.ok) {
           setFavorites(prev => prev.filter(id => id !== productId));
-          setToastMessage("즐겨찾기에서 제거되었습니다 💔");
+          setToastMessage('즐겨찾기에서 제거되었습니다 💔');
           setShowToast(true);
 
           setTimeout(() => setShowToast(false), 2000);
@@ -327,21 +345,20 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
         // ✅ DB에 추가
         const res = await fetch(
           `${API_BASE}/favorite_products/?user_id=${userId}&product_id=${productId}`,
-          { method: "POST" }
+          { method: 'POST' }
         );
         if (res.ok) {
           setFavorites(prev => [...prev, productId]);
-          setToastMessage("즐겨찾기에 추가되었습니다 💗");
+          setToastMessage('즐겨찾기에 추가되었습니다 💗');
           setShowToast(true);
 
           setTimeout(() => setShowToast(false), 2000);
         }
       }
     } catch (err) {
-      console.error("즐겨찾기 토글 실패", err);
+      console.error('즐겨찾기 토글 실패', err);
     }
   };
-
 
   // ── 전송 핸들러 (스트리밍 + 추천카드)
   const handleSendMessage = async () => {
@@ -374,7 +391,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       // ✅ 최근 추천 기록 저장
       try {
         const key = `recent_recommendations_${userId}`;
-        const prev = JSON.parse(localStorage.getItem(key) || "[]");
+        const prev = JSON.parse(localStorage.getItem(key) || '[]');
 
         const newEntries = products.map((p: RecProduct) => ({
           product_pid: p.pid,
@@ -382,7 +399,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
           image_url: p.image_url,
           price_krw: p.price_krw ?? 0,
           category: p.category,
-          source: "chatbot",
+          source: 'chatbot',
           created_at: new Date().toISOString(),
         }));
 
@@ -396,7 +413,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
 
         localStorage.setItem(key, JSON.stringify(updated));
       } catch (err) {
-        console.error("최근 추천 저장 실패:", err);
+        console.error('최근 추천 저장 실패:', err);
       }
       setOpenPanelByCard({});
     } catch (err) {
@@ -495,7 +512,6 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
           </motion.div>
         )}
       </AnimatePresence>
-
 
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-lg border-b border-pink-100 sticky top-0 z-50">
@@ -732,6 +748,19 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                                     caution_grade: null as null,
                                   }));
 
+                              // 등급별 그룹화 (안전/주의/위험/정보없음)
+                              const grouped = ingList.reduce(
+                                (acc, ing) => {
+                                  const k = gradeKey(ing.caution_grade); // 내부 키로 정규화
+                                  (acc[k] ||= []).push(ing);
+                                  return acc;
+                                },
+                                {} as Record<
+                                  '안전' | '주의' | '위험' | '정보없음',
+                                  { name: string; caution_grade: any }[]
+                                >
+                              );
+
                               return (
                                 <div
                                   key={cardKey}
@@ -743,14 +772,16 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                                       onClick={() => toggleFavorite(Number(p.pid))}
                                       className={`absolute top-2 right-2 p-1.5 rounded-full transition ${
                                         favorites.includes(Number(p.pid))
-                                          ? "bg-pink-500 text-white"
-                                          : "bg-white text-pink-500 hover:bg-pink-100"
+                                          ? 'bg-pink-500 text-white'
+                                          : 'bg-white text-pink-500 hover:bg-pink-100'
                                       }`}
                                     >
                                       <svg
                                         xmlns="http://www.w3.org/2000/svg"
                                         className={`w-4 h-4 ${
-                                          favorites.includes(Number(p.pid)) ? "fill-white" : "fill-none"
+                                          favorites.includes(Number(p.pid))
+                                            ? 'fill-white'
+                                            : 'fill-none'
                                         }`}
                                         viewBox="0 0 24 24"
                                         stroke="currentColor"
@@ -839,20 +870,51 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                                       )}
 
                                       {open === 'ings' && ingList.length > 0 && (
-                                        <div className="mt-2">
-                                          <div className="flex flex-wrap gap-1.5">
-                                            {ingList.slice(0, 60).map((ing, idx) => (
-                                              <button
-                                                key={`${cardKey}-${idx}`}
-                                                type="button"
-                                                onClick={() => openIngredientModal(ing.name)}
-                                                className={`inline-block text-[11px] px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 hover:bg-violet-50 hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-300 ${gradeTextClass(ing.caution_grade)}`}
-                                                title={`${ing.name} 상세 보기`}
-                                              >
-                                                {ing.name}
-                                              </button>
-                                            ))}
-                                          </div>
+                                        <div className="mt-2 space-y-2">
+                                          {(() => {
+                                            // 전체 칩 최대 노출 수
+                                            const MAX_SHOW = 60;
+                                            let used = 0;
+
+                                            return GRADE_ORDER.map(section => {
+                                              const list = grouped[section] || [];
+                                              if (!list.length || used >= MAX_SHOW) return null;
+
+                                              // 섹션에서 남은 슬롯 계산
+                                              const remain = MAX_SHOW - used;
+                                              const slice = list.slice(0, Math.max(0, remain));
+                                              used += slice.length;
+
+                                              return (
+                                                <div key={section} className="border rounded-lg">
+                                                  {/* 섹션 헤더 */}
+                                                  <div className="px-2 py-1.5 border-b bg-gray-50 text-xs font-semibold text-gray-700">
+                                                    {gradeLabel(section)}{' '}
+                                                    <span className="font-normal">
+                                                      ({list.length})
+                                                    </span>
+                                                  </div>
+
+                                                  {/* 칩 리스트 */}
+                                                  <div className="p-2 flex flex-wrap gap-1.5">
+                                                    {slice.map((ing, idx) => (
+                                                      <button
+                                                        key={`${section}-${idx}`}
+                                                        type="button"
+                                                        onClick={() =>
+                                                          openIngredientModal(ing.name)
+                                                        }
+                                                        className={`inline-block text-[11px] px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 hover:bg-violet-50 hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-300 ${gradeTextClass(ing.caution_grade)}`}
+                                                        title={`${ing.name} 상세 보기`}
+                                                      >
+                                                        {ing.name}
+                                                      </button>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              );
+                                            });
+                                          })()}
                                         </div>
                                       )}
                                     </div>
