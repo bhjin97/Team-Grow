@@ -76,7 +76,7 @@ def list_user_ingredients(userId: int = Query(...), db: Session = Depends(get_db
         })
     return out
 
-# 추가
+# 1) 이미 존재 여부
 @router.post("", response_model=UserIngredientOut)
 def add_user_ingredient(p: UserIngredientIn, db: Session = Depends(get_db)):
     # API 값 → DB 값 매핑
@@ -89,7 +89,29 @@ def add_user_ingredient(p: UserIngredientIn, db: Session = Depends(get_db)):
     """), {"u": p.userId, "n": p.koreanName, "t": ing_type_db}).first()
     if exists:
         raise HTTPException(409, "Already exists")
-
+    
+    # 2) user_name 자동 결정
+    user_name = (p.userName or "").strip()
+    if not user_name:
+        # user_profiles.name 으로
+        row = _exec(db, text("""
+            SELECT `name` AS v FROM `user_profiles`
+            WHERE `user_id` = :u LIMIT 1
+        """), {"u": p.userId}).mappings().first()
+        if row and row["v"]:
+            user_name = row["v"]
+        else:
+            # users.name, 없으면 users.email
+            row2 = _exec(db, text("""
+                SELECT COALESCE(NULLIF(`name`,''), `email`) AS v
+                FROM `users` WHERE `id` = :u LIMIT 1
+            """), {"u": p.userId}).mappings().first()
+            if row2 and row2["v"]:
+                user_name = row2["v"]
+            else:
+                user_name = ""  # 최후의 보루
+    
+    # 3) INSERT
     _exec(db, text("""
         INSERT INTO `user_ingredients`
           (`user_id`, `user_name`, `korean_name`, `ing_type`, `created_at`)
