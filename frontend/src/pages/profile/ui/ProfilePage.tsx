@@ -68,7 +68,15 @@ const BubbleAnimation = () => {
 };
 
 export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
-  const name = useUserStore(state => state.name);
+  const {
+    name,
+    preferredIngredients,
+    cautionIngredients,
+    setPreferredIngredients,
+    setCautionIngredients,
+    removeIngredient,
+  } = useUserStore();
+
   const [userId, setUserId] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -86,9 +94,7 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
   } = useFavorites(userId);
   const { recommendations } = useRecentRecommendations();
 
-  // 성분 관리 상태
-  const [preferredIngredients, setPreferredIngredients] = useState<PreferredIngredient[]>([]);
-  const [cautionIngredients, setCautionIngredients] = useState<CautionIngredient[]>([]);
+  // 로딩 상태만 로컬에서 관리 (Store에 저장할 필요 없음)
   const [loadingStates, setLoadingStates] = useState<{
     add: boolean;
     delete: { [key: number]: boolean };
@@ -112,6 +118,11 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
   useEffect(() => {
     if (!userId) return;
 
+    // 이미 Store에 데이터가 있으면 API 호출 스킵
+    if (preferredIngredients.length > 0 || cautionIngredients.length > 0) {
+      return;
+    }
+
     const loadUserIngredients = async () => {
       try {
         const response = await fetch(`/api/user-ingredients?userId=${userId}`);
@@ -124,6 +135,7 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
               id: item.ingredientId,
               name: item.ingredientName,
               benefit: item.description || '',
+              type: 'preferred' as const,
             }));
 
           const caution = data
@@ -133,8 +145,10 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
               name: item.ingredientName,
               reason: item.description || '',
               severity: item.severity || 'low',
+              type: 'caution' as const,
             }));
 
+          // Store에 저장
           setPreferredIngredients(preferred);
           setCautionIngredients(caution);
         }
@@ -144,7 +158,13 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     };
 
     loadUserIngredients();
-  }, [userId]);
+  }, [
+    userId,
+    preferredIngredients.length,
+    cautionIngredients.length,
+    setPreferredIngredients,
+    setCautionIngredients,
+  ]);
 
   // 프로필 저장
   const handleSave = async () => {
@@ -212,37 +232,29 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
         throw new Error('Failed to add ingredient');
       }
 
-      // 성공시 화면 업데이트
-      if (type === 'preferred') {
-        setPreferredIngredients(prev => [
-          {
-            id: ingredient.id,
-            name: ingredient.korean_name,
-            benefit: ingredient.description || '',
-          },
-          ...prev,
-        ]);
-        showToast(`${ingredient.korean_name}을(를) 선호 성분에 추가했습니다`, 'success');
-      } else {
-        const severity: CautionIngredient['severity'] = (ingredient.caution_grade || '').includes(
-          '고'
-        )
-          ? 'high'
-          : (ingredient.caution_grade || '').includes('중')
-            ? 'mid'
-            : 'low';
+      // 성공시 Store 업데이트
+      const newIngredient = {
+        id: ingredient.id,
+        name: ingredient.korean_name,
+        type: type as 'preferred' | 'caution',
+        ...(type === 'preferred'
+          ? { benefit: ingredient.description || '' }
+          : {
+              reason: ingredient.description || '',
+              severity: (ingredient.caution_grade?.includes('고')
+                ? 'high'
+                : ingredient.caution_grade?.includes('중')
+                  ? 'mid'
+                  : 'low') as 'low' | 'mid' | 'high',
+            }),
+      };
+      // Store의 addIngredient 액션 사용
+      useUserStore.getState().addIngredient(newIngredient);
 
-        setCautionIngredients(prev => [
-          {
-            id: ingredient.id,
-            name: ingredient.korean_name,
-            reason: ingredient.description || '',
-            severity,
-          },
-          ...prev,
-        ]);
-        showToast(`${ingredient.korean_name}을(를) 주의 성분에 추가했습니다`, 'success');
-      }
+      showToast(
+        `${ingredient.korean_name}을(를) ${type === 'preferred' ? '선호' : '주의'} 성분에 추가했습니다`,
+        'success'
+      );
     } catch (error) {
       console.error('성분 추가 실패:', error);
       showToast('성분 추가에 실패했습니다', 'error');
@@ -251,7 +263,7 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     }
   };
 
-  // 성분 삭제 (DB 연동) - 낙관적 업데이트 적용
+  // 성분 삭제 (Store 연동)
   const handleDeleteIngredient = async (ingredientId: number, type: 'preferred' | 'caution') => {
     // 삭제 확인
     const ingredient =
@@ -271,14 +283,8 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
       delete: { ...prev.delete, [ingredientId]: true },
     }));
 
-    // 낙관적 업데이트 - 먼저 화면에서 제거
-    const originalIngredients = type === 'preferred' ? preferredIngredients : cautionIngredients;
-
-    if (type === 'preferred') {
-      setPreferredIngredients(prev => prev.filter(item => item.id !== ingredientId));
-    } else {
-      setCautionIngredients(prev => prev.filter(item => item.id !== ingredientId));
-    }
+    // 낙관적 업데이트 - Store에서 먼저 제거
+    removeIngredient(ingredientId, type);
 
     try {
       const response = await fetch(`/api/user-ingredients/${userId}/${ingredientId}`, {
@@ -291,11 +297,12 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
 
       showToast('성분이 삭제되었습니다', 'success');
     } catch (error) {
-      // 실패시 롤백
-      if (type === 'preferred') {
-        setPreferredIngredients(originalIngredients);
-      } else {
-        setCautionIngredients(originalIngredients);
+      // 실패시 롤백 - 다시 추가
+      if (ingredient) {
+        useUserStore.getState().addIngredient({
+          ...ingredient,
+          type: type,
+        });
       }
       console.error('성분 삭제 실패:', error);
       showToast('삭제 실패. 다시 시도해주세요', 'error');
