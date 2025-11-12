@@ -90,7 +90,6 @@ def add_user_ingredient(p: UserIngredientIn, db: Session = Depends(get_db)):
     if exists:
         raise HTTPException(409, "Already exists")
     
-    
     # 2) user_name 자동 결정
     user_name = (p.userName or "").strip()
     if not user_name:
