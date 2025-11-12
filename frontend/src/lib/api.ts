@@ -24,11 +24,19 @@ export interface IngredientInfo {
 export type CautionGrade = '위험' | '주의' | '안전' | null;
 
 // ------------------------------------------------------------------
-// LLM 채팅 스트리밍 (기존 유지)
-//  - 프록시(/api/*) 경유: vite dev proxy 또는 nginx 프록시 기준
+// API BASE (절대경로; 끝 슬래시 제거)
+//  - .env 예) VITE_API_BASE=http://<EC2-PUBLIC-IP>:8000
+// ------------------------------------------------------------------
+const API_BASE =
+  ((import.meta as any).env?.VITE_API_BASE as string | undefined)?.replace(/\/+$/, '') ||
+  'http://127.0.0.1:8000';
+
+// ------------------------------------------------------------------
+// LLM 채팅 스트리밍
+//  - 절대경로(백엔드 8000) + /api/chat 로 통일
 // ------------------------------------------------------------------
 export async function chatStream(query: string, top_k = 6, signal?: AbortSignal) {
-  const res = await fetch('/api/chat', {
+  const res = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, top_k }),
@@ -54,11 +62,11 @@ export async function chatStream(query: string, top_k = 6, signal?: AbortSignal)
 }
 
 // ------------------------------------------------------------------
-// 추천 카드 조회 (기존 유지)
-//  - 프록시(/api/*) 경유
+// 추천 카드 조회
+//  - 절대경로(백엔드 8000) + /api/chat/recommend 로 통일
 // ------------------------------------------------------------------
 export async function fetchRecommendations(query: string, top_k = 12, cache_key?: string) {
-  const res = await fetch('/api/chat/recommend', {
+  const res = await fetch(`${API_BASE}/api/chat/recommend`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, top_k, cache_key }),
@@ -68,14 +76,9 @@ export async function fetchRecommendations(query: string, top_k = 12, cache_key?
 }
 
 // ------------------------------------------------------------------
-// OCR 업로드/검색 API (신규)
+// OCR 업로드/검색 API (기존 유지)
 //  - 서버 직접 호출: VITE_API_BASE 필요
-//  - .env 예) VITE_API_BASE=http://127.0.0.1:8000
 // ------------------------------------------------------------------
-const API_BASE =
-  ((import.meta as any).env?.VITE_API_BASE as string | undefined)?.replace(/\/+$/, '') ||
-  'http://127.0.0.1:8000';
-
 type OcrRender = { text: string; image_url?: string | null };
 type OcrOk = { success: true; analysis: any; render: OcrRender };
 type OcrFail = { success: false; error?: string | null; analysis?: any; render?: OcrRender };
@@ -131,9 +134,11 @@ export async function searchOcrByName(
   return { analysis: json.analysis, render: json.render };
 }
 
-/** 성분 상세 정보 조회 */
+/** 성분 상세 정보 조회
+ *  - 절대경로(백엔드 8000) + /api/chat/ingredient/:name 로 통일
+ */
 export async function fetchIngredientDetail(name: string): Promise<IngredientInfo> {
-  const res = await fetch(`/api/chat/ingredient/${encodeURIComponent(name)}`, {
+  const res = await fetch(`${API_BASE}/api/chat/ingredient/${encodeURIComponent(name)}`, {
     method: 'GET',
   });
   if (!res.ok) throw new Error('성분 정보를 불러오지 못했습니다.');
