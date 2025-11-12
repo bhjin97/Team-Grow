@@ -42,18 +42,10 @@ export const RecentRecommendations = ({
             <p className="text-[11px] font-semibold text-pink-600 mt-0.5">
               {item.source === 'routine'
                 ? '맞춤 루틴 추천'
-                : item.source === 'chat'
-                  ? 'AI 상담 추천'
+                : item.source === 'chatbot'
+                  ? '챗봇 추천'
                   : '기타 추천'}
             </p>
-            {item.reason && (
-              <p className="text-[10px] text-gray-400 truncate">{item.reason}</p>
-            )}
-            {item.review_count !== undefined && (
-              <p className="text-[10px] text-gray-400 mt-0.5">
-                리뷰 {item.review_count.toLocaleString()}개
-              </p>
-            )}
           </motion.div>
         ))}
       </div>
