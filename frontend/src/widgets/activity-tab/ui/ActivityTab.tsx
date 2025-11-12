@@ -22,7 +22,7 @@ export const ActivityTab = ({
   return (
     <div className="flex flex-col space-y-6">
       {/* 최근 찾아본 성분 */}
-      <Card variant="gradient" padding="md">
+      {/* <Card variant="gradient" padding="md">
         <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4 flex items-center">
           <Clock className="w-5 h-5 text-purple-500 mr-2" />
           최근 찾아본 성분
@@ -32,7 +32,7 @@ export const ActivityTab = ({
             아직 조회한 성분이 없습니다.
           </p>
         </div>
-      </Card>
+      </Card> */}
 
       {/* 즐겨찾기 제품 */}
       <Card variant="gradient" padding="md">
