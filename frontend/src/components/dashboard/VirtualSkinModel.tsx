@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, Search, Loader2, AlertTriangle, X, Sparkles, Check } from 'lucide-react';
+import { Camera, Search, AlertTriangle, X, Sparkles, Check } from 'lucide-react';
 import * as React from 'react';
 import {
   fetchSimulation,
@@ -12,6 +12,7 @@ import {
   fetchTopProductsByCategory, // ★ 상위 추천 API
 } from '../../lib/utils';
 import Plot from 'react-plotly.js';
+import LoadingMascot from "../common/LoadingMascot";
 
 const KEYWORD_ENG_TO_KOR: Record<string, string> = {
   moisturizing: '보습',
@@ -76,8 +77,7 @@ interface VirtualSkinModelProps {
 // ★ 안전한 userId 헬퍼 (undefined/null이면 localStorage → 최종 1 fallback)
 const getUid = (explicit?: number) => {
   const fromLS = Number(localStorage.getItem('user_id') || '1');
-  // 논리연산자와 nullish 섞임 방지: 단계별로 값 확정
-  const primary = explicit ?? fromLS;     // explicit가 null/undefined면 LS 값
+  const primary = explicit ?? fromLS;
   return Number.isFinite(primary as number) && (primary as number) > 0
     ? (primary as number)
     : 1;
@@ -174,10 +174,9 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
   useEffect(() => {
     if (!selectedCategory || !skinType) return;
     setIsTopLoading(true);
-    const uid = getUid(userId)
+    const uid = getUid(userId);
     fetchTopProductsByCategory(selectedCategory, skinType, uid, 4)
       .then((items) => {
-        // 서버가 이미 점수로 정렬해 주지만 혹시 몰라 한 번 더 정렬
         const sorted = [...items].sort((a, b) => (b.final_score ?? 0) - (a.final_score ?? 0));
         setTopList(sorted);
       })
@@ -412,10 +411,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
         {/* 프리뷰 캔버스 */}
         <div className="h-48 sm:h-56 bg-purple-50 rounded-xl mb-3 flex items-center justify-center relative overflow-hidden p-4">
           {isSimLoading && (
-            <div className="flex flex-col items-center text-purple-600">
-              <Loader2 className="w-12 h-12 animate-spin" />
-              <span className="mt-3 text-sm font-medium">분석 중입니다...</span>
-            </div>
+            <LoadingMascot label="분석 중입니다..." src="/mascot/mascot.png" />
           )}
 
           {!isSimLoading && simError && (
@@ -520,9 +516,8 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
 
               <div className="rounded-xl border bg-white">
                 {isTopLoading ? (
-                  <div className="flex items-center gap-2 p-4 text-purple-600">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">상위 추천 로딩 중...</span>
+                  <div className="p-4">
+                    <LoadingMascot label="상위 추천 계산 중..." src="/mascot/mascot.png" />
                   </div>
                 ) : topList.length === 0 ? (
                   <div className="p-4 text-sm text-gray-600">
@@ -752,7 +747,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                     {analysisResult.product_info.category}
                   </p>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-lg text-center shadow-sm">
+                <div className="bg-gray-50 p-4 p-4 rounded-lg text-center shadow-sm">
                   <p className="text-sm text-gray-500">총 성분</p>
                   <p className="text-lg font-semibold text-gray-900">
                     {analysisResult.product_info.total_count}개
@@ -1033,7 +1028,6 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
               <button
                 onClick={() => {
                   closeCautionModal();
-                  // 상세 리포트 열기
                   setShowFullReport(true);
                 }}
                 className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 text-sm"
