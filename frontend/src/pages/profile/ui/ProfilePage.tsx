@@ -1,3 +1,4 @@
+// frontend/src/pages/profile/ui/ProfilePage.tsx
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useUserStore } from '@/stores/auth/store';
@@ -88,6 +89,13 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
   // 성분 관리 상태
   const [preferredIngredients, setPreferredIngredients] = useState<PreferredIngredient[]>([]);
   const [cautionIngredients, setCautionIngredients] = useState<CautionIngredient[]>([]);
+  const [loadingStates, setLoadingStates] = useState<{
+    add: boolean;
+    delete: { [key: number]: boolean };
+  }>({
+    add: false,
+    delete: {},
+  });
 
   // 사용자 ID 로드
   useEffect(() => {
@@ -99,6 +107,44 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     }
     setUserId(currentUserId);
   }, [onNavigate]);
+
+  // 사용자 성분 목록 로드
+  useEffect(() => {
+    if (!userId) return;
+
+    const loadUserIngredients = async () => {
+      try {
+        const response = await fetch(`/api/user-ingredients?userId=${userId}`);
+        if (response.ok) {
+          const data = await response.json();
+
+          const preferred = data
+            .filter((item: any) => item.type === 'preferred')
+            .map((item: any) => ({
+              id: item.ingredientId,
+              name: item.ingredientName,
+              benefit: item.description || '',
+            }));
+
+          const caution = data
+            .filter((item: any) => item.type === 'caution')
+            .map((item: any) => ({
+              id: item.ingredientId,
+              name: item.ingredientName,
+              reason: item.description || '',
+              severity: item.severity || 'low',
+            }));
+
+          setPreferredIngredients(preferred);
+          setCautionIngredients(caution);
+        }
+      } catch (error) {
+        console.error('Failed to load user ingredients:', error);
+      }
+    };
+
+    loadUserIngredients();
+  }, [userId]);
 
   // 프로필 저장
   const handleSave = async () => {
@@ -116,40 +162,145 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     }
   };
 
-  // 성분 추가
-  const handleAddIngredient = (ingredient: Ingredient, type: IngredientType) => {
+  // 성분 추가 (DB 연동)
+  const handleAddIngredient = async (ingredient: Ingredient, type: IngredientType) => {
+    // 유효성 검사
+    if (!ingredient.korean_name?.trim()) {
+      showToast('성분명이 올바르지 않습니다', 'warning');
+      return;
+    }
+
+    // 중복 체크
+    const isDuplicate =
+      type === 'preferred'
+        ? preferredIngredients.some(i => i.id === ingredient.id)
+        : cautionIngredients.some(i => i.id === ingredient.id);
+
+    if (isDuplicate) {
+      showToast('이미 추가된 성분입니다', 'warning');
+      return;
+    }
+
+    setLoadingStates(prev => ({ ...prev, add: true }));
+
+    try {
+      // DB에 저장
+      const response = await fetch('/api/user-ingredients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          ingredientId: ingredient.id,
+          ingredientName: ingredient.korean_name,
+          type: type,
+          description: ingredient.description || '',
+          severity:
+            type === 'caution'
+              ? ingredient.caution_grade?.includes('고')
+                ? 'high'
+                : ingredient.caution_grade?.includes('중')
+                  ? 'mid'
+                  : 'low'
+              : null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add ingredient');
+      }
+
+      // 성공시 화면 업데이트
+      if (type === 'preferred') {
+        setPreferredIngredients(prev => [
+          {
+            id: ingredient.id,
+            name: ingredient.korean_name,
+            benefit: ingredient.description || '',
+          },
+          ...prev,
+        ]);
+        showToast(`${ingredient.korean_name}을(를) 선호 성분에 추가했습니다`, 'success');
+      } else {
+        const severity: CautionIngredient['severity'] = (ingredient.caution_grade || '').includes(
+          '고'
+        )
+          ? 'high'
+          : (ingredient.caution_grade || '').includes('중')
+            ? 'mid'
+            : 'low';
+
+        setCautionIngredients(prev => [
+          {
+            id: ingredient.id,
+            name: ingredient.korean_name,
+            reason: ingredient.description || '',
+            severity,
+          },
+          ...prev,
+        ]);
+        showToast(`${ingredient.korean_name}을(를) 주의 성분에 추가했습니다`, 'success');
+      }
+    } catch (error) {
+      console.error('성분 추가 실패:', error);
+      showToast('성분 추가에 실패했습니다', 'error');
+    } finally {
+      setLoadingStates(prev => ({ ...prev, add: false }));
+    }
+  };
+
+  // 성분 삭제 (DB 연동) - 낙관적 업데이트 적용
+  const handleDeleteIngredient = async (ingredientId: number, type: 'preferred' | 'caution') => {
+    // 삭제 확인
+    const ingredient =
+      type === 'preferred'
+        ? preferredIngredients.find(i => i.id === ingredientId)
+        : cautionIngredients.find(i => i.id === ingredientId);
+
+    if (!ingredient) return;
+
+    if (!window.confirm(`${ingredient.name}을(를) 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    // 로딩 상태 설정
+    setLoadingStates(prev => ({
+      ...prev,
+      delete: { ...prev.delete, [ingredientId]: true },
+    }));
+
+    // 낙관적 업데이트 - 먼저 화면에서 제거
+    const originalIngredients = type === 'preferred' ? preferredIngredients : cautionIngredients;
+
     if (type === 'preferred') {
-      if (preferredIngredients.some(i => i.id === ingredient.id)) {
-        showToast('이미 추가된 성분입니다', 'warning');
-        return;
-      }
-      setPreferredIngredients(prev => [
-        { id: ingredient.id, name: ingredient.korean_name, benefit: ingredient.description || '' },
-        ...prev,
-      ]);
-      showToast(`${ingredient.korean_name}을(를) 선호 성분에 추가했습니다`, 'success');
+      setPreferredIngredients(prev => prev.filter(item => item.id !== ingredientId));
     } else {
-      if (cautionIngredients.some(i => i.id === ingredient.id)) {
-        showToast('이미 추가된 성분입니다', 'warning');
-        return;
+      setCautionIngredients(prev => prev.filter(item => item.id !== ingredientId));
+    }
+
+    try {
+      const response = await fetch(`/api/user-ingredients/${userId}/${ingredientId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete ingredient');
       }
-      const severity: CautionIngredient['severity'] = (ingredient.caution_grade || '').includes(
-        '고'
-      )
-        ? 'high'
-        : (ingredient.caution_grade || '').includes('중')
-          ? 'mid'
-          : 'low';
-      setCautionIngredients(prev => [
-        {
-          id: ingredient.id,
-          name: ingredient.korean_name,
-          reason: ingredient.description || '',
-          severity,
-        },
+
+      showToast('성분이 삭제되었습니다', 'success');
+    } catch (error) {
+      // 실패시 롤백
+      if (type === 'preferred') {
+        setPreferredIngredients(originalIngredients);
+      } else {
+        setCautionIngredients(originalIngredients);
+      }
+      console.error('성분 삭제 실패:', error);
+      showToast('삭제 실패. 다시 시도해주세요', 'error');
+    } finally {
+      setLoadingStates(prev => ({
         ...prev,
-      ]);
-      showToast(`${ingredient.korean_name}을(를) 주의 성분에 추가했습니다`, 'success');
+        delete: { ...prev.delete, [ingredientId]: false },
+      }));
     }
   };
 
@@ -244,12 +395,14 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
             <IngredientsTab
               preferredIngredients={preferredIngredients}
               cautionIngredients={cautionIngredients}
-              onRemovePreferred={index =>
-                setPreferredIngredients(prev => prev.filter((_, i) => i !== index))
-              }
-              onRemoveCaution={index =>
-                setCautionIngredients(prev => prev.filter((_, i) => i !== index))
-              }
+              onRemovePreferred={index => {
+                const ingredient = preferredIngredients[index];
+                handleDeleteIngredient(ingredient.id, 'preferred');
+              }}
+              onRemoveCaution={index => {
+                const ingredient = cautionIngredients[index];
+                handleDeleteIngredient(ingredient.id, 'caution');
+              }}
               searchSection={<IngredientSearchSection onAddIngredient={handleAddIngredient} />}
             />
           )}
