@@ -54,3 +54,7 @@ app.include_router(stats.router, prefix="/api")
 app.include_router(delete.router)
 app.include_router(ingredients.router)
 app.include_router(chat_router)
+
+@app.get("/healthz")
+def healthz():
+    return {"ok": True}

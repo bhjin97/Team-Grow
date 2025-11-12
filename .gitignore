@@ -11,6 +11,7 @@ __pycache__/
 # env / secrets
 .env
 *.env
+**/.env
 *.env.local
 aller_app_mariadb/.streamlit/secrets.toml
 aller_app_mariadb/.env
