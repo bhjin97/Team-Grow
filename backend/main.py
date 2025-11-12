@@ -28,6 +28,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ----- 특정 라우터 개별 prefix/alias -----
 app.include_router(user_ingredients_router.router, prefix="/api/user-ingredients")
 app.include_router(user_ingredients_router.router, prefix="/user-ingredients", include_in_schema=False)
 
@@ -35,7 +36,7 @@ app.include_router(user_ingredients_router.router, prefix="/user-ingredients", i
 def root():
     return {"message": "Backend is running 🚀"}
 
-# ✅ 라우터 등록
+# ✅ 라우터 등록 (기존 유지)
 app.include_router(profile.router)
 app.include_router(analysis.router)
 app.include_router(auth.router)
@@ -46,14 +47,19 @@ app.include_router(trends.router)
 app.include_router(favorite_products.router)
 app.include_router(product.router)
 
-# prefix가 필요한 라우터
+# prefix가 필요한 라우터 (기존 유지)
 app.include_router(ocr.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 
-# 기타
+# 기타 (기존 유지)
 app.include_router(delete.router)
 app.include_router(ingredients.router)
-app.include_router(chat_router)
+
+# ✅ chat 라우터: /api/chat (정식 경로)
+app.include_router(chat_router, prefix="/api")
+
+# ✅ chat 라우터: /chat (호환용 별칭, 문서에는 숨김)
+app.include_router(chat_router, include_in_schema=False)
 
 @app.get("/healthz")
 def healthz():
