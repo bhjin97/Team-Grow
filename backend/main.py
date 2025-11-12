@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# 패키지 기준 임포트 (절대경로)
+# ✅ 패키지 기준(절대 경로) 임포트로 통일
 from backend.routers import (
     profile,
     analysis,
@@ -24,22 +24,24 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # 필요 시 도메인 리스트로 제한
+    allow_origins=["*"],   # 필요하면 프론트 도메인으로 제한
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# 기본 라우트
 @app.get("/")
 def root():
     return {"message": "Backend is running 🚀"}
 
+# 헬스체크 라우트
 @app.get("/healthz")
 def healthz():
     return {"ok": True}
 
 # ===== 라우터 등록 =====
-# user_ingredients는 API/비노출 두 경로 모두 유지
+# user_ingredients: API/비노출 두 경로 유지
 app.include_router(user_ingredients.router, prefix="/api/user-ingredients")
 app.include_router(user_ingredients.router, prefix="/user-ingredients", include_in_schema=False)
 
