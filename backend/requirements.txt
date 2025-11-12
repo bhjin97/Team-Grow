@@ -21,6 +21,7 @@ typing-extensions>=4.0.0
 # Backend (FastAPI + Server)
 fastapi>=0.110.0
 uvicorn[standard]>=0.30.0
+gunicorn>=21.2
 pydantic[email]>=2.0.0
 python-multipart>=0.0.9
 langchain-openai>=0.1.7

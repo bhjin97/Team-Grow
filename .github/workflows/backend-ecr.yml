@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - "backend/**"
+      - "docker/backend.Dockerfile"
       - ".github/workflows/backend-ecr.yml"
 
 permissions:
@@ -12,10 +13,10 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
-  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  ECR_REPO: ${{ vars.ECR_BACKEND_REPO }}
-  IMAGE_URI: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ vars.ECR_BACKEND_REPO }}
+  AWS_REGION: ${{ fromJSON(vars.ALLER_VAR || '{}').AWS_REGION || vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ fromJSON(vars.ALLER_VAR || '{}').AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
+  ECR_REPO: ${{ fromJSON(vars.ALLER_VAR || '{}').ECR_BACKEND_REPO || vars.ECR_BACKEND_REPO }}
+  IMAGE_URI: ${{ fromJSON(vars.ALLER_VAR || '{}').AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ fromJSON(vars.ALLER_VAR || '{}').AWS_REGION || vars.AWS_REGION }}.amazonaws.com/${{ fromJSON(vars.ALLER_VAR || '{}').ECR_BACKEND_REPO || vars.ECR_BACKEND_REPO }}
 
 jobs:
   build-and-push:
@@ -26,7 +27,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GithubActionsECRPushRole
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -42,8 +43,8 @@ jobs:
       - name: Build & push (backend)
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
+          context: .
+          file: ./docker/backend.Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_URI }}:${{ steps.tags.outputs.TAG1 }}

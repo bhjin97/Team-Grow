@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - "frontend/**"
+      - "docker/frontend.Dockerfile"
       - ".github/workflows/frontend-ecr.yml"
 
 permissions:
@@ -12,10 +13,11 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
-  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  ECR_REPO: ${{ vars.ECR_FRONTEND_REPO }}
-  IMAGE_URI: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ vars.ECR_FRONTEND_REPO }}
+  # ALLER_VAR(JSON) 우선, 없으면 개별 vars 대체
+  AWS_REGION: ${{ fromJSON(vars.ALLER_VAR || '{}').AWS_REGION || vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ fromJSON(vars.ALLER_VAR || '{}').AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
+  ECR_REPO: ${{ fromJSON(vars.ALLER_VAR || '{}').ECR_FRONTEND_REPO || vars.ECR_FRONTEND_REPO }}
+  IMAGE_URI: ${{ fromJSON(vars.ALLER_VAR || '{}').AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ fromJSON(vars.ALLER_VAR || '{}').AWS_REGION || vars.AWS_REGION }}.amazonaws.com/${{ fromJSON(vars.ALLER_VAR || '{}').ECR_FRONTEND_REPO || vars.ECR_FRONTEND_REPO }}
 
 jobs:
   build-and-push:
@@ -26,7 +28,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GithubActionsECRPushRole
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -42,8 +44,8 @@ jobs:
       - name: Build & push (frontend)
         uses: docker/build-push-action@v6
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
+          context: .
+          file: ./docker/frontend.Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_URI }}:${{ steps.tags.outputs.TAG1 }}

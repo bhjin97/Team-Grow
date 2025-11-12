@@ -2,27 +2,32 @@
 name: aller
 services:
   backend:
-    image: ${ECR_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/aller-backend:${IMAGE_TAG:-main}
+    image: ${ECR_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/aller-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - ${ENV_FILE_PATH}
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/docs >/dev/null 2>&1 || exit 1"]
+      # ✅ /healthz 사용
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/healthz >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 3s
       retries: 5
 
   frontend:
-    image: ${ECR_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/aller-frontend:${IMAGE_TAG:-main}
+    image: ${ECR_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/aller-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
-      # 빌드 시 주입된 VITE_API_BASE는 이미 정적으로 박혀있지만,
-      # 필요 시 런타임 프록시 구성으로 대체 가능
       - TZ=Asia/Seoul
     ports:
       - "80:80"
+    # ✅ 프론트도 헬스체크 써서 의존성 제어
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
     depends_on:
       backend:
         condition: service_healthy
