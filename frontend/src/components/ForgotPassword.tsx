@@ -130,7 +130,7 @@ export default function ForgotPassword({
               WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
             }}
           >
-            alerre
+            aller
           </motion.h1>
         </div>
       </div>

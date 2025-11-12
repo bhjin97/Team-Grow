@@ -125,7 +125,7 @@ export default function DashboardHeader({ userName = 'Sarah', onNavigate }: Dash
               }}
               className="w-full flex items-center px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
             >
-              <UserCircle className="w-5 h-5" /> <span>프로필ddddddd</span>
+              <UserCircle className="w-5 h-5" /> <span>프로필</span>
             </button>
             <button
               onClick={() => {

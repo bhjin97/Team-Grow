@@ -300,7 +300,7 @@ export default function SignupForm({
                 backgroundClip: "text",
               }}
             >
-              alerre
+              aller
             </h1>
           </motion.div>
         </div>
