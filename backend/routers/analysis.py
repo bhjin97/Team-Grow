@@ -6,7 +6,7 @@ from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, declarative_base
-from sqlalchemy import create_engine, Column, Integer, String, Float, Text, Index, text, DateTime, Enum, BigInteger
+from sqlalchemy import create_engine, Column, Integer, String, Float, Text, Index, text, DateTime, Enum, BigInteger, func
 from sqlalchemy.dialects.mysql import JSON as MySQL_JSON
 from db import get_db
 from typing import List
@@ -278,7 +278,7 @@ def match_ingredients(ingredients_str: str, db: Session):
 
     return matched_details, dict(matched_stats), unmatched, len(ingredients_list)
 
-# --- Score Logic (기존과 동일) ---
+# --- Score Logic (기존과 동일 + 타겟 내부 0.90~0.97 보정 유지) ---
 def calculate_keyword_ratios(matched_stats, total_matched_count):
     if total_matched_count == 0: return {}
     ratios = {}
@@ -292,7 +292,15 @@ def calculate_fit_score(percent, target_range, importance=1.0):
     min_ideal, max_ideal = target_range
     try: percent = float(percent)
     except (ValueError, TypeError): return 0.0
-    if min_ideal <= percent <= max_ideal: return 1.0
+    if min_ideal <= percent <= max_ideal:
+        # 범위 중앙에 가까울수록 높게, 그래도 최대 0.97로 캡
+        mid = (min_ideal + max_ideal) / 2.0
+        half = max(1.0, (max_ideal - min_ideal) / 2.0)  # 0 나눗셈 방지
+        # 중앙에서 얼마나 떨어졌는지 (0~1)
+        deviation = min(1.0, abs(percent - mid) / half)
+        # 중앙이면 0.97, 경계에 갈수록 0.90까지
+        fit_in_range = 0.97 - deviation * 0.07
+        return max(0.90, round(fit_in_range, 4))
     if percent < min_ideal:
         if min_ideal <= 0: return 1.0 if percent == 0 else 0.5
         ratio = percent / min_ideal
@@ -386,6 +394,20 @@ def prepend_low_reliability_warning(opinion_text: str) -> str:
     warning = "⚠️ **저신뢰 분석**: OCR 매칭 성분이 적어 결과가 부정확할 수 있습니다. 성분표 재촬영(정면/밝게/클로즈업) 후 재분석을 권장합니다.\n\n"
     return warning + opinion_text
 
+# ================== [추가] 히트/신뢰도 기반 소프트 캡 ==================
+def apply_soft_caps_by_hits(final_score: int, total_keyword_hits: int, reliability: str) -> int:
+    """
+    신뢰도/히트 수 기반 소프트 캡:
+    - very_low: (호출 전 단계에서 이미 하드스톱)
+    - low(3~6): 75점 상한
+    - normal(>=7): 히트가 적으면(7~9) 95점 상한
+    """
+    if reliability == "low":
+        return min(final_score, 75)
+    if reliability == "normal" and total_keyword_hits < 10:
+        return min(final_score, 95)
+    return final_score
+
 # --- [수정] Text Analysis Logic - 주의 성분 개수 기반 멘트 ---
 def generate_analysis_text(skin_type, final_score, breakdown, caution_count):
     good_points = []
@@ -410,7 +432,6 @@ def generate_analysis_text(skin_type, final_score, breakdown, caution_count):
                 excess = percent_val - target_max
                 weak_points.append(f"**{effect_kor}**: {percent_val}% (타겟 최대 {target_max}% 권장, {excess:.1f}% 초과)")
 
-    # [수정] 주의 성분 개수 기반 종합 의견
     if final_score >= 80:
         fit_level = "매우 적합"
     elif final_score >= 70:
@@ -418,7 +439,6 @@ def generate_analysis_text(skin_type, final_score, breakdown, caution_count):
     else:
         fit_level = "적합하지 않음"
 
-    # 주의 성분 멘트
     if caution_count == 0:
         caution_msg = "주의 성분이 없어 안심하고 사용하실 수 있습니다."
     elif caution_count < 4:
@@ -504,7 +524,6 @@ def analyze_product_api(request: AnalysisRequest, db: Session = Depends(get_db))
                 status_code=400,
                 detail=f"분석 중단: OCR 매칭 성분이 {total_keyword_hits}개로 매우 적습니다. 성분표를 더 선명하게 촬영해 다시 시도해주세요."
             )
-        # 소프트-패스: low(3~6) → 경고 표시 + 점수 캡은 아래에서 적용
 
         # 3. 비율 계산
         ratios = calculate_keyword_ratios(matched_stats, total_keyword_hits)
@@ -522,11 +541,8 @@ def analyze_product_api(request: AnalysisRequest, db: Session = Depends(get_db))
 
         # 5. 점수 계산
         final_score, breakdown = calculate_score_final(ratios, user_weights_dict)
-        # 소프트-패스면 점수 캡 + 경고 문구 주입
-        if reliability == "low":
-            if final_score > 75:
-                print(f"[WARN] score cap (product): from={final_score} to=75, product={product.get('product_name','N/A')}")
-                final_score = 75
+        # === 점수 소프트 캡 적용 (히트/신뢰도 기반) ===
+        final_score = apply_soft_caps_by_hits(final_score, total_keyword_hits, reliability)
 
         # ✅ 6. 시스템 주의 성분 (검증된 원문 사용)
         caution_ingredients = query_caution_ingredients(all_matched_ingredients, db)
@@ -687,6 +703,82 @@ def extract_ingredients_from_ocr_with_db(full_text: str, db: Session) -> str:
         import traceback; traceback.print_exc()
         return ""
 
+@router.get("/api/top-products")
+def top_products_api(
+    category: str,
+    skin_type: str,
+    user_id: int | None = None,
+    limit: int = 4,
+    db: Session = Depends(get_db)
+):
+    # 1) 카테고리 느슨 매칭 + p_ingredients 공란 제거
+    rows = db.query(
+        ProductData.product_name, ProductData.category, ProductData.p_ingredients
+    ).filter(
+        func.length(func.trim(ProductData.p_ingredients)) > 0,
+        ProductData.category.ilike(category)
+    ).params(cat=category).limit(500).all()
+
+    if not rows:
+        like_key = f"%{category.strip()}%"
+        rows = db.query(
+            ProductData.product_name, ProductData.category, ProductData.p_ingredients
+        ).filter(
+            func.length(func.trim(ProductData.p_ingredients)) > 0,
+            ProductData.category.like(like_key)
+        ).limit(500).all()
+
+    items = []
+    for name, cat, ing_str in rows:
+        # 재사용: 기존 점수 계산 로직
+        matched_details, matched_stats, unmatched, _ = match_ingredients(ing_str, db)
+        total_keyword_hits = len(matched_details)
+        reliability = classify_reliability(total_keyword_hits)
+        ratios = calculate_keyword_ratios(matched_stats, total_keyword_hits)
+
+        weights = db.query(BaumannWeights).filter(
+            BaumannWeights.skin_type == skin_type
+        ).all()
+        if not weights:
+            continue
+
+        user_weights_dict = {
+            w.keyword: {"importance": w.importance, "target_range": [w.target_min, w.target_max]}
+            for w in weights
+        }
+
+        final_score, breakdown = calculate_score_final(ratios, user_weights_dict)
+        score_before = final_score
+
+        # === 점수 소프트 캡 적용 (히트/신뢰도 기반) ===
+        final_score = apply_soft_caps_by_hits(final_score, total_keyword_hits, reliability)
+
+        # 사용자 주의 감점
+        ingredients_list = [s.strip().strip('"') for s in ing_str.split(',') if s.strip()]
+        user_cautions = query_user_caution_ingredients(user_id, ingredients_list, db)
+        if user_cautions:
+            final_score = max(0, final_score - 40)
+
+        # very_low(히트 0)은 제외, 1~2는 남겨서 ‘저신뢰’로 표기
+        if reliability == "very_low" and total_keyword_hits == 0:
+            continue
+
+        items.append({
+            "product_name": name,
+            "category": cat,
+            "final_score": max(final_score, 0),
+            "score_before": score_before,
+            "has_user_caution": bool(user_cautions),
+            "user_caution": [{"korean_name": n} for n in user_cautions],
+            "matched_count": len(set(sum(matched_stats.values(), []))),
+            "total_keyword_hits": total_keyword_hits,
+            "reliability": reliability
+        })
+
+    # 점수 내림차순 상위 N개
+    items.sort(key=lambda x: x["final_score"], reverse=True)
+    return {"items": items[:max(1, min(limit, 20))]}
+
 @router.post("/api/analyze-ocr")
 async def analyze_ocr_image(
     file: UploadFile = File(...),
@@ -748,10 +840,8 @@ async def analyze_ocr_image(
             }
 
         final_score, breakdown = calculate_score_final(ratios, user_weights_dict)
-        if reliability == "low":
-            if final_score > 75:
-                print(f"[WARN] score cap (ocr): from={final_score} to=75, file={getattr(file,'filename','N/A')}")
-                final_score = 75
+        # === 점수 소프트 캡 적용 (히트/신뢰도 기반) ===
+        final_score = apply_soft_caps_by_hits(final_score, total_keyword_hits, reliability)
 
         # ✅ 시스템 주의 성분 (검증된 원문 사용)
         caution_ingredients = query_caution_ingredients(all_matched_ingredients, db)
