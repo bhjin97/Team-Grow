@@ -13,11 +13,14 @@ permissions:
   contents: read
 
 env:
-  # ALLER_VAR(JSON) 우선, 없으면 개별 vars 대체
+  # 기존 공통
   AWS_REGION: ${{ fromJSON(vars.ALLER_VAR || '{}').AWS_REGION || vars.AWS_REGION }}
   AWS_ACCOUNT_ID: ${{ fromJSON(vars.ALLER_VAR || '{}').AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
   ECR_REPO: ${{ fromJSON(vars.ALLER_VAR || '{}').ECR_FRONTEND_REPO || vars.ECR_FRONTEND_REPO }}
   IMAGE_URI: ${{ fromJSON(vars.ALLER_VAR || '{}').AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ fromJSON(vars.ALLER_VAR || '{}').AWS_REGION || vars.AWS_REGION }}.amazonaws.com/${{ fromJSON(vars.ALLER_VAR || '{}').ECR_FRONTEND_REPO || vars.ECR_FRONTEND_REPO }}
+
+  # ✅ 프론트 API 베이스 (레포 Variables에 FRONTEND_VITE_API_BASE가 있으면 우선 사용)
+  FRONTEND_VITE_API_BASE: ${{ vars.FRONTEND_VITE_API_BASE || 'http://3.37.232.220:8000' }}
 
 jobs:
   build-and-push:
@@ -47,6 +50,9 @@ jobs:
           context: .
           file: ./docker/frontend.Dockerfile
           push: true
+          # ✅ 여기서 빌드 타임에 주입
+          build-args: |
+            VITE_API_BASE=${{ env.FRONTEND_VITE_API_BASE }}
           tags: |
             ${{ env.IMAGE_URI }}:${{ steps.tags.outputs.TAG1 }}
             ${{ env.IMAGE_URI }}:${{ steps.tags.outputs.TAG2 }}
