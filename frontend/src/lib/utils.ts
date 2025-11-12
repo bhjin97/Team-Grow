@@ -107,6 +107,29 @@ export async function fetchProductsByCategory(category: string): Promise<{ produ
 
   return res.json();
 }
+export async function fetchTopProductsByCategory(
+  category: string,
+  skin_type: string,
+  userId?: number,
+  limit = 8
+){
+  const params = new URLSearchParams();
+  params.set('category', category ?? '');
+  params.set('skin_type', skin_type ?? '');
+  if (userId != null) params.set('user_id', String(Number(userId)));
+  params.set('limit', String(limit));
+
+  const url = `${API_BASE}/api/top-products?${params.toString()}`;
+  console.log('[REQ] GET', url);
+  const res = await fetch(url);
+  if (!res.ok) {
+    const txt = await res.text().catch(()=>'');
+    throw new Error(`top-products 실패 ${res.status} ${txt}`);
+  }
+  const data = await res.json();
+  // 항상 배열 보장
+  return Array.isArray(data?.items) ? data.items : [];
+}
 
 // 8. fetchPerfumeRecommendations (기존)
 interface PerfumeRequestData {
