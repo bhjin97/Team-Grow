@@ -320,6 +320,8 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
           setFavorites(prev => prev.filter(id => id !== productId));
           setToastMessage("즐겨찾기에서 제거되었습니다 💔");
           setShowToast(true);
+
+          setTimeout(() => setShowToast(false), 2000);
         }
       } else {
         // ✅ DB에 추가
@@ -331,6 +333,8 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
           setFavorites(prev => [...prev, productId]);
           setToastMessage("즐겨찾기에 추가되었습니다 💗");
           setShowToast(true);
+
+          setTimeout(() => setShowToast(false), 2000);
         }
       }
     } catch (err) {
@@ -481,15 +485,17 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       <AnimatePresence>
         {showToast && (
           <motion.div
-            initial={{ opacity: 0, y: -50 }}
+            initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-white shadow-lg rounded-lg px-6 py-3 border-l-4 border-pink-500"
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.3 }}
+            className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2 rounded-full shadow-lg z-[999]"
           >
-            <p className="text-sm font-medium text-gray-800">{toastMessage}</p>
+            {toastMessage}
           </motion.div>
         )}
       </AnimatePresence>
+
 
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-lg border-b border-pink-100 sticky top-0 z-50">

@@ -135,7 +135,7 @@ export default function BeautyAILogin({
                 backgroundClip: 'text',
               }}
             >
-              alerre
+              aller
             </h1>
           </motion.div>
         </div>
