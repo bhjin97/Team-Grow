@@ -44,7 +44,7 @@ export async function fetchRoutine(
 }
 
 // 5. fetchSimulation (기존)
-export async function fetchSimulation(product_name: string, skin_type: string) {
+export async function fetchSimulation(product_name: string, skin_type: string, userId?: number) {
   if (!API_BASE) {
     console.error('API_BASE is not defined. Check frontend/lib/env.ts');
     throw new Error('API_BASE is not defined');
@@ -59,6 +59,9 @@ export async function fetchSimulation(product_name: string, skin_type: string) {
     body: JSON.stringify({
       product_name: product_name,
       skin_type: skin_type,
+      user_id: (userId !== undefined && userId !== null && !Number.isNaN(Number(userId)))
+        ? Number(userId)
+        : null, // 백엔드가 None으로 받지 않게, 프론트에서 effectiveUserId를 보정했다면 null이 안 오게 만드는 게 더 좋음 
     }),
   });
 
@@ -205,7 +208,7 @@ export async function updateUserProfile(userId: number, data: UserProfileUpdateD
  * @param skin_type 피부 타입
  * @returns 분석 결과 (fetchSimulation과 동일한 형식)
  */
-export async function fetchOcrAnalysis(file: File, skin_type: string) {
+export async function fetchOcrAnalysis(file: File, skin_type: string, userId?: number) {
   if (!API_BASE) {
     console.error('API_BASE is not defined. Check frontend/lib/env.ts');
     throw new Error('API_BASE is not defined');
@@ -215,7 +218,11 @@ export async function fetchOcrAnalysis(file: File, skin_type: string) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('skin_type', skin_type);
-  
+  // userId가 유효한 숫자일 때만 append (빈 문자열 전송 방지)
+  if (userId !== undefined && userId !== null && !Number.isNaN(Number(userId))) {
+    formData.append('user_id', String(Number(userId)));
+  }
+  console.log('[REQ] /api/analyze-ocr form user_id =', userId);
   const res = await fetch(`${API_BASE}/api/analyze-ocr`, {
     method: 'POST',
     body: formData,  // Content-Type은 자동 설정됨 (multipart/form-data)

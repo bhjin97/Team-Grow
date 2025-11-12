@@ -41,6 +41,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   const [baumannType, setBaumannType] = useState<string>('ORNT');
   const [axes, setAxes] = useState<AxesJSON | null>(null);
   const [routineProducts, setRoutineProducts] = useState<any[]>([]);
+  const [userId, setUserId] = useState<number | undefined>(undefined);
 
   // --- 공용 필터(기간 항상 all) ---
   const [gender, setGender] = useState<Gender>('all');
@@ -111,15 +112,25 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   ];
 
   // --- 프로필/축 로드 ---
+  // 1) 최초 마운트: 캐시값 로드 + userId 상태 세팅
   useEffect(() => {
-    const cachedType = localStorage.getItem('skin_type_code');
-    const cachedAxes = localStorage.getItem('skin_axes_json');
-    if (cachedType) setBaumannType(cachedType);
-    if (cachedAxes) try { setAxes(JSON.parse(cachedAxes)); } catch {}
+    try {
+      const cachedType = localStorage.getItem('skin_type_code');
+      const cachedAxes = localStorage.getItem('skin_axes_json');
+      if (cachedType) setBaumannType(cachedType);
+      if (cachedAxes) try { setAxes(JSON.parse(cachedAxes)); } catch {}
 
-    const userIdStr = localStorage.getItem('user_id') ?? '1';
-    const userId = Number.parseInt(userIdStr, 10) || 1;
+      const userIdStr = localStorage.getItem('user_id') ?? '1';
+      const id = Number.parseInt(userIdStr, 10);
+      setUserId(Number.isFinite(id) ? id : 1);   // ← 상태에 저장
+    } catch (e) {
+      setUserId(1);
+    }
+  }, []);
 
+  // 2) userId가 준비되면 프로필 fetch
+  useEffect(() => {
+    if (!userId) return;
     (async () => {
       try {
         const base = (await import('../../lib/env')).API_BASE;
@@ -127,6 +138,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
         const res = await fetch(`${base}/api/profile/${userId}`);
         if (!res.ok) return;
         const data = await res.json();
+
         if (data?.skin_type_code) {
           const newType = String(data.skin_type_code);
           setBaumannType(newType);
@@ -143,7 +155,8 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
         console.error('Failed to fetch profile:', err);
       }
     })();
-  }, []);
+  }, [userId]);
+
 
   // ▼ 공용 필터 바(기간 제거: 성별/연령대만)
   const FiltersBar = () => (
@@ -236,7 +249,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
           />
 
           {/* 시뮬레이터 */}
-          <VirtualSkinModel skinType={baumannType} />
+          <VirtualSkinModel skinType={baumannType} userId={userId}/>
 
           {/* 맞춤 루틴 */}
           <CustomRoutine
