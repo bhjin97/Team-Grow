@@ -360,11 +360,12 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
     }
   };
 
-  // ── 전송 핸들러 (스트리밍 + 추천카드)
+  // ── 전송 핸들러 (추천 + 요약 스트리밍)
   const handleSendMessage = async () => {
     const text = inputValue.trim();
     if (!text) return;
 
+    // 1) 사용자 메시지 추가
     const userMsg: Message = {
       id: nextIdRef.current++,
       type: 'user',
@@ -374,21 +375,52 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
 
+    // 2) AI 메시지 자리 만들어 두기
     const aiMsgId = nextIdRef.current++;
-    const aiMsg: Message = { id: aiMsgId, type: 'ai', content: '', timestamp: new Date() };
+    const aiMsg: Message = {
+      id: aiMsgId,
+      type: 'ai',
+      content: '',
+      timestamp: new Date(),
+    };
     setMessages(prev => [...prev, aiMsg]);
     setIsTyping(true);
 
     try {
-      const { iter, cacheKey } = await chatStream(text, 6);
-      for await (const chunk of iter()) {
+      // 3) 먼저 추천/검색 + intent + cache_key + products 가져오기
+      const rec = await fetchRecommendations(text, 12);
+
+      // GENERAL 질의라면 → 스트리밍 없이 바로 텍스트만 출력
+      if (rec.intent === 'GENERAL') {
+        const answer =
+          (rec.message && rec.message.trim()) ||
+          '화장품/피부 관련 일반 질문에 대한 답변을 가져오지 못했습니다. 잠시 후 다시 시도해주세요.';
+
+        setMessages(prev =>
+          prev.map(m => (m.id === aiMsgId ? { ...m, content: answer, products: [] } : m))
+        );
+        setOpenPanelByCard({});
+        return;
+      }
+
+      // PRODUCT_FIND 인데 cache_key가 없으면 예외 처리
+      if (!rec.cache_key) {
+        throw new Error('추천 결과에 cache_key가 없습니다.');
+      }
+
+      // 4) 요약 스트리밍 시작 (finalize)
+      const stream = await chatStream(text, rec.cache_key);
+      for await (const chunk of stream.iter()) {
         setMessages(prev =>
           prev.map(m => (m.id === aiMsgId ? { ...m, content: (m.content || '') + chunk } : m))
         );
       }
-      const { products } = await fetchRecommendations(text, 12, cacheKey);
+
+      // 5) 스트리밍이 끝난 뒤, 대기 중이던 추천 카드(products)를 같은 메시지에 붙이기
+      const products = rec.products || [];
       setMessages(prev => prev.map(m => (m.id === aiMsgId ? { ...m, products } : m)));
-      // ✅ 최근 추천 기록 저장
+
+      // ✅ 최근 추천 기록 저장 (PRODUCT_FIND 일 때만)
       try {
         const key = `recent_recommendations_${userId}`;
         const prev = JSON.parse(localStorage.getItem(key) || '[]');
@@ -403,24 +435,25 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
           created_at: new Date().toISOString(),
         }));
 
-        // ✅ 중복 제거 → 기존 중복 삭제
+        // 중복 제거 → 기존 중복 삭제
         const filtered = prev.filter(
           (item: any) => !newEntries.some(n => n.product_pid === item.product_pid)
         );
 
-        // ✅ 최신순 + 최대 30개 유지
+        // 최신순 + 최대 30개 유지
         const updated = [...newEntries, ...filtered].slice(0, 30);
 
         localStorage.setItem(key, JSON.stringify(updated));
       } catch (err) {
         console.error('최근 추천 저장 실패:', err);
       }
+
       setOpenPanelByCard({});
     } catch (err) {
+      console.error(err);
       setMessages(prev =>
         prev.map(m => (m.id === aiMsgId ? { ...m, content: '잠시 후 다시 시도해주세요.' } : m))
       );
-      console.error(err);
     } finally {
       setIsTyping(false);
     }

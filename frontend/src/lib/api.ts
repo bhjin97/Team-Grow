@@ -32,25 +32,57 @@ const API_BASE =
   'http://127.0.0.1:8000';
 
 // ------------------------------------------------------------------
-// LLM 채팅 스트리밍
-//  - 절대경로(백엔드 8000) + /api/chat 로 통일
+// 추천 카드 + intent + cache_key 조회
+//  - 절대경로(백엔드 8000) + /api/chat/recommend
+//  - 검색 + intent 판별 + 카드 + cache_key 까지 한 번에
 // ------------------------------------------------------------------
-export async function chatStream(query: string, top_k = 6, signal?: AbortSignal) {
-  const res = await fetch(`${API_BASE}/api/chat`, {
+export type RecommendResponse = {
+  intent: 'GENERAL' | 'PRODUCT_FIND';
+  message: string | null;
+  cache_key: string | null;
+  products: RecProduct[];
+};
+
+export async function fetchRecommendations(
+  query: string,
+  top_k = 12,
+  cache_key?: string
+): Promise<RecommendResponse> {
+  const res = await fetch(`${API_BASE}/api/chat/recommend`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, top_k }),
+    body: JSON.stringify({ query, top_k, cache_key }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<RecommendResponse>;
+}
+
+// ------------------------------------------------------------------
+// LLM 요약 스트리밍 (Finalize 전용)
+//  - 절대경로(백엔드 8000) + /api/chat/finalize
+//  - recommend 에서 받은 cache_key 를 꼭 함께 전달해야 함
+// ------------------------------------------------------------------
+export async function chatStream(query: string, cacheKey: string, signal?: AbortSignal) {
+  if (!cacheKey) {
+    throw new Error(
+      'chatStream 호출 시 cacheKey가 필요합니다. (먼저 fetchRecommendations를 호출하세요)'
+    );
+  }
+
+  const res = await fetch(`${API_BASE}/api/chat/finalize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, cache_key: cacheKey }),
     signal,
   });
+
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   if (!res.body) throw new Error('No response body');
 
-  const cacheKey = res.headers.get('x-cache-key') || undefined;
   const reader = res.body.getReader();
   const decoder = new TextDecoder('utf-8');
 
   return {
-    cacheKey,
     async *iter() {
       while (true) {
         const { value, done } = await reader.read();
@@ -59,20 +91,6 @@ export async function chatStream(query: string, top_k = 6, signal?: AbortSignal)
       }
     },
   };
-}
-
-// ------------------------------------------------------------------
-// 추천 카드 조회
-//  - 절대경로(백엔드 8000) + /api/chat/recommend 로 통일
-// ------------------------------------------------------------------
-export async function fetchRecommendations(query: string, top_k = 12, cache_key?: string) {
-  const res = await fetch(`${API_BASE}/api/chat/recommend`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, top_k, cache_key }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json() as Promise<{ products: RecProduct[] }>;
 }
 
 // ------------------------------------------------------------------
@@ -135,7 +153,7 @@ export async function searchOcrByName(
 }
 
 /** 성분 상세 정보 조회
- *  - 절대경로(백엔드 8000) + /api/chat/ingredient/:name 로 통일
+ *  - 절대경로(백엔드 8000) + /api/chat/ingredient/:name
  */
 export async function fetchIngredientDetail(name: string): Promise<IngredientInfo> {
   const res = await fetch(`${API_BASE}/api/chat/ingredient/${encodeURIComponent(name)}`, {
