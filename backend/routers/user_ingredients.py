@@ -53,11 +53,11 @@ def health(db: Session = Depends(get_db)):
 def list_user_ingredients(userId: int = Query(...), db: Session = Depends(get_db)):
     rows = _exec(db, text("""
         SELECT 
-          `user_id`       AS userId,
-          COALESCE(`user_name`, '') AS userName,
-          `korean_name`   AS koreanName,
-          `ing_type`      AS ingType_db,
-          `created_at`    AS createAt
+          `user_id`                                      AS userId,
+          COALESCE(`user_name`, '')                      AS userName,
+          `korean_name`                                  AS koreanName,
+          `ing_type`                                     AS ingType_db,
+          DATE_FORMAT(`created_at`, '%Y-%m-%d %H:%i:%s') AS createAt
         FROM `user_ingredients`
         WHERE `user_id` = :uid
         ORDER BY `created_at` DESC
