@@ -625,40 +625,76 @@ def search_pipeline_from_parsed(
     # 가격 필터 기반 정렬 (2차)
     if rows:
         minp, maxp = parsed.get("price_range") or (None, None)
-        if maxp is not None and (minp is None or minp == 0):
-            # "n원 이하" 느낌 → 높은 가격 우선
-            rows.sort(
-                key=lambda r: (
-                    r.get("price_krw") is None,
-                    -(r.get("price_krw") or 0),
-                    int(r["pid"]),
-                )
-            )
-        elif minp is not None and (maxp is None or maxp == 0):
-            # "n원 이상" 느낌 → 낮은 가격 우선
-            rows.sort(
-                key=lambda r: (
-                    r.get("price_krw") is None,
-                    (r.get("price_krw") or 0),
-                    int(r["pid"]),
-                )
-            )
-        elif minp is not None and maxp is not None:
-            # 구간 중앙값에 가까운 순
-            mid = (minp + maxp) / 2
-            rows.sort(
-                key=lambda r: (
-                    r.get("price_krw") is None,
-                    abs((r.get("price_krw") or mid) - mid),
-                    int(r["pid"]),
-                )
-            )
 
-    # 🔕 여기서도 더 이상 rdb_results 로그 찍지 않음
-    # if rows:
-    #     log_event("rdb_results", ...)
-    # else:
-    #     log_event("rdb_results", ...)
+        # ① feature가 있는 경우 → score + 가격을 같이 반영
+        if has_features:
+            # score_map은 feature 경로에서만 만들어졌으므로, 없으면 그냥 0.0
+            def _score(pid: int) -> float:
+                return score_map.get(int(pid), 0.0)
+
+            if maxp is not None and (minp is None or minp == 0):
+                # "n원 이하" → 비싼 제품 우선 + 그 안에서 score 높은 순
+                rows.sort(
+                    key=lambda r: (
+                        r.get("price_krw") is None,
+                        -(r.get("price_krw") or 0),
+                        -_score(r["pid"]),
+                        int(r["pid"]),
+                    )
+                )
+            elif minp is not None and (maxp is None or maxp == 0):
+                # "n원 이상" → 싼 제품 우선 + 그 안에서 score 높은 순
+                rows.sort(
+                    key=lambda r: (
+                        r.get("price_krw") is None,
+                        (r.get("price_krw") or 0),
+                        -_score(r["pid"]),
+                        int(r["pid"]),
+                    )
+                )
+            elif minp is not None and maxp is not None:
+                # 구간 중앙값에 가까운 순 + 그 안에서 score 높은 순
+                mid = (minp + maxp) / 2
+                rows.sort(
+                    key=lambda r: (
+                        r.get("price_krw") is None,
+                        abs((r.get("price_krw") or mid) - mid),
+                        -_score(r["pid"]),
+                        int(r["pid"]),
+                    )
+                )
+
+        # ② feature가 없는 경우 → 기존 가격 정렬만 사용 (score 완전 미적용)
+        else:
+            if maxp is not None and (minp is None or minp == 0):
+                # "n원 이하" → 비싼 제품 우선
+                rows.sort(
+                    key=lambda r: (
+                        r.get("price_krw") is None,
+                        -(r.get("price_krw") or 0),
+                        int(r["pid"]),
+                    )
+                )
+            elif minp is not None and (maxp is None or maxp == 0):
+                # "n원 이상" → 싼 제품 우선
+                rows.sort(
+                    key=lambda r: (
+                        r.get("price_krw") is None,
+                        (r.get("price_krw") or 0),
+                        int(r["pid"]),
+                    )
+                )
+            elif minp is not None and maxp is not None:
+                # 구간 중앙값에 가까운 순
+                mid = (minp + maxp) / 2
+                rows.sort(
+                    key=lambda r: (
+                        r.get("price_krw") is None,
+                        abs((r.get("price_krw") or mid) - mid),
+                        int(r["pid"]),
+                    )
+                )
+
 
     return {
         "parsed": parsed,
