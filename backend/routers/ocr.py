@@ -5,7 +5,7 @@
 # - FastAPI 라우터를 함께 정의
 # ============================================
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 from fastapi.responses import JSONResponse
 import os
 import io
