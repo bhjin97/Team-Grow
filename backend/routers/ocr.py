@@ -42,20 +42,29 @@ def get_engine() -> Engine:
 # ============================================
 def extract_text_from_image(image_path: str) -> Optional[str]:
     try:
-        dotenv_path = find_dotenv()
-        if not dotenv_path:
-            raise Exception("'.env' 파일을 찾을 수 없습니다. (find_dotenv() 실패)")
-        load_dotenv(dotenv_path)
-        base_dir = os.path.dirname(dotenv_path)
+        # 1) .env 있으면 로드, 없어도 통과
+        base_dir = ""
+        try:
+            dotenv_path = find_dotenv()
+            if dotenv_path:
+                load_dotenv(dotenv_path)
+                base_dir = os.path.dirname(dotenv_path)
+        except Exception:
+            pass  # .env 강제 의존 제거
 
-        json_filename = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if not json_filename:
-            raise Exception("'.env'에 GOOGLE_APPLICATION_CREDENTIALS가 없습니다.")
-        abs_json_path = os.path.join(base_dir, json_filename)
-        if not os.path.exists(abs_json_path):
-            raise Exception(f"서비스키 파일이 없습니다: {abs_json_path}")
+        # 2) 환경변수 우선
+        json_path = (os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+        if not json_path:
+            raise Exception("GOOGLE_APPLICATION_CREDENTIALS not set")
 
-        client = vision.ImageAnnotatorClient.from_service_account_json(abs_json_path)
+        # 3) 상대경로면 .env 기준으로 보정
+        if not os.path.isabs(json_path) and base_dir:
+            json_path = os.path.join(base_dir, json_path)
+
+        if not os.path.exists(json_path):
+            raise Exception(f"서비스키 파일이 없습니다: {json_path}")
+
+        client = vision.ImageAnnotatorClient.from_service_account_json(json_path)
         with io.open(image_path, "rb") as f:
             content = f.read()
         image = vision.Image(content=content)
@@ -530,9 +539,18 @@ async def ocr_upload(image: UploadFile = File(...)):
         except: pass
 
 @router.post("/by-name")
-async def ocr_by_name(product_name: str = Form(...)):
-    if not product_name.strip():
+async def ocr_by_name(
+    product_name_form: Optional[str] = Form(None),
+    payload: Optional[dict] = Body(None),
+):
+    # JSON(product_name) 우선, 없으면 form 값 사용
+    product_name = (payload or {}).get("product_name") if payload else None
+    if product_name is None:
+        product_name = product_name_form
+
+    if not product_name or not product_name.strip():
         raise HTTPException(400, "product_name is required")
+
     result = search_product_by_name(product_name.strip())
     formatted = format_analysis_for_chat(result)
     return JSONResponse({
