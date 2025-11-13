@@ -9,7 +9,7 @@ services:
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/creds/vision.json
     volumes:
-      - ./creds/vision.json:/app/creds/vision.json:ro
+      - ./creds:/app/creds:ro
     ports:
       - "8000:8000"
     healthcheck:
