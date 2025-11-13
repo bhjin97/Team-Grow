@@ -132,24 +132,29 @@ export async function uploadOcrImage(
 export async function searchOcrByName(
   productName: string
 ): Promise<{ analysis: any; render: OcrRender }> {
-  const res = await fetch(`${API_BASE}/api/ocr/search-name`, {
+  // ✅ 백엔드 스펙: POST /api/ocr/by-name + FormData(product_name)
+  const fd = new FormData();
+  fd.append('product_name', productName);
+
+  const res = await fetch(`${API_BASE}/api/ocr/by-name`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ product_name: productName }),
+    body: fd,
   });
+
   if (!res.ok) {
     const msg = await res.text().catch(() => '');
     throw new Error(`제품명 검색 실패: ${res.status} ${msg}`);
   }
 
-  const json = (await res.json()) as OcrOk | OcrFail;
-  if (!json.success) {
-    return {
-      analysis: json.analysis ?? null,
-      render: json.render ?? { text: '❌ 검색 실패', image_url: null },
-    };
-  }
-  return { analysis: json.analysis, render: json.render };
+  // ✅ 백엔드 응답(success, markdown, image_url, raw)을 공통 형태로 변환
+  const json = await res.json();
+  return {
+    analysis: json?.raw?.data ?? null,
+    render: {
+      text: json?.markdown ?? '분석 결과가 없습니다.',
+      image_url: json?.image_url ?? null,
+    },
+  };
 }
 
 /** 성분 상세 정보 조회
