@@ -144,3 +144,74 @@ export async function fetchIngredientDetail(name: string): Promise<IngredientInf
   if (!res.ok) throw new Error('성분 정보를 불러오지 못했습니다.');
   return res.json();
 }
+
+// ------------------------------------------------------------------
+// 사용자 성분 보관함 API (추가)
+//  - 라우터 스펙에 맞춰 절대경로 + 스키마 일치
+// ------------------------------------------------------------------
+
+/** 목록: GET /api/user-ingredients?userId=... */
+export async function getUserIngredients(userId: number) {
+  const url = `${API_BASE}/api/user-ingredients?userId=${encodeURIComponent(userId)}`;
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`getUserIngredients HTTP ${res.status}: ${t.slice(0, 200)}`);
+  }
+  return res.json() as Promise<
+    Array<{
+      userId: number;
+      userName: string;
+      koreanName: string;
+      ingType: 'preferred' | 'caution';
+      createAt?: string | null;
+    }>
+  >;
+}
+
+/** 추가: POST /api/user-ingredients  (body: { userId, koreanName, ingType, userName? }) */
+export async function addUserIngredient(params: {
+  userId: number;
+  koreanName: string;
+  ingType: 'preferred' | 'caution';
+  userName?: string;
+}) {
+  const res = await fetch(`${API_BASE}/api/user-ingredients`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`addUserIngredient HTTP ${res.status}: ${t.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+/** 삭제: DELETE /api/user-ingredients/{userId}/{key}?ingType=preferred|caution */
+export async function deleteUserIngredient(
+  userId: number,
+  key: string | number,
+  ingType?: 'preferred' | 'caution'
+) {
+  const base = `${API_BASE}/api/user-ingredients/${encodeURIComponent(
+    userId
+  )}/${encodeURIComponent(String(key))}`;
+  const url = ingType ? `${base}?ingType=${encodeURIComponent(ingType)}` : base;
+
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`deleteUserIngredient HTTP ${res.status}: ${t.slice(0, 200)}`);
+  }
+  return res.json();
+}
