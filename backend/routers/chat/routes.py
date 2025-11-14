@@ -199,7 +199,7 @@ async def chat_finalize(req: FinalizeReq):
     # 3) 그래도 rows가 없으면 요약할 게 없음 → 한 줄 안내만 스트리밍
     if not rows:
         async def empty_gen():
-            yield "조건에 맞는 제품을 찾을 수 없어서 요약할 내용이 없습니다."
+            yield "조건에 맞는 제품을 찾을 수 없습니다."
             await asyncio.sleep(0)
 
         return StreamingResponse(
