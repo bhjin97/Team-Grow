@@ -26,7 +26,6 @@ from db import (
     engine,                     # SQLAlchemy Engine
     pinecone_client,            # Pinecone(api_key=...)
     RAG_PRODUCT_INDEX_NAME,     # "rag-product"
-    PRODUCT_NAME_INDEX,         # "product-name"
     INGREDIENT_NAME_INDEX,      # "ingredients-name"
     BRAND_NAME_INDEX,           # "brand-name"
 )
@@ -35,7 +34,6 @@ from db import (
 # Pinecone 인덱스
 # =============================================================================
 feature_index         = pinecone_client.Index(RAG_PRODUCT_INDEX_NAME)
-product_name_index    = pinecone_client.Index(PRODUCT_NAME_INDEX)
 ingredient_name_index = pinecone_client.Index(INGREDIENT_NAME_INDEX)
 brand_name_index      = pinecone_client.Index(BRAND_NAME_INDEX)
 
@@ -121,7 +119,6 @@ _ANALYZE_SYSTEM = (
     "{\n"
     '  "intent": "PRODUCT_FIND" | "GENERAL",\n'
     '  "brand": string | null,\n'
-    '  "product": string | null,\n'
     '  "ingredients": string[],\n'
     '  "features": string[],\n'
     '  "price_range": [int|null, int|null]\n'
@@ -132,13 +129,12 @@ _ANALYZE_SYSTEM = (
     "  - GENERAL: 성분/원리/차이/부작용/루틴/상식 등 정보형 질문 또는 단순 대화.\n"
     "  - 헷갈리면 GENERAL.\n\n"
     "- brand: 브랜드명으로 보이는 경우만 채운다. 없으면 null.\n"
-    "- product: 실제 제품명(모델명)일 때만 채운다. 없으면 null.\n"
     "- ingredients: 성분명 리스트. 없으면 빈 배열.\n"
     "- features: 사용감·효과·특징(예: 수분감, 산뜻한, 민감피부용 등).\n"
     "- price_range 규칙:\n"
     "  - 원 단위 정수 [min, max]\n"
-    '  - 예: "3만원대" → [30000, 39999]\n'
-    '  - "n원 이하" → [0, n], "n원 이상" → [n, null]\n'
+    '  - 예: \"3만원대\" → [30000, 39999]\n'
+    '  - \"n원 이하\" → [0, n], \"n원 이상\" → [n, null]\n'
     "  - 가격 정보가 없으면 [null, null]\n"
 )
 
@@ -172,7 +168,7 @@ def _safe_json_extract(text: str) -> Optional[Any]:
 
     lb, rb = text.find("["), text.rfind("]")
     if 0 <= lb < rb:
-        candidate = text[lb : rb + 1]
+        candidate = text[lb: rb + 1]
         try:
             return json.loads(candidate)
         except Exception:
@@ -180,7 +176,7 @@ def _safe_json_extract(text: str) -> Optional[Any]:
 
     fb, rb = text.find("{"), text.rfind("}")
     if 0 <= fb < rb:
-        candidate = text[fb : rb + 1]
+        candidate = text[fb: rb + 1]
         try:
             return json.loads(candidate)
         except Exception:
@@ -208,8 +204,8 @@ def analyze_with_llm(user_query: str) -> Dict[str, Any]:
                 {
                     "role": "user",
                     "content": "직전 응답이 JSON 형식이 아닙니다. "
-                    "반드시 스키마에 맞는 JSON만 출력하세요.\n\n"
-                    + prompt,
+                               "반드시 스키마에 맞는 JSON만 출력하세요.\n\n"
+                               + prompt,
                 },
             ]
         )
@@ -225,7 +221,6 @@ def analyze_with_llm(user_query: str) -> Dict[str, Any]:
 
     # 나머지 필드 정규화
     brand = data.get("brand") or None
-    product = data.get("product") or None
     ingredients = [
         str(s).strip() for s in (data.get("ingredients") or []) if str(s).strip()
     ]
@@ -251,15 +246,14 @@ def analyze_with_llm(user_query: str) -> Dict[str, Any]:
 
     parsed = {
         "brand": brand,
-        "product": product,
         "category": category,
         "ingredients": ingredients,
         "features": features,
         "price_range": price_range,
     }
 
-    # 🔕 코어 레벨에서는 더 이상 로그 찍지 않음 (상위 레이어에서만 로그)
-    # log_event("query_analyzed", intent=intent, parsed=parsed)
+    # 코어 레벨에서는 기본적으로 로그를 찍지 않고,
+    # 상위 레이어(recommender.py)에서 intent/parsed를 로깅한다.
 
     return {
         "intent": intent,
@@ -282,14 +276,6 @@ def resolve_brand_name(raw: Optional[str]) -> Optional[str]:
     if not res.get("matches"):
         return None
     return (res["matches"][0].get("metadata") or {}).get("brand")
-
-
-def resolve_product_pid_candidates(raw: Optional[str], top_k: int = 5) -> List[int]:
-    if not raw:
-        return []
-    vec = embed_query(raw)
-    res = product_name_index.query(vector=vec, top_k=top_k, include_metadata=False)
-    return [int(m["id"]) for m in (res.get("matches") or [])]
 
 
 def resolve_ingredient_ids(tokens: Optional[List[str]]) -> List[int]:
@@ -374,7 +360,6 @@ def fetch_ingredient_grades(names: List[str]) -> Dict[str, Optional[str]]:
 def rdb_filter(
     candidate_pids: Optional[List[int]],
     brand: Optional[str],
-    product_pid: Optional[int],
     ingredient_ids: Optional[List[int]],
     price_range: Optional[Tuple[Optional[int], Optional[int]]],
     category: Optional[str],
@@ -387,7 +372,6 @@ def rdb_filter(
     where_clauses = ["1=1"]
     params: Dict[str, Any] = {
         "brand": brand,
-        "product_pid": product_pid,
         "category": category,
         "minp": minp,
         "maxp": maxp,
@@ -398,7 +382,6 @@ def rdb_filter(
         params["pids"] = tuple(candidate_pids)
 
     where_clauses.append("(:brand IS NULL OR p.brand = :brand)")
-    where_clauses.append("(:product_pid IS NULL OR p.pid = :product_pid)")
     where_clauses.append("(:category IS NULL OR p.category = :category)")
     where_clauses.append("(:minp IS NULL OR p.price_krw >= :minp)")
     where_clauses.append("(:maxp IS NULL OR p.price_krw <= :maxp)")
@@ -450,7 +433,8 @@ def rdb_filter(
                 d["ingredients"] = _normalize_ingredients(d.pop("ingredients", None))
                 items.append(d)
         return items
-    except Exception:
+    except Exception as e:
+        log_event("rdb_filter_error", error=str(e))
         return []
 
 
@@ -479,7 +463,8 @@ def rdb_fetch_by_pids(pids: List[int], limit: int = 30) -> List[Dict]:
         by_pid = {it["pid"]: it for it in items}
         ordered = [by_pid[pid] for pid in pids if pid in by_pid]
         return ordered[:limit]
-    except Exception:
+    except Exception as e:
+        log_event("rdb_fetch_by_pids_error", error=str(e))
         return []
 
 
@@ -497,7 +482,8 @@ def rdb_fetch_rag_texts(pids: List[int]) -> List[Dict]:
         with engine.connect() as conn:
             rows = conn.execute(sql, {"pids": tuple(pids)}).mappings().all()
         return [dict(r) for r in rows]
-    except Exception:
+    except Exception as e:
+        log_event("rdb_fetch_rag_texts_error", error=str(e))
         return []
 
 
@@ -505,12 +491,12 @@ def rdb_fetch_rag_texts(pids: List[int]) -> List[Dict]:
 # 4) 검색 파이프라인 (추천 경로 내부)
 # =============================================================================
 def is_info_scarce(parsed: Dict) -> bool:
+    """feature도 없고, 브랜드/카테고리/성분/가격 필터도 모두 비어 있으면 True."""
     feats_empty = not (parsed.get("features"))
     pr = parsed.get("price_range") or (None, None)
     has_filters = any(
         [
             parsed.get("brand"),
-            parsed.get("product"),
             parsed.get("category"),
             (parsed.get("ingredients") or []),
             any(pr),
@@ -526,12 +512,20 @@ def _price_key(v: Optional[int]) -> int:
 def search_pipeline_from_parsed(
     parsed: Dict[str, Any], user_query: str, use_raw_for_features: bool = True
 ) -> Dict[str, Any]:
+    # 1) 정보가 너무 부족한 경우 → 바로 메시지 리턴
     if is_info_scarce(parsed):
+        log_event(
+            "info_scarce",
+            brand=parsed.get("brand"),
+            category=parsed.get("category"),
+            has_features=bool(parsed.get("features")),
+            has_ingredients=bool(parsed.get("ingredients")),
+            price_range=parsed.get("price_range"),
+        )
         return {
             "parsed": parsed,
             "normalized": {
                 "brand": None,
-                "product_pid": None,
                 "ingredient_ids": [],
                 "category": None,
             },
@@ -540,32 +534,17 @@ def search_pipeline_from_parsed(
         }
 
     brand_norm = resolve_brand_name(parsed.get("brand"))
-    pid_cands = resolve_product_pid_candidates(parsed.get("product"), top_k=5)
-    product_pid: Optional[int] = None
-
-    if pid_cands and brand_norm:
-        with engine.connect() as conn:
-            row = conn.execute(
-                text(
-                    "SELECT pid FROM product_data_chain WHERE brand = :b AND pid IN :p LIMIT 1"
-                ).bindparams(bindparam("p", expanding=True)),
-                {"b": brand_norm, "p": tuple(pid_cands)},
-            ).first()
-            if row:
-                product_pid = int(row[0])
-    elif pid_cands:
-        product_pid = int(pid_cands[0])
-
     ingredient_ids = resolve_ingredient_ids(parsed.get("ingredients"))
 
     has_features = bool(parsed.get("features"))
     pr = parsed.get("price_range") or (None, None)
     has_hardfilter = any(
-        [brand_norm, product_pid, ingredient_ids, any(pr), parsed.get("category")]
+        [brand_norm, ingredient_ids, any(pr), parsed.get("category")]
     )
 
     rows: List[Dict] = []
 
+    # 2) feature 기반 검색이 있는 경우 (vector-first + RDB 필터)
     if has_features:
         feature_text = " ".join(parsed.get("features") or []) or user_query
         candidate_pids_raw, score_map_raw = feature_candidates_from_text(
@@ -573,19 +552,16 @@ def search_pipeline_from_parsed(
         )
         candidate_pids, score_map = dedup_keep_best(candidate_pids_raw, score_map_raw)
 
-        # 🔕 코어 내부 상세 로그 제거 (상위 레이어에서만 요약된 정보 로깅)
-        # log_event("vector_candidates", ...)
-
         if has_hardfilter:
             rows = rdb_filter(
                 candidate_pids=candidate_pids,
                 brand=brand_norm,
-                product_pid=product_pid,
                 ingredient_ids=ingredient_ids,
                 price_range=parsed.get("price_range"),
                 category=parsed.get("category"),
                 limit=30,
             )
+
             if rows:
                 rows.sort(
                     key=lambda r: (
@@ -611,18 +587,18 @@ def search_pipeline_from_parsed(
                     )
             else:
                 rows = []
+    # 3) feature가 없는 경우 → RDB-first (필터만으로 검색)
     else:
         rows = rdb_filter(
             candidate_pids=None,
             brand=brand_norm,
-            product_pid=product_pid,
             ingredient_ids=ingredient_ids,
             price_range=parsed.get("price_range"),
             category=parsed.get("category"),
             limit=30,
         )
 
-    # 가격 필터 기반 정렬 (2차)
+    # 4) 가격 필터 기반 2차 정렬
     if rows:
         minp, maxp = parsed.get("price_range") or (None, None)
 
@@ -664,7 +640,7 @@ def search_pipeline_from_parsed(
                     )
                 )
 
-        # ② feature가 없는 경우 → 기존 가격 정렬만 사용 (score 완전 미적용)
+        # ② feature가 없는 경우 → 가격 기준만 사용
         else:
             if maxp is not None and (minp is None or minp == 0):
                 # "n원 이하" → 비싼 제품 우선
@@ -695,12 +671,10 @@ def search_pipeline_from_parsed(
                     )
                 )
 
-
     return {
         "parsed": parsed,
         "normalized": {
             "brand": brand_norm,
-            "product_pid": product_pid,
             "ingredient_ids": ingredient_ids,
             "category": parsed.get("category"),
         },
