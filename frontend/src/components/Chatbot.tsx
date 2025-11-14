@@ -97,6 +97,128 @@ const GRADE_ORDER: Array<'안전' | '주의' | '위험' | '정보없음'> = [
   '위험',
   '정보없음',
 ];
+/** 챗봇 도움말 모달 */
+function HelpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="help-backdrop"
+        className="fixed inset-0 z-[120] bg-black/40 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        key="help-panel"
+        className="fixed inset-0 z-[121] flex items-center justify-center p-4"
+        initial={{ opacity: 0, y: 24, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 24, scale: 0.98 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+        aria-modal="true"
+        role="dialog"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200">
+          {/* 헤더 */}
+          <div className="flex items-center justify-between px-5 py-4 border-b">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800">AI 상담 도움말</h3>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+              aria-label="도움말 닫기"
+              title="닫기"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* 내용 */}
+          <div className="px-5 py-4 space-y-4 text-sm text-gray-700">
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-1">이 챗봇은 무엇을 할 수 있나요?</h4>
+              <ul className="list-disc list-inside space-y-1">
+                <li>
+                  피부 타입·예산·선호 성분에 맞는 <b>맞춤 화장품 추천</b>
+                </li>
+                <li>
+                  제품 <b>성분 분석</b> 및 위험/주의 성분 안내
+                </li>
+                <li>
+                  세안·보습·선크림 등 <b>기본 스킨케어 루틴 가이드</b>
+                </li>
+                <li>
+                  제품 사진을 올리면 <b>OCR로 분석한 요약 설명</b>
+                </li>
+              </ul>
+            </section>
+
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-1">추천 질문 예시</h4>
+              <div className="space-y-1.5">
+                <p className="text-[13px] text-gray-500">💄 제품 추천</p>
+                <ul className="list-disc list-inside text-[13px] space-y-0.5">
+                  <li>“건성 피부인데 수분크림 추천해줘, 3만원대면 좋겠어”</li>
+                  <li>“민감성인데 알코올 없는 선크림 추천해줘”</li>
+                  <li>“지성 피부용 톤업 선크림 찾아줘”</li>
+                </ul>
+
+                <p className="text-[13px] text-gray-500 mt-2">🧪 성분/주의 성분</p>
+                <ul className="list-disc list-inside text-[13px] space-y-0.5">
+                  <li>“나이아신아마이드가 어떤 성분인지 알려줘”</li>
+                  <li>“향료, 알코올, 파라벤 같은 주의 성분이 뭐야?”</li>
+                  <li>“민감성 피부가 피해야 할 성분 알려줘”</li>
+                </ul>
+
+                <p className="text-[13px] text-gray-500 mt-2">📷 이미지 분석</p>
+                <ul className="list-disc list-inside text-[13px] space-y-0.5">
+                  <li>“이 제품 성분이 괜찮은지 봐줘” (제품 사진 업로드 후)</li>
+                </ul>
+              </div>
+            </section>
+
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-1">사용 팁</h4>
+              <ul className="list-disc list-inside text-[13px] space-y-0.5">
+                <li>
+                  원하는 <b>브랜드, 가격대, 카테고리(선크림, 크림 등)</b>를 같이 적어주면 더
+                  정확해요.
+                </li>
+                <li>“성분 이름 + 궁금한 점” 형태로 물어보면 성분 설명을 자세히 들을 수 있어요.</li>
+                <li>
+                  추천 결과 카드에서 <b>“리뷰 요약 보기 / 성분 보기”</b> 버튼을 눌러 상세 내용을
+                  확인할 수 있어요.
+                </li>
+              </ul>
+            </section>
+          </div>
+
+          {/* 푸터 */}
+          <div className="px-5 py-3 border-t bg-gray-50 rounded-b-2xl flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:opacity-90 text-sm"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 /** 성분 상세 모달 UI (DB: korean_name, description, caution_grade 기준) */
 function IngredientModal({
@@ -257,6 +379,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
   const [ingLoading, setIngLoading] = useState(false);
   const [ingError, setIngError] = useState<string | null>(null);
   const ingCacheRef = useRef<Map<string, IngredientInfo>>(new Map());
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // ── 세션 복원
   useEffect(() => {
@@ -682,8 +805,17 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col flex-1 min-h-0"
+            className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col flex-1 min-h-0 relative"
           >
+            <button
+              type="button"
+              onClick={() => setHelpOpen(true)}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full border border-pink-200 bg-white text-pink-500 flex items-center justify-center shadow-sm hover:bg-pink-50 transition-colors"
+              aria-label="도움말 열기"
+              title="도움말"
+            >
+              <span className="text-sm font-semibold">?</span>
+            </button>
             <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
               <AnimatePresence>
                 {messages.map(message => (
@@ -1152,6 +1284,8 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
         error={ingError}
         detail={ingDetail}
       />
+      {/* 챗봇 도움말 모달 */}
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }
