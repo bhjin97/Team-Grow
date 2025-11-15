@@ -12,6 +12,9 @@ import TrendsSection from './TrendsSection';
 // 우측 카드(분포 + 모달 트리거)
 import SkinTypeStatsPanel from './SkinTypeStatsPanel';
 
+// 아이콘
+import { TestTube2, Sparkles, ArrowRight, RefreshCcw } from 'lucide-react';
+
 export interface DashboardProps {
   userName?: string;
   onNavigate?: (page: string) => void;
@@ -28,7 +31,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   // --- 대시보드 상태 ---
   const [selectedPeriod, setSelectedPeriod] = useState('7days');
 
-  const [baumannType, setBaumannType] = useState<string>('ORNT');
+  const [baumannType, setBaumannType] = useState<string>(''); // ← 빈 문자열로 초기화
   const [axes, setAxes] = useState<AxesJSON | null>(null);
   const [userId, setUserId] = useState<number | undefined>(undefined);
 
@@ -37,7 +40,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
   const [ageBand, setAgeBand] = useState<AgeBand>('all');
 
   // --- 축/라벨 계산 ---
-  const code = (baumannType ?? 'ORNT').toUpperCase();
+  const code = (baumannType || 'ORNT').toUpperCase();
   const pick = { OD: code[0], SR: code[1], PN: code[2], WT: code[3] } as const;
   const koAxisWord = {
     OD: pick.OD === 'O' ? '지성' : '건성',
@@ -52,11 +55,26 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     WT: pick.WT === 'T' ? 'TIGHT' : 'WRINKLED',
   };
   const concerns = useMemo(() => {
-    return (['OD', 'SR', 'PN', 'WT'] as AxisKey[]).map(ax => ({
-      key: ax,
-      label: concernLabel[ax],
-      value: axes?.[ax]?.confidence ? Math.round(axes![ax].confidence) : 0,
-    }));
+    return (['OD', 'SR', 'PN', 'WT'] as AxisKey[]).map(ax => {
+      const axisData = axes?.[ax];
+      const confidence = axisData?.confidence ? Math.round(axisData.confidence) : 50;
+      const letter = axisData?.letter || '';
+      
+      // letter가 O/S/P/W면 왼쪽(value 그대로)
+      // letter가 D/R/N/T면 오른쪽(100 - value)
+      let value = confidence;
+      if (ax === 'OD' && letter === 'D') value = 100 - confidence;
+      if (ax === 'SR' && letter === 'R') value = 100 - confidence;
+      if (ax === 'PN' && letter === 'N') value = 100 - confidence;
+      if (ax === 'WT' && letter === 'T') value = 100 - confidence;
+      
+      return {
+        key: ax,
+        label: concernLabel[ax],
+        value: value,
+        displayValue: confidence, // ← 화면 표시용 (항상 원래 confidence)
+      };
+    });
   }, [axes, baumannType]);
 
   // --- 프로필/축 로드 ---
@@ -84,14 +102,22 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
         const base = (await import('../../lib/env')).API_BASE;
         if (!base) return;
         const res = await fetch(`${base}/api/profile/${userId}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          // 404면 진단 안 한 상태
+          setBaumannType('');
+          return;
+        }
         const data = await res.json();
 
         if (data?.skin_type_code) {
           const newType = String(data.skin_type_code);
           setBaumannType(newType);
           localStorage.setItem('skin_type_code', newType);
+        } else {
+          // skin_type_code 없으면 빈 문자열
+          setBaumannType('');
         }
+        
         if (data?.skin_axes_json) {
           const json = typeof data.skin_axes_json === 'string'
             ? data.skin_axes_json
@@ -104,6 +130,87 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
       }
     })();
   }, [userId]);
+
+  // ▼ 진단 필요 컴포넌트
+  const DiagnosisNeeded = () => (
+    <div className="relative flex flex-col items-center justify-center p-6 sm:p-8 text-center min-h-[400px] overflow-hidden">
+      {/* 배경 장식 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute w-32 h-32 rounded-full bg-gradient-to-br from-pink-200/30 to-purple-200/30 blur-2xl top-4 left-4"></div>
+        <div className="absolute w-24 h-24 rounded-full bg-gradient-to-br from-blue-200/30 to-pink-200/30 blur-xl bottom-8 right-8"></div>
+        <div className="absolute w-40 h-40 rounded-full bg-gradient-to-br from-purple-200/20 to-pink-200/20 blur-3xl top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+      </div>
+
+      {/* 메인 콘텐츠 */}
+      <div className="relative z-10 w-full max-w-md">
+        {/* 아이콘 */}
+        <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto rounded-2xl bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center mb-5 shadow-lg transform hover:scale-105 transition-transform">
+          <TestTube2 className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
+        </div>
+        
+        {/* 제목 */}
+        <h3 className="text-2xl sm:text-3xl font-bold mb-2 bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+          피부타입 진단이 필요합니다
+        </h3>
+        
+        {/* 부제 */}
+        <p className="text-gray-500 text-sm mb-6">
+          3분이면 당신의 피부를 완벽하게 이해할 수 있어요
+        </p>
+
+        {/* 이점 카드들 */}
+        <div className="grid grid-cols-1 gap-3 mb-6">
+          <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-pink-50 to-pink-100/50 rounded-xl border border-pink-200">
+            <div className="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-bold text-gray-800 text-sm">맞춤 제품 추천</p>
+              <p className="text-xs text-gray-600">피부 타입에 딱 맞는 화장품</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-purple-100/50 rounded-xl border border-purple-200">
+            <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
+              <RefreshCcw className="w-5 h-5 text-white" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-bold text-gray-800 text-sm">개인화된 루틴</p>
+              <p className="text-xs text-gray-600">계절/시간대별 스킨케어</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-xl border border-blue-200">
+            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+              <ArrowRight className="w-5 h-5 text-white" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-bold text-gray-800 text-sm">정확한 AI 상담</p>
+              <p className="text-xs text-gray-600">과학적 분석 기반 조언</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 버튼 */}
+        <button
+          onClick={() => onNavigate?.('diagnosis')}
+          className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+          style={{
+            background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+          }}
+        >
+          <Sparkles className="w-5 h-5" />
+          지금 진단하기
+          <ArrowRight className="w-5 h-5" />
+        </button>
+
+        {/* 하단 안내 */}
+        <p className="text-xs text-gray-400 mt-4">
+          약 3~5분 소요 · 무료 · 언제든 다시 진단 가능
+        </p>
+      </div>
+    </div>
+  );
 
   // ▼ 공용 필터 바(기간 제거: 성별/연령대만)
   const FiltersBar = () => (
@@ -150,16 +257,20 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
         {/* === 상단: 하나의 대형 카드(2열) === */}
         <section className="rounded-2xl bg-white shadow-sm overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-2">
-            {/* 좌측: SkinSummary */}
+            {/* 좌측: SkinSummary 또는 진단 필요 */}
             <div className="p-4 sm:p-6 embed-card md:border-r md:border-gray-100">
-              <SkinSummary
-                code={code}
-                koAxisWord={koAxisWord}
-                concerns={concerns}
-                selectedPeriod={selectedPeriod}
-                setSelectedPeriod={setSelectedPeriod}
-                variant="compact"
-              />
+              {baumannType ? (
+                <SkinSummary
+                  code={code}
+                  koAxisWord={koAxisWord}
+                  concerns={concerns}
+                  selectedPeriod={selectedPeriod}
+                  setSelectedPeriod={setSelectedPeriod}
+                  variant="compact"
+                />
+              ) : (
+                <DiagnosisNeeded />
+              )}
             </div>
 
             {/* 우측: 분포 패널 */}
@@ -183,4 +294,4 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
       <DashboardBottomNav onNavigate={onNavigate} currentPage="dashboard" />
     </div>
   );
-}
+} 

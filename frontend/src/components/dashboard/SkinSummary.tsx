@@ -8,25 +8,53 @@ type AxisKey = 'OD' | 'SR' | 'PN' | 'WT';
 interface SkinSummaryProps {
   code: string;
   koAxisWord: Record<AxisKey, string>;
-  concerns: { key: AxisKey; label: string; value: number }[];
+  concerns: { key: AxisKey; label: string; value: number; displayValue?: number }[];
   selectedPeriod: string;
   setSelectedPeriod: (v: string) => void;
 }
 
-/** 라벨의 반대편 라벨(표시용) */
-const OPPOSITE: Record<string, string> = {
-  'OILY': 'DRY',
-  'SENSITIVE': 'RESISTANCE',
-  'NON-PIGMENTED': 'PIGMENTED',
-  'TIGHT': 'WRINKLED',
+/** 라벨 매핑 (왼쪽 고정) */
+const LEFT_LABEL: Record<AxisKey, string> = {
+  OD: 'OILY',
+  SR: 'SENSITIVE',
+  PN: 'PIGMENTED',
+  WT: 'WRINKLED',
 };
 
-/** 축별 칩/바 컬러 */
-const AXIS_COLOR: Record<AxisKey, { main: string; soft: string }> = {
-  OD: { main: '#06b6d4', soft: 'rgba(6,182,212,0.15)' },   // teal
-  SR: { main: '#f472b6', soft: 'rgba(244,114,182,0.18)' }, // pink
-  PN: { main: '#a78bfa', soft: 'rgba(167,139,250,0.18)' }, // violet
-  WT: { main: '#34d399', soft: 'rgba(52,211,153,0.18)' },  // green
+/** 라벨 매핑 (오른쪽 고정) */
+const RIGHT_LABEL: Record<AxisKey, string> = {
+  OD: 'DRY',
+  SR: 'RESISTANCE',
+  PN: 'NON-PIGMENTED',
+  WT: 'TIGHT',
+};
+
+/** 축별 칩/바 컬러 (양방향 - 같은 계열 톤) */
+const AXIS_COLOR: Record<AxisKey, { main: string; soft: string; leftBar: string; rightBar: string }> = {
+  OD: { 
+    main: '#06b6d4', 
+    soft: 'rgba(6,182,212,0.15)',
+    leftBar: '#06b6d4',  // DRY - 진한 cyan
+    rightBar: '#67e8f9'  // OILY - 연한 cyan
+  },
+  SR: { 
+    main: '#f472b6', 
+    soft: 'rgba(244,114,182,0.18)',
+    leftBar: '#f472b6',  // SENSITIVE - 진한 pink
+    rightBar: '#fbcfe8'  // RESISTANCE - 연한 pink
+  },
+  PN: { 
+    main: '#a78bfa', 
+    soft: 'rgba(167,139,250,0.18)',
+    leftBar: '#a78bfa',  // PIGMENTED - 진한 violet
+    rightBar: '#d8b4fe'  // NON-PIGMENTED - 연한 violet
+  },
+  WT: { 
+    main: '#34d399', 
+    soft: 'rgba(52,211,153,0.18)',
+    leftBar: '#34d399',  // WRINKLED - 진한 green
+    rightBar: '#86efac'  // TIGHT - 연한 green
+  },
 };
 
 /** 16타입 팔레트(분포 차트와 일치) */
@@ -70,12 +98,12 @@ export default function SkinSummary({
     { key: 'WT' as AxisKey, text: koAxisWord.WT, color: AXIS_COLOR.WT },
   ];
 
-  // 요약 생성용 퍼센트
+  // 요약 생성용 퍼센트 (displayValue 사용)
   const pctByKey: Record<AxisKey, number> = {
-    OD: concerns.find((c) => c.key === 'OD')?.value ?? 0,
-    SR: concerns.find((c) => c.key === 'SR')?.value ?? 0,
-    PN: concerns.find((c) => c.key === 'PN')?.value ?? 0,
-    WT: concerns.find((c) => c.key === 'WT')?.value ?? 0,
+    OD: concerns.find((c) => c.key === 'OD')?.displayValue ?? concerns.find((c) => c.key === 'OD')?.value ?? 0,
+    SR: concerns.find((c) => c.key === 'SR')?.displayValue ?? concerns.find((c) => c.key === 'SR')?.value ?? 0,
+    PN: concerns.find((c) => c.key === 'PN')?.displayValue ?? concerns.find((c) => c.key === 'PN')?.value ?? 0,
+    WT: concerns.find((c) => c.key === 'WT')?.displayValue ?? concerns.find((c) => c.key === 'WT')?.value ?? 0,
   };
 
   const oneLiner =
@@ -86,7 +114,7 @@ export default function SkinSummary({
 
   // 타입 색상 기반 요약 박스 스타일
   const typeHex = TYPE_COLOR[code] ?? '#9ca3af';
-  const typeSoftBg = hexToRgba(typeHex, 0.10); // 아주 옅게
+  const typeSoftBg = hexToRgba(typeHex, 0.10);
   const typeSoftBorder = hexToRgba(typeHex, 0.22);
   const typeText = typeHex;
 
@@ -137,60 +165,69 @@ export default function SkinSummary({
       {/* 보조 설명 */}
       <p className="text-sm text-gray-500 mt-1 mb-4 pl-[2.5rem]">{axisDesc}</p>
 
-      {/* 듀얼 스택 바 */}
+      {/* 중앙 기준 양방향 바 */}
       <div className="space-y-3">
         {concerns.map((c) => {
-          const leftPct = Math.max(0, Math.min(100, c.value ?? 0));
-          const rightPct = Math.max(0, 100 - leftPct);
+          const value = Math.max(0, Math.min(100, c.value ?? 50));
+          const displayValue = c.displayValue ?? value; // ← 화면 표시용
+          const neutral = 50;
+          const deviation = value - neutral; // -50 ~ +50
+          
           const axisColor = AXIS_COLOR[c.key];
-
-          const showLeft  = !(leftPct <= 10);   // 0~10 구간이면 왼쪽 숨김
-          const showRight = !(leftPct >= 90);   // 90~100 구간이면 오른쪽 숨김
-
+          
+          // 왼쪽으로 뻗는 정도 (0-50)
+          const leftExtend = Math.max(0, deviation);
+          // 오른쪽으로 뻗는 정도 (0-50)
+          const rightExtend = Math.max(0, -deviation);
+          
+          // 바 색상
+          const barColor = deviation >= 0 ? axisColor.leftBar : axisColor.rightBar;
 
           return (
             <div key={c.key}>
-              {/* 라벨 행 */}
+              {/* 라벨 행 - 왼쪽 O/S/P/W, 오른쪽 D/R/N/T 고정 */}
               <div className="flex items-center justify-between mb-1">
-                <span
-                  className={`text-[13px] text-gray-700 ${showLeft ? '' : 'invisible'}`}
-                  aria-hidden={!showLeft}
-                >
-                  {c.label}
+                <span className="text-[13px] font-medium text-gray-700">
+                  {LEFT_LABEL[c.key]}
                 </span>
-                <span
-                  className={`text-[11px] text-gray-400 ${showRight ? '' : 'invisible'}`}
-                  aria-hidden={!showRight}
-                >
-                  {OPPOSITE[c.label] ?? ''}
+                <span className="text-[13px] font-medium text-gray-700">
+                  {RIGHT_LABEL[c.key]}
                 </span>
               </div>
 
-
               {/* 바 컨테이너 */}
-              <div className="relative w-full h-3 rounded-full overflow-hidden bg-gray-100">
-                {/* 왼쪽(선택 축) */}
-                <div
-                  className="h-full"
-                  style={{
-                    width: `${leftPct}%`,
-                    background: `linear-gradient(90deg, ${axisColor.main} 0%, ${axisColor.main} 100%)`,
-                    transition: 'width .45s ease',
-                  }}
-                />
-                {/* 오른쪽(반대 축) */}
-                <div
-                  className="absolute right-0 top-0 h-full"
-                  style={{
-                    width: `${rightPct}%`,
-                    backgroundColor: '#E5E7EB',
-                    transition: 'width .45s ease',
-                  }}
-                />
-                {/* 중앙 퍼센트 텍스트 */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-[11px] font-semibold text-white drop-shadow-[0_1px_0_rgba(0,0,0,0.15)]">
-                    {leftPct}%
+              <div className="relative w-full h-4 rounded-full overflow-hidden bg-gray-100">
+                {/* 왼쪽으로 뻗는 바 - 끝이 진하게 */}
+                {deviation >= 0 && (
+                  <div
+                    className="absolute top-0 h-full transition-all duration-500 ease-out"
+                    style={{
+                      right: '50%',
+                      width: `${leftExtend}%`,
+                      background: `linear-gradient(90deg, ${barColor} 0%, ${barColor}dd 70%, ${barColor}aa 100%)`,
+                    }}
+                  />
+                )}
+                
+                {/* 오른쪽으로 뻗는 바 - 끝이 진하게 */}
+                {deviation < 0 && (
+                  <div
+                    className="absolute top-0 h-full transition-all duration-500 ease-out"
+                    style={{
+                      left: '50%',
+                      width: `${rightExtend}%`,
+                      background: `linear-gradient(90deg, ${barColor}aa 0%, ${barColor}dd 30%, ${barColor} 100%)`,
+                    }}
+                  />
+                )}
+
+                {/* 중앙선 */}
+                <div className="absolute top-0 left-1/2 w-0.5 h-full bg-gray-400 -translate-x-1/2 z-10"></div>
+
+                {/* 퍼센트 표시 - displayValue 사용 */}
+                <div className="absolute inset-0 flex items-center justify-center z-20">
+                  <span className="text-[11px] font-bold text-gray-700 bg-white/80 px-1.5 py-0.5 rounded">
+                    {displayValue}%
                   </span>
                 </div>
               </div>
