@@ -200,7 +200,7 @@ function HelpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             {/* 2. 추천 질문 예시 */}
             <Accordion
               title="💬 추천 질문 예시"
-              defaultOpen={true}
+              defaultOpen={false}
             >
               <div className="space-y-2 mt-2 text-[13px]">
 
@@ -220,7 +220,7 @@ function HelpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
                 <p className="text-gray-500 font-medium mt-2">📷 이미지 분석</p>
                 <ul className="list-disc list-inside space-y-0.5">
-                  <li>(사진 업로드) → “이 제품 성분 괜찮아?” </li>
+                  <li>사진을 업로드하면 자동으로 성분을 분석해드려요. </li>
                 </ul>
               </div>
             </Accordion>
@@ -371,7 +371,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
 
 • "건성피부가 쓰면 좋은 3만원 이하 촉촉한 수분크림 추천해줘"  
 • "나이아신아마이드 성분 설명해줘"  
-• (사진 업로드) -> 이 제품 성분 괜찮아?   
+• 사진을 업로드하면 자동으로 성분을 분석해드려요!
 
 **🎯 더 정확하게 상담받는 방법**
 
