@@ -7,6 +7,8 @@ import { SimpleToast, LoadingOverlay } from '@/shared/ui';
 import {
   Ingredient,
   IngredientType,
+  PreferredIngredient,
+  CautionIngredient,
 } from '@/entities/ingredient';
 import { productApi } from '@/entities/product';
 import { UserInfoCard } from '@/widgets/user-info-card';
@@ -19,10 +21,14 @@ import { ProfileTabs, TabType } from './ProfileTabs';
 import { ProfileBottomNav } from './ProfileBottomNav';
 import ProductDetailModal from '@/components/dashboard/ProductDetailModal';
 
-// ✅ 이 파일 안에서만 사용할 API_BASE (다른 파일 수정 불필요)
-const API_BASE =
-  ((import.meta as any).env?.VITE_API_BASE as string | undefined)?.replace(/\/+$/, '') ||
-  'http://127.0.0.1:8000';
+// 성분 상세 조회 (Chatbot에서 쓰던 것 재사용)
+import { fetchIngredientDetail, IngredientInfo } from '@/lib/api';
+import { API_BASE } from '@/lib/env';
+
+export interface ProfilePageProps {
+  onNavigate?: (page: string) => void;
+  onLogout?: () => void;
+}
 
 // 버블 애니메이션
 const BubbleAnimation = () => {
@@ -65,11 +71,6 @@ const BubbleAnimation = () => {
   );
 };
 
-export interface ProfilePageProps {
-  onNavigate?: (page: string) => void;
-  onLogout?: () => void;
-}
-
 export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
   const {
     name,
@@ -97,7 +98,7 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
   } = useFavorites(userId);
   const { recommendations } = useRecentRecommendations();
 
-  // 로딩 상태만 로컬에서 관리
+  // 로컬 로딩 상태
   const [loadingStates, setLoadingStates] = useState<{
     add: boolean;
     delete: { [key: number]: boolean };
@@ -117,51 +118,117 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     setUserId(currentUserId);
   }, [onNavigate]);
 
-  // 사용자 성분 목록 로드 (✅ 절대경로 + 백엔드 필드명 매핑)
+  // 사용자 성분 목록 로드 (+ 설명/등급 주입)
   useEffect(() => {
     if (!userId) return;
 
-    if (preferredIngredients.length > 0 || cautionIngredients.length > 0) {
-      return;
-    }
+    let aborted = false;
 
     const loadUserIngredients = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/user-ingredients?userId=${userId}`);
+        // 여기서 백엔드(API_BASE) 직접 조회로 변경
+        const response = await fetch(`${API_BASE}/user-ingredients?userId=${userId}`);
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          console.error('loadUserIngredients failed:', response.status);
+          return;
         }
-        const data: Array<{
-          userId: number;
-          userName: string;
-          koreanName: string;
-          ingType: 'preferred' | 'caution' | 'preference' | 'caution';
-          createAt: string | null;
-        }> = await response.json();
 
-        // DB에서 'preference' 로 저장된 값은 API로 'preferred'로 통일되어 내려옴(백엔드 변환),
-        // 혹시 모를 혼재 대비 한번 더 정규화
-        const normType = (t: string) => (t === 'preference' ? 'preferred' : t) as 'preferred' | 'caution';
+        const raw: any[] = await response.json();
+        if (aborted) return;
 
-        // id는 삭제용으로만 쓰이는데, 서버 삭제는 이름 기반으로 하므로 클라이언트에선 임시 id 부여
-        const preferred = data
-          .filter(item => normType(item.ingType) === 'preferred')
-          .map((item, idx) => ({
-            id: idx + 1,
-            name: item.koreanName,
-            benefit: '', // 서버 응답에 설명이 없으니 일단 빈 값
-            type: 'preferred' as const,
-          }));
+        // 백엔드 응답 필드 형태에 유연하게 대응:
+        // - name: koreanName || ingredientName
+        // - type: type || ingType
+        // - id: ingredientId || id || (fallback)
+        const normalizeName = (item: any) =>
+          (item.koreanName as string) ||
+          (item.ingredientName as string) ||
+          (item.korean_name as string) ||
+          '';
 
-        const caution = data
-          .filter(item => normType(item.ingType) === 'caution')
-          .map((item, idx) => ({
-            id: idx + 1 + preferred.length,
-            name: item.koreanName,
-            reason: '', // 서버 응답에 설명/등급이 없으니 일단 빈 값
-            severity: 'low' as 'low' | 'mid' | 'high',
-            type: 'caution' as const,
-          }));
+        const normalizeType = (item: any): 'preferred' | 'caution' | null => {
+          const t = (item.type ?? item.ingType ?? item.ing_type) as string | undefined;
+          if (t === 'preferred' || t === 'caution') return t;
+          return null;
+        };
+
+        const normalizeId = (item: any, idx: number) =>
+          (item.ingredientId ??
+            item.ingredient_id ??
+            item.id ??
+            Date.now() + idx + Math.random()) as number;
+
+        // 1단계: 기본 리스트 (이름만)
+        let preferred: PreferredIngredient[] = [];
+        let caution: CautionIngredient[] = [];
+
+        raw.forEach((item, idx) => {
+          const nType = normalizeType(item);
+          const name = normalizeName(item);
+          if (!name || !nType) return;
+
+          if (nType === 'preferred') {
+            preferred.push({
+              id: normalizeId(item, idx),
+              name,
+              benefit: '',
+              type: 'preferred',
+            });
+          } else {
+            caution.push({
+              id: normalizeId(item, idx),
+              name,
+              reason: '',
+              severity: 'low',
+              type: 'caution',
+            });
+          }
+        });
+
+        // 2단계: 성분 상세(description, caution_grade) 한 번 더 조회
+        const uniqueNames = Array.from(
+          new Set<string>([...preferred, ...caution].map(i => i.name))
+        );
+
+        const detailMap = new Map<string, IngredientInfo>();
+
+        await Promise.all(
+          uniqueNames.map(async n => {
+            try {
+              const detail = await fetchIngredientDetail(n);
+              if (detail) detailMap.set(n, detail);
+            } catch (e) {
+              console.error('fetchIngredientDetail failed:', n, e);
+            }
+          })
+        );
+
+        if (aborted) return;
+
+        // 3단계: 상세 정보 주입
+        preferred = preferred.map(p => {
+          const d = detailMap.get(p.name);
+          return {
+            ...p,
+            benefit: d?.description?.trim() || '',
+          };
+        });
+
+        caution = caution.map(c => {
+          const d = detailMap.get(c.name);
+          const grade = d?.caution_grade || '';
+          const severity: 'low' | 'mid' | 'high' = grade.includes('고')
+            ? 'high'
+            : grade.includes('중')
+              ? 'mid'
+              : 'low';
+
+          return {
+            ...c,
+            reason: d?.description?.trim() || '',
+            severity,
+          };
+        });
 
         setPreferredIngredients(preferred);
         setCautionIngredients(caution);
@@ -171,13 +238,11 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     };
 
     loadUserIngredients();
-  }, [
-    userId,
-    preferredIngredients.length,
-    cautionIngredients.length,
-    setPreferredIngredients,
-    setCautionIngredients,
-  ]);
+
+    return () => {
+      aborted = true;
+    };
+  }, [userId, setPreferredIngredients, setCautionIngredients]);
 
   // 프로필 저장
   const handleSave = async () => {
@@ -195,13 +260,19 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     }
   };
 
-  // 성분 추가 (✅ 절대경로 + 백엔드 스키마에 맞춰 POST)
+  // 성분 추가 (DB 연동) — 기존 /api 경로 그대로 유지 (이미 잘 동작 중인 부분)
   const handleAddIngredient = async (ingredient: Ingredient, type: IngredientType) => {
+    if (!userId) {
+      showToast('로그인이 필요합니다', 'warning');
+      return;
+    }
+
     if (!ingredient.korean_name?.trim()) {
       showToast('성분명이 올바르지 않습니다', 'warning');
       return;
     }
 
+    // 중복 체크
     const isDuplicate =
       type === 'preferred'
         ? preferredIngredients.some(i => i.name === ingredient.korean_name)
@@ -215,43 +286,42 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     setLoadingStates(prev => ({ ...prev, add: true }));
 
     try {
-      const response = await fetch(`${API_BASE}/api/user-ingredients`, {
+      const response = await fetch('/api/user-ingredients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
           userName: name || profile?.name || '',
           koreanName: ingredient.korean_name,
-          ingType: type, // 'preferred' | 'caution'
+          ingType: type,
         }),
       });
 
       if (!response.ok) {
+        if (response.status === 409) {
+          showToast('이미 추가된 성분입니다', 'warning');
+          return;
+        }
         throw new Error('Failed to add ingredient');
       }
 
-      // Store 업데이트 (낙관적)
-      const newItem =
-        type === 'preferred'
-          ? {
-              id: Date.now(),
-              name: ingredient.korean_name,
-              benefit: ingredient.description || '',
-              type: 'preferred' as const,
-            }
+      // Store 업데이트
+      const newIngredient = {
+        id: Date.now(),
+        name: ingredient.korean_name,
+        type: type as 'preferred' | 'caution',
+        ...(type === 'preferred'
+          ? { benefit: ingredient.description || '' }
           : {
-              id: Date.now(),
-              name: ingredient.korean_name,
               reason: ingredient.description || '',
               severity: (ingredient.caution_grade?.includes('고')
                 ? 'high'
                 : ingredient.caution_grade?.includes('중')
-                ? 'mid'
-                : 'low') as 'low' | 'mid' | 'high',
-              type: 'caution' as const,
-            };
-
-      useUserStore.getState().addIngredient(newItem);
+                  ? 'mid'
+                  : 'low') as 'low' | 'mid' | 'high',
+            }),
+      };
+      useUserStore.getState().addIngredient(newIngredient);
 
       showToast(
         `${ingredient.korean_name}을(를) ${type === 'preferred' ? '선호' : '주의'} 성분에 추가했습니다`,
@@ -265,8 +335,12 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     }
   };
 
-  // 성분 삭제 (✅ 이름 기반 삭제 엔드포인트 사용)
-  const handleDeleteIngredient = async (ingredientId: number, type: 'preferred' | 'caution') => {
+  // 성분 삭제 (Store + DB)
+  const handleDeleteIngredient = async (
+    ingredientId: number,
+    ingredientName: string,
+    type: 'preferred' | 'caution'
+  ) => {
     const ingredient =
       type === 'preferred'
         ? preferredIngredients.find(i => i.id === ingredientId)
@@ -283,15 +357,14 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
       delete: { ...prev.delete, [ingredientId]: true },
     }));
 
-    // 낙관적 제거
+    // 낙관적 업데이트
     removeIngredient(ingredientId, type);
 
     try {
-      // ✅ 이름 기반 삭제 + ingType 쿼리
-      const url = `${API_BASE}/api/user-ingredients/${userId}/${encodeURIComponent(
-        ingredient.name
-      )}?ingType=${type}`;
-      const response = await fetch(url, { method: 'DELETE' });
+      const response = await fetch(
+        `/api/user-ingredients/${userId}/${encodeURIComponent(ingredientName)}?ingType=${type}`,
+        { method: 'DELETE' }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to delete ingredient');
@@ -299,7 +372,7 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
 
       showToast('성분이 삭제되었습니다', 'success');
     } catch (error) {
-      // 실패 시 롤백
+      // 롤백
       useUserStore.getState().addIngredient({
         ...ingredient,
         type,
@@ -314,15 +387,17 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     }
   };
 
+  // 즐겨찾기 제거
   const handleRemoveFavorite = async (productId: number) => {
     try {
       await toggleFavorite(productId);
-      showToast('즐겨찾기에서 제거되었습니다 💔', 'success');
+      showToast('즐겨찾기에서 제거되었습니다', 'success');
     } catch {
       showToast('제거에 실패했습니다', 'error');
     }
   };
 
+  // 제품 클릭
   const handleProductClick = async (productId: number) => {
     try {
       const detail = await productApi.fetchDetail(productId);
@@ -332,10 +407,12 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     }
   };
 
+  // 초기 로딩 중
   if (profileLoading && !profile) {
     return <LoadingOverlay message="프로필 로딩 중..." />;
   }
 
+  // 프로필이 없으면 빈 화면 (로그인 리다이렉트)
   if (!profile) {
     return null;
   }
@@ -403,11 +480,11 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
               cautionIngredients={cautionIngredients}
               onRemovePreferred={index => {
                 const ingredient = preferredIngredients[index];
-                handleDeleteIngredient(ingredient.id, 'preferred');
+                handleDeleteIngredient(ingredient.id, ingredient.name, 'preferred');
               }}
               onRemoveCaution={index => {
                 const ingredient = cautionIngredients[index];
-                handleDeleteIngredient(ingredient.id, 'caution');
+                handleDeleteIngredient(ingredient.id, ingredient.name, 'caution');
               }}
               searchSection={<IngredientSearchSection onAddIngredient={handleAddIngredient} />}
             />
