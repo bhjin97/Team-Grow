@@ -218,7 +218,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
             {/* 우측: 분포 패널 */}
             <div className="p-4 sm:p-6">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base sm:text-lg font-semibold">사이트 피부 타입 분포</h2>
+                <h2 className="text-base sm:text-lg font-semibold">피부 타입 한눈에</h2>
                 <FiltersBar />
               </div>
               <SkinTypeStatsPanel interval="all" gender={gender} ageBand={ageBand} framed={false} />

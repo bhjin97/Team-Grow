@@ -197,14 +197,14 @@ export default function SkinTypeStatsPanel({ interval, gender, ageBand, classNam
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          4축 요약 보기
+          피부 특징 요약 보기
         </button>
       </div>
 
       {/* 본체 (frameless 옵션) */}
       <div className={framed ? "rounded-2xl border border-[#0000000d] bg-white p-4 sm:p-6" : ""}>
         <div className="text-sm text-gray-500 mb-3">
-          필터 — 성별: <b>{gender}</b>, 연령대: <b>{ageBand}</b>
+          보기 조건 — 성별: <b>{gender}</b>, 연령대: <b>{ageBand}</b>
         </div>
 
         {loading && <div className="text-sm text-gray-500">불러오는 중…</div>}
@@ -263,7 +263,7 @@ export default function SkinTypeStatsPanel({ interval, gender, ageBand, classNam
       </div>
 
       {/* 모달(4축 요약) */}
-      <Modal open={open} onClose={() => setOpen(false)} title="4축 요약 (OD / SR / PN / WT)">
+      <Modal open={open} onClose={() => setOpen(false)} title="피부 타입 한눈에 (OD / SR / PN / WT)">
         <FourAxisSummary interval="all" gender={gender} ageBand={ageBand} />
       </Modal>
     </div>
