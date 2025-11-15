@@ -7,25 +7,19 @@ import DashboardHeader from './DashboardHeader';
 import DashboardBottomNav from './DashboardBottomNav';
 
 import SkinSummary from './SkinSummary';
-import PerfumeRecommendations from './PerfumeRecommendations';
-import BaumannAnalysis from './BaumannAnalysis';
-import VirtualSkinModel from './VirtualSkinModel';
-import CustomRoutine from './CustomRoutine';
 import TrendsSection from './TrendsSection';
 
 // 우측 카드(분포 + 모달 트리거)
 import SkinTypeStatsPanel from './SkinTypeStatsPanel';
 
-import { fetchRoutine } from '../../lib/utils';
-
-type AxisKey = 'OD' | 'SR' | 'PN' | 'WT';
-type AxisBrief = { avg: number; letter: string; confidence: number };
-type AxesJSON = Record<AxisKey, AxisBrief>;
-
 export interface DashboardProps {
   userName?: string;
   onNavigate?: (page: string) => void;
 }
+
+type AxisKey = 'OD' | 'SR' | 'PN' | 'WT';
+type AxisBrief = { avg: number; letter: string; confidence: number };
+type AxesJSON = Record<AxisKey, AxisBrief>;
 
 type Gender = 'all' | 'female' | 'male' | 'other' | 'na';
 type AgeBand = 'all' | '10s' | '20s' | '30s' | '40s' | '50s' | '60s_plus';
@@ -33,54 +27,14 @@ type AgeBand = 'all' | '10s' | '20s' | '30s' | '40s' | '50s' | '60s_plus';
 export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardProps) {
   // --- 대시보드 상태 ---
   const [selectedPeriod, setSelectedPeriod] = useState('7days');
-  const [selectedWeather, setSelectedWeather] = useState('sunny');
-  const [selectedMood, setSelectedMood] = useState('fresh');
-  const [season, setSeason] = useState('summer');
-  const [timeOfDay, setTimeOfDay] = useState('morning');
 
   const [baumannType, setBaumannType] = useState<string>('ORNT');
   const [axes, setAxes] = useState<AxesJSON | null>(null);
-  const [routineProducts, setRoutineProducts] = useState<any[]>([]);
   const [userId, setUserId] = useState<number | undefined>(undefined);
 
   // --- 공용 필터(기간 항상 all) ---
   const [gender, setGender] = useState<Gender>('all');
   const [ageBand, setAgeBand] = useState<AgeBand>('all');
-
-  // --- 키워드 룰 ---
-  const FOCUS_RULES: Record<string, string[]> = {
-    summer_morning: ['가벼운', '산뜻'],
-    summer_evening: ['보습', '진정'],
-    winter_morning: ['보습', '보호막'],
-    winter_evening: ['영양', '재생'],
-  };
-  const allKeywordOptions = Array.from(new Set(Object.values(FOCUS_RULES).flat()));
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
-    FOCUS_RULES[`${season}_${timeOfDay}`] || []
-  );
-  const [userChangedKeyword, setUserChangedKeyword] = useState(false);
-
-  useEffect(() => {
-    if (!userChangedKeyword) {
-      const key = `${season}_${timeOfDay}`;
-      const defaultKeywords = FOCUS_RULES[key] || [];
-      setSelectedKeywords(defaultKeywords);
-    }
-  }, [season, timeOfDay]);
-
-  const toggleKeyword = (kw: string) => {
-    setUserChangedKeyword(true);
-    if (selectedKeywords.includes(kw)) {
-      setSelectedKeywords(selectedKeywords.filter(k => k !== kw));
-    } else if (selectedKeywords.length < 2) {
-      setSelectedKeywords([...selectedKeywords, kw]);
-    }
-  };
-
-  const resetKeywords = () => {
-    setSelectedKeywords([]);
-    setUserChangedKeyword(false);
-  };
 
   // --- 축/라벨 계산 ---
   const code = (baumannType ?? 'ORNT').toUpperCase();
@@ -105,12 +59,6 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
     }));
   }, [axes, baumannType]);
 
-  const perfumeRecommendations = [
-    { name: 'Fresh Citrus', notes: 'Bergamot, Lemon, White Tea', match: '95%' },
-    { name: 'Spring Garden', notes: 'Jasmine, Rose, Green Leaves', match: '88%' },
-    { name: 'Ocean Breeze', notes: 'Sea Salt, Mint, Amber', match: '82%' },
-  ];
-
   // --- 프로필/축 로드 ---
   // 1) 최초 마운트: 캐시값 로드 + userId 상태 세팅
   useEffect(() => {
@@ -122,7 +70,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
 
       const userIdStr = localStorage.getItem('user_id') ?? '1';
       const id = Number.parseInt(userIdStr, 10);
-      setUserId(Number.isFinite(id) ? id : 1);   // ← 상태에 저장
+      setUserId(Number.isFinite(id) ? id : 1);
     } catch (e) {
       setUserId(1);
     }
@@ -156,7 +104,6 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
       }
     })();
   }, [userId]);
-
 
   // ▼ 공용 필터 바(기간 제거: 성별/연령대만)
   const FiltersBar = () => (
@@ -196,7 +143,7 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
       className="min-h-screen w-full pb-16 md:pb-0"
       style={{ background: 'linear-gradient(135deg, #fce7f3 0%, #f3e8ff 50%, #ddd6fe 100%)' }}
     >
-      <DashboardHeader userName={userName} onNavigate={onNavigate} />
+      <DashboardHeader userName={userName} onNavigate={onNavigate} currentPage="dashboard" />
 
       <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl">
 
@@ -226,64 +173,14 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
           </div>
         </section>
 
-        {/* ▼ 지금 뜨는 제품 랭킹: 위치 이동 (두 번째 섹션) */}
+        {/* ▼ 지금 뜨는 제품 랭킹 */}
         <div className="mt-6">
           <TrendsSection />
         </div>
 
-        {/* === 기존 2열 그리드 === */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-6">
-          <PerfumeRecommendations
-            selectedWeather={selectedWeather}
-            setSelectedWeather={setSelectedWeather}
-            selectedMood={selectedMood}
-            setSelectedMood={setSelectedMood}
-            perfumeRecommendations={perfumeRecommendations}
-          />
-
-          <BaumannAnalysis
-            pick={pick}
-            code={code}
-            koAxisWord={koAxisWord}
-            onNavigate={onNavigate}
-          />
-
-          {/* 시뮬레이터 */}
-          <VirtualSkinModel skinType={baumannType} userId={userId}/>
-
-          {/* 맞춤 루틴 */}
-          <CustomRoutine
-            baumannType={baumannType}
-            setBaumannType={setBaumannType}
-            season={season}
-            setSeason={setSeason}
-            timeOfDay={timeOfDay}
-            setTimeOfDay={setTimeOfDay}
-            allKeywordOptions={allKeywordOptions}
-            selectedKeywords={selectedKeywords}
-            toggleKeyword={toggleKeyword}
-            setSelectedKeywords={setSelectedKeywords}
-            routineProducts={routineProducts}
-            setRoutineProducts={setRoutineProducts}
-            onFetchRoutine={async () => {
-              try {
-                const data = await fetchRoutine(
-                  baumannType,
-                  season,
-                  timeOfDay,
-                  selectedKeywords
-                );
-                setRoutineProducts(data);
-              } catch (err) {
-                console.error('Failed to fetch routine:', err);
-              }
-            }}
-            resetKeywords={resetKeywords}
-          />
-        </div>
       </main>
 
-      <DashboardBottomNav onNavigate={onNavigate} />
+      <DashboardBottomNav onNavigate={onNavigate} currentPage="dashboard" />
     </div>
   );
 }
