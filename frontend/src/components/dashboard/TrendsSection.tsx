@@ -227,7 +227,7 @@ export default function TrendsSection() {
               title="카테고리 비중"
               data={donutData}
               size={220}
-              thickness={22}
+              thickness={40}
               hoveredLabel={null}
               onSliceHover={() => {}}
             />

@@ -474,7 +474,7 @@ export default function TrendAnalysisModal({ open, category, onClose }: Props) {
                         title={row ? `주차별 카테고리 Δ 비중 (${row.date})` : '카테고리 Δ 비중'}
                         data={donutData}
                         size={272}
-                        thickness={28}
+                        thickness={45}
                         hoveredLabel={null}
                         onSliceHover={() => {}}
                       />
