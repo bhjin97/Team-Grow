@@ -95,7 +95,7 @@ export default function FourAxisSummary({ interval, gender, ageBand, className }
       ) : (
         <>
           <div className="text-sm text-gray-500 mb-3">
-            필터 — 성별: <b>{gender}</b>, 연령대: <b>{ageBand}</b> · 표본 수: <b>{data.total.toLocaleString()}</b>
+            보기조건 — 성별: <b>{gender}</b>, 연령대: <b>{ageBand}</b> · 표본 수: <b>{data.total.toLocaleString()}</b>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <DualBar
