@@ -13,6 +13,7 @@ import Features from './components/Features';
 import { useUserStore } from './stores/auth';
 import Chatbot from './components/Chatbot';
 import { ProfilePage } from './pages/profile';
+import { API_BASE } from './lib/env';
 
 let theme: Theme = 'light';
 let container: Container = 'none';
@@ -64,12 +65,48 @@ function App() {
   }
   setTheme(theme);
 
+  // ✅ 피부타입 진단 여부 체크
+  const checkSkinDiagnosis = async (userId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/profile/${userId}`);
+      if (!res.ok) {
+        // 404 = user_profiles 없음 → 진단 필요
+        console.log('user_profiles 없음 → 진단 페이지로 이동');
+        setCurrentPage('diagnosis');
+        return;
+      }
+      const data = await res.json();
+      if (!data.skin_type_code) {
+        // skin_type_code 없음 → 진단 필요
+        console.log('skin_type_code 없음 → 진단 페이지로 이동');
+        setCurrentPage('diagnosis');
+      } else {
+        // 진단 완료 → 대시보드
+        console.log('진단 완료 → 대시보드로 이동');
+        setCurrentPage('dashboard');
+      }
+    } catch (error) {
+      console.error('진단 체크 중 오류:', error);
+      // 에러 시 진단 페이지로 안전하게 이동
+      setCurrentPage('diagnosis');
+    }
+  };
+
   // ✅ 로그인 처리
-  const handleLogin = (name: string, email: string) => {
+  const handleLogin = async (name: string, email: string) => {
     console.log('Logging in with:', email);
     setIsLoggedIn(true);
-    setCurrentPage('dashboard');
     login({ name: name, email: email });
+
+    // 피부타입 진단 체크
+    const userId = Number(localStorage.getItem('user_id'));
+    if (userId) {
+      await checkSkinDiagnosis(userId);
+    } else {
+      // user_id 없으면 일단 대시보드로 (비정상 케이스)
+      console.warn('user_id 없음 - 대시보드로 이동');
+      setCurrentPage('dashboard');
+    }
   };
 
   // ✅ 회원가입 처리
@@ -109,9 +146,13 @@ function App() {
 
   // ✅ 로그아웃
   const handleLogout = () => {
+    // localStorage 완전히 클리어 (이전 사용자 데이터 제거)
+    localStorage.clear();
+    
     setIsLoggedIn(false);
     setCurrentPage('login');
     setUserName('Sarah');
+    logout();
   };
 
   // ✅ 화면 렌더링
@@ -156,6 +197,7 @@ function App() {
           <SkinDiagnosis
             onBack={() => setCurrentPage('dashboard')}
             onStart={() => setCurrentPage('survey')}
+            onSkip={() => setCurrentPage('dashboard')}
           />
         );
 
@@ -167,7 +209,7 @@ function App() {
 
       case 'profile':
         // return <UserProfile onNavigate={handleNavigate} onLogout={handleLogout} />;
-        return <ProfilePage onNavigate={handleNavigate} onLogout={handleLogout} currentPage="profile" />;
+        return <ProfilePage onNavigate={handleNavigate} onLogout={handleLogout} />;
 
       case 'settings':
         return (
