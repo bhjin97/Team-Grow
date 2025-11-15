@@ -31,10 +31,13 @@ import { API_BASE } from '../lib/env';
 import { fetchUserProfile, updateUserProfile } from '../lib/utils';
 import { useUserStore } from '@/stores/auth/store';
 import ProductDetailModal from './dashboard/ProductDetailModal';
+import DashboardHeader from './dashboard/DashboardHeader';
+import DashboardBottomNav from './dashboard/DashboardBottomNav';
 
 export interface UserProfileProps {
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
+  currentPage?: string;  // ← 추가
 }
 
 type TabType = 'activity' | 'ingredients';
@@ -108,7 +111,7 @@ const BubbleAnimation = () => {
   );
 };
 
-export default function UserProfile({ onNavigate, onLogout }: UserProfileProps) {
+export default function UserProfile({ onNavigate, onLogout, currentPage = 'profile' }: UserProfileProps) {
   const name = useUserStore(state => state.name);
 
   const [isEditing, setIsEditing] = useState(false);

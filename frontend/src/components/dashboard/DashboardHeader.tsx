@@ -11,15 +11,17 @@ import {
   UserCircle,
   Settings as SettingsIcon,
   Bell,
+  Sparkles,
 } from 'lucide-react';
 import { useUserStore } from '@/stores/auth/store';
 
 interface DashboardHeaderProps {
   userName?: string;
   onNavigate?: (page: string) => void;
+  currentPage?: string;
 }
 
-export default function DashboardHeader({ userName = 'Sarah', onNavigate }: DashboardHeaderProps) {
+export default function DashboardHeader({ userName = 'Sarah', onNavigate, currentPage = 'dashboard' }: DashboardHeaderProps) {
   const name = useUserStore(state => state.name);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,12 +43,30 @@ export default function DashboardHeader({ userName = 'Sarah', onNavigate }: Dash
             <button
               onClick={() => onNavigate?.('dashboard')}
               className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium"
-              style={{
-                background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
-                color: 'white',
-              }}
+              style={
+                currentPage === 'dashboard'
+                  ? {
+                      background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+                      color: 'white',
+                    }
+                  : {}
+              }
             >
               <LayoutDashboard className="w-5 h-5" /> <span>대시보드</span>
+            </button>
+            <button
+              onClick={() => onNavigate?.('features')}
+              className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium"
+              style={
+                currentPage === 'features'
+                  ? {
+                      background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+                      color: 'white',
+                    }
+                  : { color: '#6b7280' }
+              }
+            >
+              <Sparkles className="w-5 h-5" /> <span>기능</span>
             </button>
             <button
               onClick={() => onNavigate?.('chat')}
@@ -104,17 +124,35 @@ export default function DashboardHeader({ userName = 'Sarah', onNavigate }: Dash
                 onNavigate?.('dashboard');
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center px-4 py-2 rounded-lg text-white font-semibold"
-              style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
+              className="w-full flex items-center space-x-2 px-4 py-2 rounded-lg font-semibold"
+              style={
+                currentPage === 'dashboard'
+                  ? { background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)', color: 'white' }
+                  : { color: '#6b7280' }
+              }
             >
               <LayoutDashboard className="w-5 h-5" /> <span>대시보드</span>
+            </button>
+            <button
+              onClick={() => {
+                onNavigate?.('features');
+                setMobileMenuOpen(false);
+              }}
+              className="w-full flex items-center space-x-2 px-4 py-2 rounded-lg font-semibold"
+              style={
+                currentPage === 'features'
+                  ? { background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)', color: 'white' }
+                  : { color: '#6b7280' }
+              }
+            >
+              <Sparkles className="w-5 h-5" /> <span>기능</span>
             </button>
             <button
               onClick={() => {
                 onNavigate?.('chat');
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
+              className="w-full flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
             >
               <MessageSquare className="w-5 h-5" /> <span>AI 상담</span>
             </button>
@@ -123,7 +161,7 @@ export default function DashboardHeader({ userName = 'Sarah', onNavigate }: Dash
                 onNavigate?.('profile');
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
+              className="w-full flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
             >
               <UserCircle className="w-5 h-5" /> <span>프로필</span>
             </button>
@@ -132,7 +170,7 @@ export default function DashboardHeader({ userName = 'Sarah', onNavigate }: Dash
                 onNavigate?.('settings');
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
+              className="w-full flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
             >
               <SettingsIcon className="w-5 h-5" /> <span>설정</span>
             </button>

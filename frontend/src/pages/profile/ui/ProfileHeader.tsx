@@ -6,6 +6,7 @@ import {
   Bell,
   Menu,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
@@ -38,6 +39,13 @@ export const ProfileHeader = ({ userName, onNavigate }: ProfileHeaderProps) => {
               className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
             >
               <LayoutDashboard className="w-5 h-5" /> <span>대시보드</span>
+            </button>
+            {/* ✅ 기능 버튼 - AI 상담 앞으로 이동 */}
+            <button
+              onClick={() => onNavigate?.('features')}
+              className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
+            >
+              <Sparkles className="w-5 h-5" /> <span>기능</span>
             </button>
             <button
               onClick={() => onNavigate?.('chat')}
@@ -102,6 +110,16 @@ export const ProfileHeader = ({ userName, onNavigate }: ProfileHeaderProps) => {
               className="w-full flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
             >
               <LayoutDashboard className="w-5 h-5" /> <span>대시보드</span>
+            </button>
+            {/* ✅ 기능 버튼 - AI 상담 앞으로 이동 */}
+            <button
+              onClick={() => {
+                onNavigate?.('features');
+                setMobileMenuOpen(false);
+              }}
+              className="w-full flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
+            >
+              <Sparkles className="w-5 h-5" /> <span>기능</span>
             </button>
             <button
               onClick={() => {

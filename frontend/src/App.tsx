@@ -9,6 +9,7 @@ import Settings from './components/Settings';
 import SkinDiagnosis from './components/dashboard/SkinDiagnosis';
 import Survey from './components/dashboard/Survey';
 import ForgotPassword from './components/ForgotPassword';
+import Features from './components/Features';
 import { useUserStore } from './stores/auth';
 import Chatbot from './components/Chatbot';
 import { ProfilePage } from './pages/profile';
@@ -20,6 +21,7 @@ type PageType =
   | 'login'
   | 'signup'
   | 'dashboard'
+  | 'features'
   | 'chat'
   | 'profile'
   | 'settings'
@@ -89,6 +91,7 @@ function App() {
   const handleNavigate = (page: string) => {
     if (
       page === 'dashboard' ||
+      page === 'features' ||
       page === 'chat' ||
       page === 'profile' ||
       page === 'settings' ||
@@ -143,7 +146,10 @@ function App() {
     // 로그인 후
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard userName={userName} onNavigate={handleNavigate} />;
+        return <Dashboard userName={userName} onNavigate={handleNavigate} currentPage="dashboard" />;
+
+      case 'features':
+        return <Features userName={userName} onNavigate={handleNavigate} currentPage="features" />;
 
       case 'diagnosis':
         return (
@@ -161,7 +167,7 @@ function App() {
 
       case 'profile':
         // return <UserProfile onNavigate={handleNavigate} onLogout={handleLogout} />;
-        return <ProfilePage onNavigate={handleNavigate} onLogout={handleLogout} />;
+        return <ProfilePage onNavigate={handleNavigate} onLogout={handleLogout} currentPage="profile" />;
 
       case 'settings':
         return (
@@ -169,7 +175,8 @@ function App() {
             userName={userName}
             onNavigate={handleNavigate}
             onLogout={handleLogout}
-            onChangePassword={goChangePasswordFromSettings} // ✅ 비밀번호 변경 연결
+            onChangePassword={goChangePasswordFromSettings}
+            currentPage="settings"
           />
         );
 
