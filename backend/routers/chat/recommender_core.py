@@ -66,6 +66,18 @@ CATEGORY_SYNONYMS = {
 }
 STRICT_CATEGORY_MODE = True
 
+DEFAULT_TOPK_NO_FILTER    = 250   # feature-only
+DEFAULT_TOPK_WITH_FILTER  = 800   # feature + 필터
+MAX_TOPK                  = 1000
+
+def decide_top_k(has_features: bool, has_hardfilter: bool) -> int:
+    if not has_features:
+        return 0
+    if has_hardfilter:
+        return min(DEFAULT_TOPK_WITH_FILTER, MAX_TOPK)
+    else:
+        return min(DEFAULT_TOPK_NO_FILTER, MAX_TOPK)
+
 
 def _norm_text(s: str) -> str:
     s = unicodedata.normalize("NFKC", s or "")
@@ -540,7 +552,9 @@ def search_pipeline_from_parsed(
     pr = parsed.get("price_range") or (None, None)
     has_hardfilter = any(
         [brand_norm, ingredient_ids, any(pr), parsed.get("category")]
-    )
+)
+
+    top_k = decide_top_k(has_features, has_hardfilter)
 
     rows: List[Dict] = []
 
@@ -548,7 +562,7 @@ def search_pipeline_from_parsed(
     if has_features:
         feature_text = " ".join(parsed.get("features") or []) or user_query
         candidate_pids_raw, score_map_raw = feature_candidates_from_text(
-            feature_text, top_k=300
+            feature_text, top_k=top_k
         )
         candidate_pids, score_map = dedup_keep_best(candidate_pids_raw, score_map_raw)
 
