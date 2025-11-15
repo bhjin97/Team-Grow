@@ -148,11 +148,11 @@ export default function TrendsSection() {
     return () => { mounted = false; };
   }, [normalize]); // ← 의존성에 normalize 추가
 
-  const headerNote = useMemo(() => {
-    if (!meta) return '';
-    const tag = sort === 'hot' ? '증가수' : sort === 'pct' ? '증가율' : '최신 리뷰수';
-    return `A=${meta.a_date} → B=${meta.b_date} · 기준=${tag} · 베이스 하한≥${meta.min_base}`;
-  }, [meta, sort]);
+  // const headerNote = useMemo(() => {
+  //  if (!meta) return '';
+  //  const tag = sort === 'hot' ? '증가수' : sort === 'pct' ? '증가율' : '최신 리뷰수';
+  //  return `A=${meta.a_date} → B=${meta.b_date} · 기준=${tag} · 베이스 하한≥${meta.min_base}`;
+  //}, [meta, sort]);
 
   const donutData = useMemo(() => {
     if (!catTs?.series?.length || !catTs?.categories?.length) return null;
@@ -214,7 +214,7 @@ export default function TrendsSection() {
           </label>
         </div>
 
-        <div className="text-[11px] text-gray-500 sm:ml-auto">{headerNote}</div>
+        
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr_2fr] gap-3">
