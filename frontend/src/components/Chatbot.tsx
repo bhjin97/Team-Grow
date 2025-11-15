@@ -97,6 +97,36 @@ const GRADE_ORDER: Array<'안전' | '주의' | '위험' | '정보없음'> = [
   '위험',
   '정보없음',
 ];
+
+function Accordion({
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = React.useState(defaultOpen);
+
+  return (
+    <div className="border rounded-lg p-2">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex justify-between items-center text-left"
+      >
+        <span className="font-semibold text-gray-800">{title}</span>
+        <span className="text-gray-500">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="mt-2 pl-1 pr-1 pb-1 transition-all">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 /** 챗봇 도움말 모달 */
 function HelpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   useEffect(() => {
@@ -147,11 +177,13 @@ function HelpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
           {/* 내용 */}
           <div className="px-5 py-4 space-y-4 text-sm text-gray-700">
+
+            {/* 1. 기능 안내 */}
             <section>
-              <h4 className="font-semibold text-gray-800 mb-1">이 챗봇은 무엇을 할 수 있나요?</h4>
+              <h4 className="font-semibold text-gray-800 mb-1">🤔 이 챗봇은 무엇을 할 수 있나요?</h4>
               <ul className="list-disc list-inside space-y-1">
                 <li>
-                  피부 타입·예산·선호 성분에 맞는 <b>맞춤 화장품 추천</b>
+                  피부 타입·가격·선호 성분에 맞는 <b>맞춤 화장품 추천</b>
                 </li>
                 <li>
                   제품 <b>성분 분석</b> 및 위험/주의 성분 안내
@@ -165,44 +197,45 @@ function HelpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               </ul>
             </section>
 
-            <section>
-              <h4 className="font-semibold text-gray-800 mb-1">추천 질문 예시</h4>
-              <div className="space-y-1.5">
-                <p className="text-[13px] text-gray-500">💄 제품 추천</p>
-                <ul className="list-disc list-inside text-[13px] space-y-0.5">
-                  <li>“건성 피부인데 수분크림 추천해줘, 3만원대면 좋겠어”</li>
-                  <li>“민감성인데 알코올 없는 선크림 추천해줘”</li>
-                  <li>“지성 피부용 톤업 선크림 찾아줘”</li>
+            {/* 2. 추천 질문 예시 */}
+            <Accordion
+              title="💬 추천 질문 예시"
+              defaultOpen={true}
+            >
+              <div className="space-y-2 mt-2 text-[13px]">
+
+                <p className="text-gray-500 font-medium">💄 제품 추천</p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>“건성피부가 쓰기 좋은 3만원 이하 촉촉한 수분크림 추천해줘”</li>
+                  <li>“레티놀이 들어간 제품 추천해줘”</li>
+                  <li>“지성 피부용 쿠션 추천해줘”</li>
                 </ul>
 
-                <p className="text-[13px] text-gray-500 mt-2">🧪 성분/주의 성분</p>
-                <ul className="list-disc list-inside text-[13px] space-y-0.5">
-                  <li>“나이아신아마이드가 어떤 성분인지 알려줘”</li>
-                  <li>“향료, 알코올, 파라벤 같은 주의 성분이 뭐야?”</li>
+                <p className="text-gray-500 font-medium mt-2">🧪 성분/주의 성분</p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>“나이아신아마이드 성분 설명해줘”</li>
+                  <li>“향료·알코올·파라벤 같은 성분이 뭐야?”</li>
                   <li>“민감성 피부가 피해야 할 성분 알려줘”</li>
                 </ul>
 
-                <p className="text-[13px] text-gray-500 mt-2">📷 이미지 분석</p>
-                <ul className="list-disc list-inside text-[13px] space-y-0.5">
-                  <li>“이 제품 성분이 괜찮은지 봐줘” (제품 사진 업로드 후)</li>
+                <p className="text-gray-500 font-medium mt-2">📷 이미지 분석</p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>(사진 업로드) → “이 제품 성분 괜찮아?” </li>
                 </ul>
               </div>
-            </section>
+            </Accordion>
 
-            <section>
-              <h4 className="font-semibold text-gray-800 mb-1">사용 팁</h4>
-              <ul className="list-disc list-inside text-[13px] space-y-0.5">
-                <li>
-                  원하는 <b>브랜드, 가격대, 카테고리(선크림, 크림 등)</b>를 같이 적어주면 더
-                  정확해요.
-                </li>
-                <li>“성분 이름 + 궁금한 점” 형태로 물어보면 성분 설명을 자세히 들을 수 있어요.</li>
-                <li>
-                  추천 결과 카드에서 <b>“리뷰 요약 보기 / 성분 보기”</b> 버튼을 눌러 상세 내용을
-                  확인할 수 있어요.
-                </li>
+            {/* 3. 사용 팁 */}
+            <Accordion
+              title="🎯 사용 팁"
+              defaultOpen={false}
+            >
+              <ul className="list-disc list-inside space-y-1 mt-2 text-[13px]">
+                <li><b>브랜드·가격대·카테고리</b>(선크림, 크림 등)을 함께 적으면 더 정확해요.</li>
+                <li>“성분 이름 + 궁금한 점” 형태로 물어보면 설명을 더 자세히 들을 수 있어요.</li>
+                <li>추천 카드에서 <b>“리뷰 요약 보기 / 성분 보기”</b> 버튼으로 상세 내용을 확인할 수 있어요.</li>
               </ul>
-            </section>
+            </Accordion>
           </div>
 
           {/* 푸터 */}
@@ -331,20 +364,18 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       id: 1,
       type: 'ai',
       content: `
-안녕하세요! 저는 여러분의 **뷰티 AI 어시스턴트**입니다.
-제품 이미지를 업로드하여 성분을 분석하거나, 맞춤형 제품 추천을 요청하실 수 있습니다.
-오늘 무엇을 도와드릴까요?
+안녕하세요😊  
+화장품 추천부터 성분 분석까지, 편하게 물어보시면 도와드릴게요!
 
-**예시 질문**
+**🤔 이렇게 물어보실 수 있어요**
 
-• 건성인데 촉촉한 수분크림 추천해줘, 3만원대면 좋겠어  
-• 병풀추출물이 들어간 스킨 추천해줘  
-• 나이아신아마이드 성분 설명해줘  
-• 이 제품 성분 괜찮아? (사진 업로드)
+• "건성피부가 쓰면 좋은 3만원 이하 촉촉한 수분크림 추천해줘"  
+• "나이아신아마이드 성분 설명해줘"  
+• (사진 업로드) -> 이 제품 성분 괜찮아?   
 
-**사용 팁**
+**🎯 더 정확하게 상담받는 방법**
 
-• 브랜드·가격대·카테고리를 함께 적으면 더 정확해요.  
+• 브랜드·가격대·카테고리(선크림, 크림)를 함께 적으면 더 정확해요.  
 • 추천 결과 카드에서 “리뷰 요약 보기 / 성분 보기” 버튼을 눌러 상세 내용을 확인할 수 있어요.
 `,
       timestamp: new Date(),
@@ -822,15 +853,6 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
             transition={{ duration: 0.5 }}
             className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col flex-1 min-h-0 relative"
           >
-            <button
-              type="button"
-              onClick={() => setHelpOpen(true)}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full border border-pink-200 bg-white text-pink-500 flex items-center justify-center shadow-sm hover:bg-pink-50 transition-colors"
-              aria-label="도움말 열기"
-              title="도움말"
-            >
-              <span className="text-sm font-semibold">?</span>
-            </button>
             <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
               <AnimatePresence>
                 {messages.map(message => (
@@ -1220,7 +1242,7 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                 >
                   <Camera className="w-5 h-5 sm:w-5 sm:h-5" />
                 </button>
-                <div className="flex-1 flex items-end space-x-2">
+                <div className="flex-1 flex items-center space-x-2">
                   <textarea
                     value={inputValue}
                     onChange={e => setInputValue(e.target.value)}
@@ -1234,6 +1256,16 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
                     className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border border-gray-200 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent resize-none max-h-24"
                     rows={1}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setHelpOpen(true)}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-pink-200 bg-white text-pink-500 flex items-center justify-center shadow-sm hover:bg-pink-50 transition-colors flex-shrink-0"
+                    aria-label="도움말 열기"
+                    title="도움말"
+                  >
+                    <span className="text-sm font-semibold">?</span>
+                  </button>
+
                   <motion.button
                     onClick={handleSendMessage}
                     disabled={inputValue.trim() === ''}
