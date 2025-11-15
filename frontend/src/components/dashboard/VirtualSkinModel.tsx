@@ -388,7 +388,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
   const SelectedHint = () => (
     <div className="text-xs text-gray-500 mt-1">
       {topSelected.length === 0 && '최대 4개까지 선택해 빠른 비교가 가능합니다.'}
-      {topSelected.length === 1 && '분석 버튼을 눌러 상세 분석을 진행할 수 있습니다.'}
+      {topSelected.length === 1 && '궁금한 제품을 클릭해 성분까지 확인하세요.'}
       {topSelected.length > 1 && '여러 개 선택됨(비교용). 상세 분석은 1개만 선택해야 합니다.'}
     </div>
   );
@@ -405,7 +405,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
       >
         <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
           <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 mr-2" />
-          가상 피부 시뮬레이션
+          내 피부에 딱 맞는 제품일까?
         </h3>
 
         {/* 프리뷰 캔버스 */}
@@ -425,7 +425,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
           {!isSimLoading && analysisResult && (
             <div className="flex flex-col items-center text-center">
               <span className="text-sm text-gray-600">{analysisResult.product_info.name}</span>
-              <span className="text-xs text-gray-500 mb-2">({skinType} 타입 기준)</span>
+              <span className="text-xs text-gray-500 mb-2">(내 피부 타입 {skinType} 기준)</span>
 
               {analysisResult?.has_user_caution && (
                 <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[12px] inline-flex items-center gap-1 text-red-700">
@@ -457,7 +457,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
           {!isSimLoading && !simError && !analysisResult && (
             <div className="text-center text-gray-500">
               <span className="text-sm sm:text-base font-medium">
-                카테고리를 선택하고 제품을 분석하세요.
+                궁금한 제품의 카테고리를 선택해주세요
               </span>
               <Search className="w-10 h-10 mx-auto mt-2 opacity-30" />
             </div>
@@ -472,7 +472,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
             onChange={e => setSelectedCategory(e.target.value)}
             className="w-full py-2.5 sm:py-3 pl-4 pr-10 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-purple-300 focus:ring-2 focus:outline-none text-sm sm:text-base"
           >
-            <option value="">📂 카테고리 선택...</option>
+            <option value="">📁 어떤 제품을 찾으세요?</option>
             {categories.map(cat => (
               <option key={cat} value={cat}>
                 {cat}
@@ -491,7 +491,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
               onClick={() => setActiveTab('top')}
               type="button"
             >
-              상위 추천
+              이 카테고리 BEST 추천
             </button>
             <button
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${
@@ -502,7 +502,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
               onClick={() => setActiveTab('all')}
               type="button"
             >
-              전체 목록
+              모두 보기
             </button>
           </div>
 
@@ -510,22 +510,22 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
           {activeTab === 'top' ? (
             <div className="mt-2">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-semibold">선택한 카테고리 상위 추천</p>
+                <p className="text-sm font-semibold">이 카테고리 BEST 추천</p>
                 <span className="text-[11px] text-gray-400">{Math.min(topList.length, 4)}개</span>
               </div>
 
               <div className="rounded-xl border bg-white">
                 {isTopLoading ? (
                   <div className="p-4">
-                    <LoadingMascot label="상위 추천 계산 중..." src="/mascot/mascot.png" />
+                    <LoadingMascot label="BEST 추천 계산 중..." src="/mascot/mascot.png" />
                   </div>
                 ) : topList.length === 0 ? (
                   <div className="p-4 text-sm text-gray-600">
-                    선택한 카테고리에 점수화 가능한 제품이 없어요.
+                    이 카테고리에는 분석 가능한 제품이 없어요 😢
                     <ul className="mt-2 list-disc list-inside text-xs text-gray-500">
-                      <li>카테고리 명칭이 DB와 다를 수 있어요(띄어쓰기/콜론).</li>
-                      <li>성분 매핑 히트가 0개면 제품은 숨겨져요.</li>
-                      <li>제품의 성분표(p_ingredients)가 비어 있을 수도 있어요.</li>
+                      <li>💡 이렇게 해보세요.</li>
+                      <li>- 다른 카테고리에서 찾아보기</li>
+                      <li>- 제품 사진으로 바로 검색하기</li>
                     </ul>
                   </div>
                 ) : (
@@ -610,7 +610,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                 className="w-full py-2.5 sm:py-3 pl-4 pr-10 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-purple-300 focus:ring-2 focus:outline-none text-sm sm:text-base"
               >
                 <option value="">
-                  {isListLoading ? '제품 로딩 중...' : selectedCategory ? '🧴 제품 선택...' : '카테고리를 먼저 선택'}
+                  {isListLoading ? '제품 로딩 중...' : selectedCategory ? '📌 제품을 골라주세요' : '카테고리를 먼저 선택'}
                 </option>
                 {products.map(prodName => (
                   <option key={prodName} value={prodName}>
@@ -619,7 +619,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                 ))}
               </select>
               <div className="text-xs text-gray-500">
-                드롭다운에서 제품 1개를 선택해 분석할 수 있습니다.
+                위에서 제품 하나를 골라주세요.
               </div>
             </div>
           )}
@@ -634,7 +634,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
           {/* 이미지 업로드 */}
           <label className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border-2 border-dashed border-pink-300 text-center cursor-pointer hover:bg-pink-100 hover:border-pink-400 transition-all">
             <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-            <span className="text-pink-700 font-medium text-sm">📸 이미지 업로드 (OCR)</span>
+            <span className="text-pink-700 font-medium text-sm">📷 제품 사진으로 찾기 (OCR)</span>
           </label>
 
           {/* 업로드 미리보기 */}
@@ -678,16 +678,15 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
               : isOcrMode
               ? '🔍 이미지 분석 시작'
               : topSelected.length === 1
-              ? '선택한 상위 제품 분석'
-              : '제품 효과 시뮬레이션'}
+              ? 'BEST 제품 비교 분석'
+              : '내 피부 적합도 분석'}
           </button>
-
           {analysisResult && (
             <button
               onClick={() => setShowFullReport(true)}
               className="w-full mt-3 sm:mt-4 py-2.5 sm:py-3 rounded-xl bg-purple-100 text-purple-700 text-sm sm:text-base font-medium hover:bg-purple-200 transistion-color"
             >
-              결과 전체보기 (장/단점, 성분표)
+              전체 결과 + 장단점 보기
             </button>
           )}
         </div>
