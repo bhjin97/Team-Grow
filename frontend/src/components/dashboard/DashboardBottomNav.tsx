@@ -6,9 +6,11 @@ import { LayoutDashboard, MessageSquare, UserCircle, Sparkles } from 'lucide-rea
 interface DashboardBottomNavProps {
   onNavigate?: (page: string) => void;
   currentPage?: string;
+  chatBadgeCount?: number;  // 👈 추가
 }
 
-export default function DashboardBottomNav({ onNavigate, currentPage = 'dashboard' }: DashboardBottomNavProps) {
+export default function DashboardBottomNav({onNavigate, currentPage = 'dashboard', chatBadgeCount = 0, }: DashboardBottomNavProps) {
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-pink-100 z-50">
       <div className="flex items-center justify-around px-2 py-3">

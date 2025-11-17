@@ -3,6 +3,9 @@
 
 import { API_BASE } from '@/lib/env';
 import * as React from 'react';
+// 맨 위 import들 사이에 추가
+import DashboardHeader from './dashboard/DashboardHeader';
+import DashboardBottomNav from './dashboard/DashboardBottomNav';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -571,7 +574,6 @@ function IngredientModal({
 export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfaceProps) {
   const name = useUserStore(state => state.name);
   const displayName = name || userName || 'U';
-  const initialLetter = displayName.charAt(0).toUpperCase();
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -620,7 +622,6 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
 
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [savedProducts, setSavedProducts] = useState<number[]>([]);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -927,133 +928,12 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       </AnimatePresence>
 
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-lg border-b border-pink-100 sticky top-0 z-50">
-        <div className="container mx-auto px-3.5 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <h1
-                className="text-5xl sm:text-6xl font-light tracking-wide"
-                style={{ fontFamily: "'Italianno', cursive", color: '#9b87f5' }}
-              >
-                aller
-              </h1>
-            </div>
-            <nav className="hidden md:flex items-center space-x-1">
-              <button
-                onClick={() => onNavigate?.('dashboard')}
-                className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
-              >
-                <LayoutDashboard className="w-5 h-5" />
-                <span>대시보드</span>
-              </button>
-              <button
-                onClick={() => onNavigate?.('chat')}
-                className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors relative"
-                style={{
-                  background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
-                  color: 'white',
-                }}
-              >
-                <MessageSquare className="w-5 h-5" />
-                <span>AI 상담</span>
-                {savedProducts.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {savedProducts.length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => onNavigate?.('profile')}
-                className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
-              >
-                <UserCircle className="w-5 h-5" />
-                <span>프로필</span>
-              </button>
-              <button
-                onClick={() => onNavigate?.('settings')}
-                className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50 font-medium transition-colors"
-              >
-                <SettingsIcon className="w-5 h-5" />
-                <span>설정</span>
-              </button>
-            </nav>
-            <div className="hidden md:flex items-center space-x-4">
-              <button className="p-2 text-gray-600 hover:text-pink-600 transition-colors relative">
-                <Bell className="w-6 h-6" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-              </button>
-              <button
-                onClick={() => onNavigate?.('profile')}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
-                style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
-              >
-                {initialLetter}
-              </button>
-            </div>
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-gray-700 hover:text-pink-600 transition-colors"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-
-          {mobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="md:hidden mt-4 pb-4 space-y-3"
-            >
-              <button
-                onClick={() => {
-                  onNavigate?.('dashboard');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
-              >
-                <LayoutDashboard className="w-5 h-5" />
-                <span>대시보드</span>
-              </button>
-              <button
-                onClick={() => {
-                  onNavigate?.('chat');
-                  setMobileMenuOpen(false);
-                }}
-                style={{ background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)' }}
-                className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-white font-semibold relative"
-              >
-                <MessageSquare className="w-5 h-5" />
-                <span>AI 상담</span>
-                {savedProducts.length > 0 && (
-                  <span className="absolute top-2 right-4 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {savedProducts.length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => {
-                  onNavigate?.('profile');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
-              >
-                <UserCircle className="w-5 h-5" />
-                <span>프로필</span>
-              </button>
-              <button
-                onClick={() => {
-                  onNavigate?.('settings');
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center space-x-2 w-full text-left px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
-              >
-                <SettingsIcon className="w-5 h-5" />
-                <span>설정</span>
-              </button>
-            </motion.div>
-          )}
-        </div>
-      </header>
+      <DashboardHeader
+        userName={userName}
+        onNavigate={onNavigate}
+        currentPage="chat"
+        aiSavedCount={savedProducts.length}
+      />
 
       {/* Chat */}
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -1495,43 +1375,12 @@ export default function Chatbot({ userName = 'Sarah', onNavigate }: ChatInterfac
       </main>
 
       {/* Mobile Bottom Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-pink-100 z-50">
-        <div className="flex items-center justify-around px-4 py-3">
-          <button
-            onClick={() => onNavigate?.('dashboard')}
-            className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors"
-          >
-            <LayoutDashboard className="w-6 h-6" />
-            <span className="text-xs">대시보드</span>
-          </button>
-          <button
-            onClick={() => onNavigate?.('chat')}
-            className="flex flex-col items-center space-y-1 text-pink-600 relative"
-          >
-            <MessageSquare className="w-6 h-6" />
-            <span className="text-xs font-semibold">AI 상담</span>
-            {savedProducts.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {savedProducts.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => onNavigate?.('profile')}
-            className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors"
-          >
-            <UserCircle className="w-6 h-6" />
-            <span className="text-xs">프로필</span>
-          </button>
-          <button
-            onClick={() => onNavigate?.('settings')}
-            className="flex flex-col items-center space-y-1 text-gray-500 hover:text-pink-600 transition-colors"
-          >
-            <SettingsIcon className="w-6 h-6" />
-            <span className="text-xs">설정</span>
-          </button>
-        </div>
-      </nav>
+      <DashboardBottomNav
+        onNavigate={onNavigate}
+        currentPage="chat"
+        chatBadgeCount={savedProducts.length}
+      />
+
 
       {/* 성분 상세 모달 */}
       <IngredientModal

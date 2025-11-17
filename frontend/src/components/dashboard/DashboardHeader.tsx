@@ -70,7 +70,15 @@ export default function DashboardHeader({ userName = 'Sarah', onNavigate, curren
             </button>
             <button
               onClick={() => onNavigate?.('chat')}
-              className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-pink-50"
+              className="flex items-center space-x-2 px-4 py-2 rounded-lg font-medium"
+              style={
+                currentPage === 'chat'
+                  ? {
+                      background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+                      color: 'white',
+                    }
+                  : { color: '#6b7280' }
+              }
             >
               <MessageSquare className="w-5 h-5" /> <span>AI 상담</span>
             </button>
