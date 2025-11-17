@@ -179,7 +179,6 @@ export async function getUserIngredients(userId: number) {
   const res = await fetch(url, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
   });
   if (!res.ok) {
     const t = await res.text().catch(() => '');
@@ -206,7 +205,6 @@ export async function addUserIngredient(params: {
   const res = await fetch(`${API_BASE}/api/user-ingredients`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(params),
   });
   if (!res.ok) {
@@ -230,7 +228,6 @@ export async function deleteUserIngredient(
   const res = await fetch(url, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
   });
   if (!res.ok) {
     const t = await res.text().catch(() => '');

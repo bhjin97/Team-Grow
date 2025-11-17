@@ -132,7 +132,6 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
           {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
           }
         );
         if (!response.ok) {
@@ -295,7 +294,6 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
       const response = await fetch(`${API_BASE}/api/user-ingredients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           userId,
           userName: name || profile?.name || '',
@@ -379,7 +377,6 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
         {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
         }
       );
 
