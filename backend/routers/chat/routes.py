@@ -140,35 +140,6 @@ def recommend(req: RecommendReq):
         products=products,
     )
 
-# ──────────────────────────────────────────────────────────────────────────────
-# ✅ 요약 전용 API (스트리밍)
-#    역할: cache_key 기반 rows → run_product_finalize → 텍스트 스트리밍
-#    경로: POST /api/chat/finalize
-# ──────────────────────────────────────────────────────────────────────────────
-# @router.post("/finalize")
-# async def finalize_stream(req: FinalizeReq):
-#     data = _cache_get(req.cache_key)
-#     if not data:
-#         raise HTTPException(status_code=404, detail="cache_key expired or not found")
-
-#     rows = data.get("rows") or []  # run_product_core에서 넣어준 rows
-#     out = run_product_finalize(req.query, rows)
-#     full_text = (out.get("text") or "").strip() or " "
-
-#     async def gen():
-#         # 200자 단위로 잘라서 스트리밍
-#         for i in range(0, len(full_text), 200):
-#             yield full_text[i:i + 200]
-#             await asyncio.sleep(0)
-
-#     return StreamingResponse(
-#         gen(),
-#         media_type="text/plain; charset=utf-8",
-#         headers={
-#             "X-Intent": out.get("intent", "PRODUCT_FIND"),
-#         }, 
-#     )
-
 @router.post("/finalize")
 async def chat_finalize(req: FinalizeReq):
     """
@@ -199,7 +170,12 @@ async def chat_finalize(req: FinalizeReq):
     # 3) 그래도 rows가 없으면 요약할 게 없음 → 한 줄 안내만 스트리밍
     if not rows:
         async def empty_gen():
-            yield "조건에 맞는 제품을 찾을 수 없습니다."
+            msg = (
+        "조건에 맞는 제품을 찾을 수 없습니다.\n"
+        "입력 조건이 너무 좁거나 제품이 없을 수 있어요.\n"
+        "브랜드, 성분, 가격 등의 필터를 조금 완화해보세요.\n"
+        )
+            yield msg
             await asyncio.sleep(0)
 
         return StreamingResponse(
