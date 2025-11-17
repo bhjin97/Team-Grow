@@ -3,7 +3,7 @@ import json
 import math
 import os
 from collections import defaultdict
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, declarative_base
 from sqlalchemy import create_engine, Column, Integer, String, Float, Text, Index, text, DateTime, Enum, BigInteger, func
@@ -98,6 +98,8 @@ class AnalysisRequest(BaseModel):
 
 class ProductResponse(BaseModel):
     product_name: str
+    
+    
 
 # --- Constants & Helpers (기존과 동일) ---
 KEYWORD_KOR_TO_ENG = {
@@ -895,6 +897,7 @@ async def analyze_ocr_image(
             }
         }
 
+
     except HTTPException as he:
         raise he
     except Exception as e:
@@ -902,3 +905,34 @@ async def analyze_ocr_image(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"OCR 분석 중 오류: {e}")
+    
+    
+@router.get("/api/favorite-products", response_model=List[ProductResponse])
+def get_favorite_products(
+    user_id: int = Query(..., description="즐겨찾기 조회 대상 사용자 ID"),
+    db: Session = Depends(get_db),
+):
+    """
+    user_favorite_products.user_id에 해당하는 제품들을
+    product_data_chain과 조인해서 product_name 리스트로 반환.
+    """
+    try:
+        rows = db.execute(
+            text(
+                """
+                SELECT 
+                  p.product_name
+                FROM user_favorite_products uf
+                JOIN product_data_chain p
+                  ON uf.product_id = p.pid
+                WHERE uf.user_id = :uid
+                ORDER BY uf.created_at DESC, uf.product_id ASC
+                """
+            ),
+            {"uid": user_id},
+        ).mappings().all()
+
+        return [{"product_name": r["product_name"]} for r in rows]
+    except Exception as e:
+        print(f"❌ /api/favorite-products 서버 오류: {e}")
+        raise HTTPException(status_code=500, detail="즐겨찾기 제품 조회 중 오류가 발생했습니다.")

@@ -49,19 +49,20 @@ export async function fetchSimulation(product_name: string, skin_type: string, u
     console.error('API_BASE is not defined. Check frontend/lib/env.ts');
     throw new Error('API_BASE is not defined');
   }
-  
+
   const res = await fetch(`${API_BASE}/api/analyze`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'accept': 'application/json',
+      accept: 'application/json',
     },
     body: JSON.stringify({
       product_name: product_name,
       skin_type: skin_type,
-      user_id: (userId !== undefined && userId !== null && !Number.isNaN(Number(userId)))
-        ? Number(userId)
-        : null, // 백엔드가 None으로 받지 않게, 프론트에서 effectiveUserId를 보정했다면 null이 안 오게 만드는 게 더 좋음 
+      user_id:
+        userId !== undefined && userId !== null && !Number.isNaN(Number(userId))
+          ? Number(userId)
+          : null, // 백엔드가 None으로 받지 않게, 프론트에서 effectiveUserId를 보정했다면 null이 안 오게 만드는 게 더 좋음
     }),
   });
 
@@ -81,7 +82,7 @@ export async function fetchCategories(): Promise<string[]> {
   }
 
   const res = await fetch(`${API_BASE}/api/categories`);
-  
+
   if (!res.ok) {
     const errorData = await res.json();
     throw new Error(errorData.detail || '카테고리 목록을 불러오는 데 실패했습니다.');
@@ -91,7 +92,9 @@ export async function fetchCategories(): Promise<string[]> {
 }
 
 // 7. fetchProductsByCategory (기존)
-export async function fetchProductsByCategory(category: string): Promise<{ product_name: string }[]> {
+export async function fetchProductsByCategory(
+  category: string
+): Promise<{ product_name: string }[]> {
   if (!API_BASE) {
     console.error('API_BASE is not defined. Check frontend/lib/env.ts');
     throw new Error('API_BASE is not defined');
@@ -112,7 +115,7 @@ export async function fetchTopProductsByCategory(
   skin_type: string,
   userId?: number,
   limit = 8
-){
+) {
   const params = new URLSearchParams();
   params.set('category', category ?? '');
   params.set('skin_type', skin_type ?? '');
@@ -123,7 +126,7 @@ export async function fetchTopProductsByCategory(
   console.log('[REQ] GET', url);
   const res = await fetch(url);
   if (!res.ok) {
-    const txt = await res.text().catch(()=>'');
+    const txt = await res.text().catch(() => '');
     throw new Error(`top-products 실패 ${res.status} ${txt}`);
   }
   const data = await res.json();
@@ -145,12 +148,12 @@ export async function fetchPerfumeRecommendations(requestData: PerfumeRequestDat
     console.error('API_BASE is not defined. Check frontend/lib/env.ts');
     throw new Error('API_BASE is not defined');
   }
-  
+
   const res = await fetch(`${API_BASE}/api/perfume/recommend_v2`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'accept': 'application/json',
+      accept: 'application/json',
     },
     body: JSON.stringify(requestData),
   });
@@ -162,7 +165,6 @@ export async function fetchPerfumeRecommendations(requestData: PerfumeRequestDat
 
   return res.json();
 }
-
 
 // --- [★★★ 2-A: 새로 추가된 프로필 함수 2개 ★★★] ---
 
@@ -184,9 +186,9 @@ export async function fetchUserProfile(userId: number): Promise<any> {
     console.error('API_BASE is not defined.');
     throw new Error('API_BASE is not defined');
   }
-  
+
   const res = await fetch(`${API_BASE}/api/user_card/${userId}`);
-  
+
   if (!res.ok) {
     const errorData = await res.json();
     throw new Error(errorData.detail || '프로필 정보를 불러오는 데 실패했습니다.');
@@ -203,12 +205,12 @@ export async function updateUserProfile(userId: number, data: UserProfileUpdateD
     console.error('API_BASE is not defined.');
     throw new Error('API_BASE is not defined');
   }
-  
+
   const res = await fetch(`${API_BASE}/api/user_card/${userId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      'accept': 'application/json',
+      accept: 'application/json',
     },
     body: JSON.stringify(data),
   });
@@ -226,7 +228,7 @@ export async function updateUserProfile(userId: number, data: UserProfileUpdateD
 
 /**
  * 이미지 OCR을 통한 제품 분석
- * 
+ *
  * @param file 업로드한 이미지 파일
  * @param skin_type 피부 타입
  * @returns 분석 결과 (fetchSimulation과 동일한 형식)
@@ -236,7 +238,7 @@ export async function fetchOcrAnalysis(file: File, skin_type: string, userId?: n
     console.error('API_BASE is not defined. Check frontend/lib/env.ts');
     throw new Error('API_BASE is not defined');
   }
-  
+
   // FormData 생성
   const formData = new FormData();
   formData.append('file', file);
@@ -248,7 +250,7 @@ export async function fetchOcrAnalysis(file: File, skin_type: string, userId?: n
   console.log('[REQ] /api/analyze-ocr form user_id =', userId);
   const res = await fetch(`${API_BASE}/api/analyze-ocr`, {
     method: 'POST',
-    body: formData,  // Content-Type은 자동 설정됨 (multipart/form-data)
+    body: formData, // Content-Type은 자동 설정됨 (multipart/form-data)
   });
 
   if (!res.ok) {
@@ -256,5 +258,17 @@ export async function fetchOcrAnalysis(file: File, skin_type: string, userId?: n
     throw new Error(errorData.detail || 'OCR 분석에 실패했습니다.');
   }
 
+  return res.json();
+}
+
+// 성분분석 즐겨찾기제품명 버튼
+export async function fetchFavoriteProducts(userId: number) {
+  const res = await fetch(`${API_BASE}/api/favorite-products?user_id=${userId}`, {
+    method: 'GET',
+  });
+
+  if (!res.ok) {
+    throw new Error('즐겨찾기 제품을 불러오지 못했어요.');
+  }
   return res.json();
 }
