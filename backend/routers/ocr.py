@@ -368,29 +368,44 @@ def format_analysis_for_chat(analysis_result: Dict[str, Any]) -> Dict[str, Any]:
     def _grade_to_score(g: str) -> float:
         """
         caution_grade를 0~3 점수로 정규화.
-        - 문자열 등급 대응 + 숫자(0~10) 대응
+        - 문자열 등급(주의, 비안전 등) + 숫자(0~10) 모두 대응
         """
         if g is None:
             return 0.0
+
+        # 원본 문자열 정리
         s = str(g).strip().lower()
 
-        # 문자열 등급 맵(예시는 프로젝트 상황에 맞게 보정 가능)
-        map_str = {
-            "저위험": 0.5, "low": 0.5, "낮음": 0.5,
-            "중간": 1.5, "보통": 1.5, "moderate": 1.5,
-            "주의": 2.0, "주의필요": 2.0, "warning": 2.0,
-            "고위험": 3.0, "high": 3.0, "위험": 3.0,
-        }
-        if s in map_str:
-            return map_str[s]
+        # 흔한 포맷 제거: "등급: xxx", "예측 등급: xxx", 대괄호 등
+        for prefix in ["등급:", "예측 등급:", "grade:", "predicted:"]:
+            if s.startswith(prefix):
+                s = s[len(prefix):].strip()
+        s = s.replace("[", "").replace("]", "").strip()
 
-        # 숫자 등급(예: 1~10형식) → 0~3로 스케일링
-        if s.replace(".", "", 1).isdigit():
+        # 1) 키워드 기반 분류 (부분 포함으로 판정)
+        #   - 최상위 위험 → 3.0
+        if any(k in s for k in ["고위험", "매우위험", "very high", "high risk"]):
+            return 3.0
+        if any(k in s for k in ["위험", "high"]):
+            return 3.0
+
+        #   - 중간~주의 수준 → 2.0
+        if any(k in s for k in ["비안전", "주의", "중간", "보통", "moderate", "medium"]):
+            return 2.0
+
+        #   - 낮은 위험·대체로 안전 → 0.5
+        if any(k in s for k in ["저위험", "낮음", "low", "안전"]):
+            return 0.5
+
+        # 2) 숫자 등급(예: "7", "7.5") → 0~3 스케일링
+        tmp = s.replace(".", "", 1)
+        if tmp.isdigit():
             val = float(s)
-            # 보편적인 0~10 스케일을 0~3으로 변환
             return max(0.0, min(3.0, (val / 10.0) * 3.0))
 
+        # 3) 그 외는 정보 부족 → 0점
         return 0.0
+
 
     def _tag_flags(name: str) -> dict:
         """성분명 키워드로 특성 플래그 추출"""
