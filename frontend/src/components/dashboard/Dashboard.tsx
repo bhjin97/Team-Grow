@@ -279,7 +279,14 @@ export default function Dashboard({ userName = 'Sarah', onNavigate }: DashboardP
                 <h2 className="text-base sm:text-lg font-semibold">피부 타입 한눈에</h2>
                 <FiltersBar />
               </div>
-              <SkinTypeStatsPanel interval="all" gender={gender} ageBand={ageBand} framed={false} />
+              <SkinTypeStatsPanel
+                interval="all"
+                gender={gender}
+                ageBand={ageBand}
+                framed={false}
+                userTypeCode={code}   // ← 추가
+              />
+
             </div>
           </div>
         </section>
