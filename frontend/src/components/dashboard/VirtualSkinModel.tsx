@@ -10,9 +10,10 @@ import {
   fetchProductsByCategory,
   fetchOcrAnalysis,
   fetchTopProductsByCategory, // ★ 상위 추천 API
+  fetchFavoriteProducts,
 } from '../../lib/utils';
 import Plot from 'react-plotly.js';
-import LoadingMascot from "../common/LoadingMascot";
+import LoadingMascot from '../common/LoadingMascot';
 
 const KEYWORD_ENG_TO_KOR: Record<string, string> = {
   moisturizing: '보습',
@@ -78,9 +79,7 @@ interface VirtualSkinModelProps {
 const getUid = (explicit?: number) => {
   const fromLS = Number(localStorage.getItem('user_id') || '1');
   const primary = explicit ?? fromLS;
-  return Number.isFinite(primary as number) && (primary as number) > 0
-    ? (primary as number)
-    : 1;
+  return Number.isFinite(primary as number) && (primary as number) > 0 ? (primary as number) : 1;
 };
 
 // ===================== Helpers =====================
@@ -129,10 +128,12 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
 
   // --- 상위 추천 탭 / 데이터 ---
   const [showFullReport, setShowFullReport] = useState(false);
-  const [activeTab, setActiveTab] = useState<'top' | 'all'>('top');
+  const [activeTab, setActiveTab] = useState<'top' | 'all' | 'fav'>('top');
   const [topList, setTopList] = useState<TopProductItem[]>([]);
   const [isTopLoading, setIsTopLoading] = useState(false);
   const [topSelected, setTopSelected] = useState<string[]>([]); // product_name 배열(최대 4)
+  const [favoriteProducts, setFavoriteProducts] = useState<string[]>([]);
+  const [isFavLoading, setIsFavLoading] = useState(false);
 
   // ========== 초기 로드 ==========
   useEffect(() => {
@@ -176,16 +177,41 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
     setIsTopLoading(true);
     const uid = getUid(userId);
     fetchTopProductsByCategory(selectedCategory, skinType, uid, 4)
-      .then((items) => {
+      .then(items => {
         const sorted = [...items].sort((a, b) => (b.final_score ?? 0) - (a.final_score ?? 0));
         setTopList(sorted);
       })
-      .catch((e) => {
+      .catch(e => {
         console.error('[TOP] load error', e);
         setTopList([]);
       })
       .finally(() => setIsTopLoading(false));
   }, [selectedCategory, skinType, userId]);
+
+  useEffect(() => {
+    if (activeTab !== 'fav') return;
+
+    const uid = getUid(userId);
+    if (!uid) return;
+
+    setIsFavLoading(true);
+    setFavoriteProducts([]);
+    setSelectedProduct('');
+    setTopSelected([]);
+    setIsOcrMode(false);
+    setUploadedImage(null);
+    setAnalysisResult(null);
+
+    fetchFavoriteProducts(uid)
+      .then(list => {
+        setFavoriteProducts(list.map((p: any) => p.product_name));
+      })
+      .catch(err => {
+        console.error('즐겨찾기 제품 로드 실패:', err);
+        setFavoriteProducts([]);
+      })
+      .finally(() => setIsFavLoading(false));
+  }, [activeTab, userId]);
 
   // ========== 이미지 업로드 ==========
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -232,8 +258,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
     }
 
     // 상위 추천에서 다중 선택 -> 정확히 1개만 허용하여 분석
-    const effectiveSelected =
-      topSelected.length === 1 ? topSelected[0] : selectedProduct;
+    const effectiveSelected = topSelected.length === 1 ? topSelected[0] : selectedProduct;
 
     if (!effectiveSelected) {
       setSimError(
@@ -404,15 +429,13 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
         className="bg-white rounded-2xl shadow-lg p-4 sm:p-6"
       >
         <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 flex items-center">
-          <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 mr-2" />
-          내 피부에 딱 맞는 제품일까?
+          <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 mr-2" />내 피부에 딱 맞는
+          제품일까?
         </h3>
 
         {/* 프리뷰 캔버스 */}
         <div className="h-48 sm:h-56 bg-purple-50 rounded-xl mb-3 flex items-center justify-center relative overflow-hidden p-4">
-          {isSimLoading && (
-            <LoadingMascot label="분석 중입니다..." src="/mascot/mascot.png" />
-          )}
+          {isSimLoading && <LoadingMascot label="분석 중입니다..." src="/mascot/mascot.png" />}
 
           {!isSimLoading && simError && (
             <div className="flex flex-col items-center text-red-600 text-center">
@@ -430,7 +453,9 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
               {analysisResult?.has_user_caution && (
                 <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[12px] inline-flex items-center gap-1 text-red-700">
                   <AlertTriangle className="w-4 h-4" />
-                  <span>{analysisResult.warning_message || '선택하신 주의 성분이 포함되어 있습니다.'}</span>
+                  <span>
+                    {analysisResult.warning_message || '선택하신 주의 성분이 포함되어 있습니다.'}
+                  </span>
                 </div>
               )}
 
@@ -504,6 +529,18 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
             >
               모두 보기
             </button>
+            {/*즐겨찾기 탭 버튼 */}
+            <button
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${
+                activeTab === 'fav'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              onClick={() => setActiveTab('fav')}
+              type="button"
+            >
+              즐겨찾기 제품 보기
+            </button>
           </div>
 
           {/* 탭 콘텐츠 */}
@@ -531,14 +568,13 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                 ) : (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3">
-                      {topList.slice(0, 4).map((item) => {
+                      {topList.slice(0, 4).map(item => {
                         const selected = topSelected.includes(item.product_name);
-                        const badge =
-                          item.has_user_caution ? (
-                            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200">
-                              주의 성분
-                            </span>
-                          ) : null;
+                        const badge = item.has_user_caution ? (
+                          <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200">
+                            주의 성분
+                          </span>
+                        ) : null;
                         const low =
                           item.reliability === 'low' ? (
                             <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 border border-yellow-200">
@@ -597,7 +633,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                 )}
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'all' ? (
             // 전체 목록 탭
             <div className="space-y-2 mt-2">
               <select
@@ -610,7 +646,11 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                 className="w-full py-2.5 sm:py-3 pl-4 pr-10 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-purple-300 focus:ring-2 focus:outline-none text-sm sm:text-base"
               >
                 <option value="">
-                  {isListLoading ? '제품 로딩 중...' : selectedCategory ? '📌 제품을 골라주세요' : '카테고리를 먼저 선택'}
+                  {isListLoading
+                    ? '제품 로딩 중...'
+                    : selectedCategory
+                      ? '📌 제품을 골라주세요'
+                      : '카테고리를 먼저 선택'}
                 </option>
                 {products.map(prodName => (
                   <option key={prodName} value={prodName}>
@@ -618,9 +658,61 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                   </option>
                 ))}
               </select>
-              <div className="text-xs text-gray-500">
-                위에서 제품 하나를 골라주세요.
-              </div>
+              <div className="text-xs text-gray-500">위에서 제품 하나를 골라주세요.</div>
+            </div>
+          ) : (
+            // 즐겨찾기 탭
+            <div className="space-y-2 mt-2">
+              <p className="text-sm font-semibold">⭐ 즐겨찾기한 제품</p>
+
+              {isFavLoading ? (
+                <div className="p-4 rounded-xl border bg-white">
+                  <LoadingMascot label="즐겨찾기 제품 불러오는 중..." src="/mascot/mascot.png" />
+                </div>
+              ) : favoriteProducts.length === 0 ? (
+                <div className="p-4 rounded-xl border bg-white text-sm text-gray-600">
+                  즐겨찾기한 제품이 아직 없어요.
+                  <div className="mt-1 text-xs text-gray-500">
+                    제품 카드에서 즐겨찾기를 추가하면 여기에서 바로 선택하여 분석할 수 있어요.
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-white p-3">
+                  <div className="flex flex-wrap gap-2">
+                    {favoriteProducts.map(name => {
+                      const selected = selectedProduct === name;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => {
+                            setSelectedProduct(
+                              prev => (prev === name ? '' : name) // ← 같으면 취소, 다르면 선택
+                            );
+                            setTopSelected([]);
+                            setIsOcrMode(false);
+                            setUploadedImage(null);
+                            setAnalysisResult(null);
+                            setSimError(null);
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs sm:text-sm border transition ${
+                            selected
+                              ? 'bg-purple-600 text-white border-purple-600'
+                              : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-purple-50 hover:border-purple-300'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    한 개를 선택하면 아래에서 바로{' '}
+                    <span className="font-semibold">내 피부 적합도 분석</span> 버튼으로 분석할 수
+                    있어요.
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -676,10 +768,10 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
             {isSimLoading
               ? '분석 중...'
               : isOcrMode
-              ? '🔍 이미지 분석 시작'
-              : topSelected.length === 1
-              ? 'BEST 제품 비교 분석'
-              : '내 피부 적합도 분석'}
+                ? '🔍 이미지 분석 시작'
+                : topSelected.length === 1
+                  ? 'BEST 제품 비교 분석'
+                  : '내 피부 적합도 분석'}
           </button>
           {analysisResult && (
             <button
@@ -802,9 +894,15 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                     <table className="w-full text-sm text-left text-gray-500">
                       <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
                         <tr>
-                          <th scope="col" className="px-6 py-3">성분명</th>
-                          <th scope="col" className="px-6 py-3">배합목적 (추정)</th>
-                          <th scope="col" className="px-6 py-3">매칭 효능</th>
+                          <th scope="col" className="px-6 py-3">
+                            성분명
+                          </th>
+                          <th scope="col" className="px-6 py-3">
+                            배합목적 (추정)
+                          </th>
+                          <th scope="col" className="px-6 py-3">
+                            매칭 효능
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -827,7 +925,8 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                     </summary>
                     <div className="p-4 bg-gray-50 rounded-lg mt-2">
                       <p className="text-sm text-gray-600 mb-2">
-                        이 성분들은 6대 키워드(보습/진정/피지/주름/미백/보호)에 해당하지 않아 점수 계산에서 제외되었습니다.
+                        이 성분들은 6대 키워드(보습/진정/피지/주름/미백/보호)에 해당하지 않아 점수
+                        계산에서 제외되었습니다.
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {analysisResult.ingredients.unmatched.map((item, i) => (
@@ -853,14 +952,20 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                         <table className="w-full text-sm text-left">
                           <thead className="bg-red-50">
                             <tr>
-                              <th scope="col" className="px-6 py-3 text-red-900 font-semibold">성분명</th>
-                              <th scope="col" className="px-6 py-3 text-red-900 font-semibold">주의 등급</th>
+                              <th scope="col" className="px-6 py-3 text-red-900 font-semibold">
+                                성분명
+                              </th>
+                              <th scope="col" className="px-6 py-3 text-red-900 font-semibold">
+                                주의 등급
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
                             {analysisResult.ingredients.caution.map((item, i) => (
                               <tr className="bg-white border-b border-red-100" key={i}>
-                                <td className="px-6 py-4 font-medium text-gray-900">{item.korean_name}</td>
+                                <td className="px-6 py-4 font-medium text-gray-900">
+                                  {item.korean_name}
+                                </td>
                                 <td className="px-6 py-4">
                                   <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold">
                                     {item.caution_grade}
@@ -883,7 +988,10 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div className="p-3 bg-gray-100 rounded-lg">
                       <strong>적합도 (Fit Score)</strong>
-                      <p>제품의 성분 비율이 피부타입의 목표 범위에 얼마나 적합한지를 나타냅니다. (0~1.0)</p>
+                      <p>
+                        제품의 성분 비율이 피부타입의 목표 범위에 얼마나 적합한지를 나타냅니다.
+                        (0~1.0)
+                      </p>
                     </div>
                     <div className="p-3 bg-gray-100 rounded-lg">
                       <strong>중요도 (Importance)</strong>
@@ -892,7 +1000,10 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                   </div>
                   <div className="p-3 bg-gray-100 rounded-lg mt-3 text-sm">
                     <strong>기여도 (Contribution)</strong>
-                    <p>적합도 × 중요도 = 최종 점수에 기여하는 정도입니다. 양수는 가산점, 음수는 감점입니다.</p>
+                    <p>
+                      적합도 × 중요도 = 최종 점수에 기여하는 정도입니다. 양수는 가산점, 음수는
+                      감점입니다.
+                    </p>
                   </div>
                 </div>
                 <div>
@@ -936,11 +1047,16 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                 </div>
                 <div>
                   <h4 className="text-lg font-semibold mb-2">💡 종합 의견</h4>
-                  <div className={`p-4 rounded-lg border-2 ${getScoreBgColor(analysisResult.final_score)}`}>
+                  <div
+                    className={`p-4 rounded-lg border-2 ${getScoreBgColor(analysisResult.final_score)}`}
+                  >
                     {analysisResult?.has_user_caution && (
                       <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[12px] text-red-700">
                         <AlertTriangle className="w-4 h-4" />
-                        <span>{analysisResult.warning_message || '선택하신 주의 성분이 포함되어 있습니다.'}</span>
+                        <span>
+                          {analysisResult.warning_message ||
+                            '선택하신 주의 성분이 포함되어 있습니다.'}
+                        </span>
                       </div>
                     )}
                     <p className="text-base font-medium leading-relaxed">
@@ -950,15 +1066,15 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                 </div>
               </div>
 
-            {/* 닫기 버튼 */}
-            <button
-              onClick={() => setShowFullReport(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-              aria-label="닫기"
-              title="닫기"
-            >
-              <X className="w-6 h-6" />
-            </button>
+              {/* 닫기 버튼 */}
+              <button
+                onClick={() => setShowFullReport(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                aria-label="닫기"
+                title="닫기"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
           </div>
         </div>
@@ -966,7 +1082,11 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
 
       {/* --- 3. 사용자 주의 성분 경고 모달 --- */}
       {analysisResult?.has_user_caution && showCautionModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" role="alertdialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          role="alertdialog"
+          aria-modal="true"
+        >
           <div className="w-full max-w-lg rounded-2xl border-2 border-red-300 bg-white shadow-xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 bg-red-600 text-white">
               <div className="flex items-center gap-2">
@@ -985,7 +1105,8 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
 
               <div className="mb-3">
                 <p className="text-sm text-gray-700">
-                  적용 정책: 사용자 주의 성분 발견 시 <span className="font-semibold text-red-600">즉시 -40점</span> 감점
+                  적용 정책: 사용자 주의 성분 발견 시{' '}
+                  <span className="font-semibold text-red-600">즉시 -40점</span> 감점
                 </p>
                 <div className="mt-1 flex items-baseline gap-2">
                   {typeof analysisResult.score_before === 'number' && (
@@ -993,28 +1114,36 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
                       {analysisResult.score_before}
                     </span>
                   )}
-                  <span className="text-2xl font-bold text-red-600">{analysisResult.final_score}</span>
+                  <span className="text-2xl font-bold text-red-600">
+                    {analysisResult.final_score}
+                  </span>
                   <span className="text-sm text-gray-600">/ 100점</span>
                 </div>
               </div>
 
-              {Array.isArray(analysisResult.user_caution) && analysisResult.user_caution.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-sm font-semibold text-gray-800 mb-1">감지된 사용자 주의 성분</p>
-                  <div className="flex flex-wrap gap-2">
-                    {analysisResult.user_caution.slice(0, 5).map((u, idx) => (
-                      <span key={`${u.korean_name}-${idx}`} className="px-2 py-1 rounded-full border border-red-200 bg-red-50 text-red-700 text-xs">
-                        {u.korean_name}
-                      </span>
-                    ))}
-                    {analysisResult.user_caution.length > 5 && (
-                      <span className="text-xs text-gray-600">
-                        외 {analysisResult.user_caution.length - 5}개
-                      </span>
-                    )}
+              {Array.isArray(analysisResult.user_caution) &&
+                analysisResult.user_caution.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm font-semibold text-gray-800 mb-1">
+                      감지된 사용자 주의 성분
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {analysisResult.user_caution.slice(0, 5).map((u, idx) => (
+                        <span
+                          key={`${u.korean_name}-${idx}`}
+                          className="px-2 py-1 rounded-full border border-red-200 bg-red-50 text-red-700 text-xs"
+                        >
+                          {u.korean_name}
+                        </span>
+                      ))}
+                      {analysisResult.user_caution.length > 5 && (
+                        <span className="text-xs text-gray-600">
+                          외 {analysisResult.user_caution.length - 5}개
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             <div className="px-5 py-3 bg-gray-50 flex items-center justify-end gap-2">
