@@ -19,9 +19,14 @@ interface DashboardHeaderProps {
   userName?: string;
   onNavigate?: (page: string) => void;
   currentPage?: string;
+  aiSavedCount?: number;
 }
 
-export default function DashboardHeader({ userName = 'Sarah', onNavigate, currentPage = 'dashboard' }: DashboardHeaderProps) {
+export default function DashboardHeader({
+  userName = 'Sarah',
+  onNavigate,
+  currentPage = 'dashboard',
+}: DashboardHeaderProps) {
   const name = useUserStore(state => state.name);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -135,7 +140,10 @@ export default function DashboardHeader({ userName = 'Sarah', onNavigate, curren
               className="w-full flex items-center space-x-2 px-4 py-2 rounded-lg font-semibold"
               style={
                 currentPage === 'dashboard'
-                  ? { background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)', color: 'white' }
+                  ? {
+                      background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+                      color: 'white',
+                    }
                   : { color: '#6b7280' }
               }
             >
@@ -149,7 +157,10 @@ export default function DashboardHeader({ userName = 'Sarah', onNavigate, curren
               className="w-full flex items-center space-x-2 px-4 py-2 rounded-lg font-semibold"
               style={
                 currentPage === 'features'
-                  ? { background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)', color: 'white' }
+                  ? {
+                      background: 'linear-gradient(135deg, #f5c6d9 0%, #e8b4d4 100%)',
+                      color: 'white',
+                    }
                   : { color: '#6b7280' }
               }
             >
