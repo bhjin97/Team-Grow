@@ -78,28 +78,10 @@ export default function FeaturesUI({
       <DashboardHeader userName={userName} onNavigate={onNavigate} currentPage={currentPage} />
 
       <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl">
-        {/* 페이지 타이틀 */}
-        <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">스킨케어 기능</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-2">
-            내 피부에 딱 맞는 제품 분석과 추천을 확인하세요
-          </p>
-        </div>
+        
 
         {/* 2열 그리드 레이아웃 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          {/* 향수 추천 */}
-          <PerfumeRecommendations
-            selectedWeather={selectedWeather}
-            setSelectedWeather={setSelectedWeather}
-            selectedMood={selectedMood}
-            setSelectedMood={setSelectedMood}
-            perfumeRecommendations={perfumeRecommendations}
-          />
-
-          {/* 바우만 분석 */}
-          <BaumannAnalysis pick={pick} code={code} koAxisWord={koAxisWord} onNavigate={onNavigate} />
-
           {/* 가상 피부 시뮬레이터 */}
           <VirtualSkinModel skinType={baumannType} userId={userId} />
 
@@ -118,8 +100,19 @@ export default function FeaturesUI({
             routineProducts={routineProducts}
             setRoutineProducts={setRoutineProducts}
             onFetchRoutine={onFetchRoutine}
-            resetKeywords={resetKeywords}
+            resetKeywords={resetKeywords}/>
+
+          {/* 향수 추천 */}
+          <PerfumeRecommendations
+            selectedWeather={selectedWeather}
+            setSelectedWeather={setSelectedWeather}
+            selectedMood={selectedMood}
+            setSelectedMood={setSelectedMood}
+            perfumeRecommendations={perfumeRecommendations}
           />
+
+          {/* 바우만 분석 */}
+          <BaumannAnalysis pick={pick} code={code} koAxisWord={koAxisWord} onNavigate={onNavigate} />
         </div>
       </main>
 
