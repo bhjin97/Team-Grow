@@ -126,8 +126,15 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
 
     const loadUserIngredients = async () => {
       try {
-        // 여기서 백엔드(API_BASE) 직접 조회로 변경
-        const response = await fetch(`${API_BASE}/user-ingredients?userId=${userId}`);
+        // ✅ 백엔드 API 스펙과 맞게 /api prefix + API_BASE 사용
+        const response = await fetch(
+          `${API_BASE}/api/user-ingredients?userId=${encodeURIComponent(userId)}`,
+          {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+          }
+        );
         if (!response.ok) {
           console.error('loadUserIngredients failed:', response.status);
           return;
@@ -172,7 +179,6 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
               id: normalizeId(item, idx),
               name,
               benefit: '',
-              type: 'preferred',
             });
           } else {
             caution.push({
@@ -180,7 +186,6 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
               name,
               reason: '',
               severity: 'low',
-              type: 'caution',
             });
           }
         });
@@ -260,7 +265,7 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     }
   };
 
-  // 성분 추가 (DB 연동) — 기존 /api 경로 그대로 유지 (이미 잘 동작 중인 부분)
+  // 성분 추가 (DB 연동)
   const handleAddIngredient = async (ingredient: Ingredient, type: IngredientType) => {
     if (!userId) {
       showToast('로그인이 필요합니다', 'warning');
@@ -286,9 +291,11 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     setLoadingStates(prev => ({ ...prev, add: true }));
 
     try {
-      const response = await fetch('/api/user-ingredients', {
+      // ✅ dev/prod 공통으로 API_BASE + /api prefix 사용
+      const response = await fetch(`${API_BASE}/api/user-ingredients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           userId,
           userName: name || profile?.name || '',
@@ -309,7 +316,6 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
       const newIngredient = {
         id: Date.now(),
         name: ingredient.korean_name,
-        type: type as 'preferred' | 'caution',
         ...(type === 'preferred'
           ? { benefit: ingredient.description || '' }
           : {
@@ -320,8 +326,12 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
                   ? 'mid'
                   : 'low') as 'low' | 'mid' | 'high',
             }),
-      };
-      useUserStore.getState().addIngredient(newIngredient);
+      } as PreferredIngredient | CautionIngredient;
+
+      useUserStore.getState().addIngredient({
+        ...(newIngredient as any),
+        type,
+      });
 
       showToast(
         `${ingredient.korean_name}을(를) ${type === 'preferred' ? '선호' : '주의'} 성분에 추가했습니다`,
@@ -361,9 +371,16 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
     removeIngredient(ingredientId, type);
 
     try {
+      // ✅ dev/prod 공통으로 API_BASE + /api prefix 사용
       const response = await fetch(
-        `/api/user-ingredients/${userId}/${encodeURIComponent(ingredientName)}?ingType=${type}`,
-        { method: 'DELETE' }
+        `${API_BASE}/api/user-ingredients/${userId}/${encodeURIComponent(
+          ingredientName
+        )}?ingType=${type}`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
       );
 
       if (!response.ok) {
@@ -487,6 +504,7 @@ export const ProfilePage = ({ onNavigate, onLogout }: ProfilePageProps) => {
                 handleDeleteIngredient(ingredient.id, ingredient.name, 'caution');
               }}
               searchSection={<IngredientSearchSection onAddIngredient={handleAddIngredient} />}
+              loadingStates={loadingStates}
             />
           )}
         </motion.div>
