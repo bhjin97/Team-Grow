@@ -914,7 +914,7 @@ def get_favorite_products(
 ):
     """
     user_favorite_products.user_id에 해당하는 제품들을
-    product_data_chain과 조인해서 product_name 리스트로 반환.
+    product_data과 조인해서 product_name 리스트로 반환.
     """
     try:
         rows = db.execute(
@@ -923,7 +923,7 @@ def get_favorite_products(
                 SELECT 
                   p.product_name
                 FROM user_favorite_products uf
-                JOIN product_data_chain p
+                JOIN product_data p
                   ON uf.product_id = p.pid
                 WHERE uf.user_id = :uid
                 ORDER BY uf.created_at DESC, uf.product_id ASC
