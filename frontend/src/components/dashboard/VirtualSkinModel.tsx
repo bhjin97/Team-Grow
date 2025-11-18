@@ -359,7 +359,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
         hole: 0.4,
         textposition: 'inside' as const,
         textinfo: 'percent+label' as const,
-        marker: { colors: ['#bef3d1ff', '#fec5bb', '#fcefb4','#efcfe3', '#ccc9dc', '#b9d6f2'] },
+        marker: { colors: ['#d6ffe6ff', '#fddcd5ff', '#fdf4caff','#f5ddecff', '#dad8e7ff', '#dff0ffff'] },
         hoverinfo: 'label+percent+value' as const,
         insidetextfont: { color: '#737373', size: 15, weight: 'bold'},
       },
