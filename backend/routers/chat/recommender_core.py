@@ -521,7 +521,7 @@ def is_info_scarce(parsed: Dict) -> bool:
 def _price_key(v: Optional[int]) -> int:
     return v if v is not None else 10**12
 
-
+ 
 def search_pipeline_from_parsed(
     parsed: Dict[str, Any], user_query: str, use_raw_for_features: bool = True
 ) -> Dict[str, Any]:
@@ -551,17 +551,110 @@ def search_pipeline_from_parsed(
 
     has_features = bool(parsed.get("features"))
     pr = parsed.get("price_range") or (None, None)
+    has_price = any(pr)
+    has_category = bool(parsed.get("category"))
+    has_brand = bool(brand_norm)
+    has_ingredients = bool(ingredient_ids)
+
     has_hardfilter = any(
-        [brand_norm, ingredient_ids, any(pr), parsed.get("category")]
-)
+        [has_brand, has_ingredients, has_price, has_category]
+    )
+
+    # ✅ feature + 가격/브랜드/카테고리/성분이 모두 있는 강한 필터 케이스인지
+    use_rdb_first_strong = (
+        has_features and has_brand and has_category and has_ingredients and has_price
+    )
 
     top_k = decide_top_k(has_features, has_hardfilter)
 
     rows: List[Dict] = []
+    score_map: Dict[int, float] = {}
 
-    # 2) feature 기반 검색이 있는 경우 (vector-first + RDB 필터)
-    if has_features:
-        feature_text = " ".join(parsed.get("features") or []) or user_query
+    # feature 텍스트는 한 번만 구성
+    feature_text = " ".join(parsed.get("features") or []) or user_query
+
+    # 2-A) ✅ 강한 필터 케이스 → RDB-first → Vector-second
+    if use_rdb_first_strong:
+        # 1) 먼저 RDB에서 구조적 필터 전부 적용해서 후보군 확보
+        rows = rdb_filter(
+            candidate_pids=None,
+            brand=brand_norm,
+            ingredient_ids=ingredient_ids,
+            price_range=parsed.get("price_range"),
+            category=parsed.get("category"),
+            limit=50,
+        )
+
+        if rows:
+            # 2) 후보 pid 서브셋에 대해서만 feature 임베딩 기반 점수 계산
+            pid_subset = [int(r["pid"]) for r in rows]
+
+            # 로컬에서 코사인 유사도 계산 (벡터 길이가 다르면 0 처리)
+            import math
+
+            def _cosine_similarity(a: List[float], b: List[float]) -> float:
+                if not a or not b or len(a) != len(b):
+                    return 0.0
+                dot = 0.0
+                na = 0.0
+                nb = 0.0
+                for x, y in zip(a, b):
+                    dot += x * y
+                    na += x * x
+                    nb += y * y
+                if na <= 0.0 or nb <= 0.0:
+                    return 0.0
+                return dot / (math.sqrt(na) * math.sqrt(nb))
+
+            qvec = embed_query(feature_text)
+            fetch_res = feature_index.fetch(ids=[str(pid) for pid in pid_subset])
+
+            # Pinecone SDK 버전에 따라 dict가 아니라 FetchResponse 객체일 수 있으므로 방어적으로 처리
+            if hasattr(fetch_res, "get"):
+                # dict 같은 인터페이스일 경우
+                vectors = fetch_res.get("vectors") or {}
+            else:
+                # FetchResponse 객체일 경우
+                vectors = getattr(fetch_res, "vectors", {}) or {}
+
+            for pid in pid_subset:
+                vinfo = vectors.get(str(pid))
+                if not vinfo:
+                    continue
+
+                # Pinecone SDK 타입 호환 처리
+                # - v3: Vector 객체 → vinfo.values
+                # - 구버전/dict: dict → vinfo["values"] 또는 vinfo.get("values")
+                if hasattr(vinfo, "values"):
+                    # Vector 객체
+                    vvals = list(getattr(vinfo, "values", []) or [])
+                elif isinstance(vinfo, dict):
+                    vvals = list(vinfo.get("values") or [])
+                else:
+                    vvals = []
+
+                if not vvals:
+                    continue
+
+                score_map[int(pid)] = float(
+                    _cosine_similarity(qvec, vvals)
+                )
+
+
+            log_event(
+                "rdb_first_vector_second",
+                brand=brand_norm,
+                category=parsed.get("category"),
+                ingredient_ids=ingredient_ids,
+                price_range=parsed.get("price_range"),
+                candidate_count=len(pid_subset),
+            )
+        else:
+            # 후보가 아무것도 없으면 기존 vector-first 로직으로 폴백
+            use_rdb_first_strong = False
+ 
+    # 2-B) feature 기반 검색이 있는 경우 (기존 vector-first + RDB 필터)
+    if has_features and not use_rdb_first_strong:
         candidate_pids_raw, score_map_raw = feature_candidates_from_text(
             feature_text, top_k=top_k
         )
@@ -602,8 +695,9 @@ def search_pipeline_from_parsed(
                     )
             else:
                 rows = []
+
     # 3) feature가 없는 경우 → RDB-first (필터만으로 검색)
-    else:
+    if not has_features:
         rows = rdb_filter(
             candidate_pids=None,
             brand=brand_norm,
@@ -619,7 +713,6 @@ def search_pipeline_from_parsed(
 
         # ① feature가 있는 경우 → score + 가격을 같이 반영
         if has_features:
-            # score_map은 feature 경로에서만 만들어졌으므로, 없으면 그냥 0.0
             def _score(pid: int) -> float:
                 return score_map.get(int(pid), 0.0)
 
@@ -695,6 +788,7 @@ def search_pipeline_from_parsed(
         },
         "results": rows,
     }
+
 
 
 # =============================================================================
