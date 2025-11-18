@@ -304,7 +304,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
         title: { text: '적합도 점수', font: { size: 16, color: '#4a4a4a' } },
         gauge: {
           axis: { range: [0, 100], tickwidth: 0 },
-          bar: { color: '#e8b4d4', line: { width: 1, color: '#f5c6d9' } },
+          bar: { color: '#f4acb7', line: { width: 1, color: '#f5c6d9' } },
           bgcolor: 'white',
           borderwidth: 0,
           steps: [],
@@ -329,7 +329,7 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
         x: breakdownData.map(d => d.contribution),
         y: breakdownData.map(d => d.key),
         orientation: 'h' as const,
-        marker: { color: '#e8b4d4' },
+        marker: { color: breakdownData.map((_, i) => ['#d8e2dc', '#e8e8e4', '#f8edeb','#fae1dd', '#fcd5ce', '#fec5bb'][i % 6]) },
         text: breakdownData.map(d => d.contribution.toFixed(2)),
         textposition: 'outside' as const,
         textfont: { color: '#4a4a4a' },
@@ -359,9 +359,9 @@ export default function VirtualSkinModel({ skinType, userId }: VirtualSkinModelP
         hole: 0.4,
         textposition: 'inside' as const,
         textinfo: 'percent+label' as const,
-        marker: { colors: ['#f5c6d9', '#e8b4d4', '#d0a2cc', '#b890c5', '#a07ebf', '#886dbe'] },
+        marker: { colors: ['#bef3d1ff', '#fec5bb', '#fcefb4','#efcfe3', '#ccc9dc', '#b9d6f2'] },
         hoverinfo: 'label+percent+value' as const,
-        insidetextfont: { color: '#fff', size: 11 },
+        insidetextfont: { color: '#737373', size: 15, weight: 'bold'},
       },
     ];
     const pieLayout = {
