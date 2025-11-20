@@ -19,6 +19,7 @@
 <details>
   <summary>📋 Table of Contents</summary>
 
+  - <a href="#team-members">Team Members</a>
   - <a href="#about-the-project">About The Project</a>
   - <a href="#built-with">Built With</a>
   - <a href="#key-features">Key Features</a>
@@ -26,10 +27,25 @@
   - <a href="#erd">ERD</a>
   - <a href="#getting-started">Getting Started</a>
   - <a href="#usage">Usage</a>
-  - <a href="#team-members">Team Members</a>
-  - <a href="#contact">Contact</a
+  - <a href="#contact">Contact</a>
 
 </details>
+
+---
+
+<a id="team-members"></a>
+## 👥 Team Members
+
+<div align="center">
+
+| <img src="./images/member_bhj.png" width="120" height="120"> | <img src="./images/member_kjh.png" width="120" height="120"> | <img src="./images/member_leeu.png" width="120" height="120"> | <img src="./images/member_ljs.png" width="120" height="120"> | <img src="./images/member_psj.png" width="120" height="120"> |
+|:--:|:--:|:--:|:--:|:--:|
+| 🧠 **배형진**<br>팀 리더 / 백엔드 | 💻 **김지희**<br>프론트엔드 / 데이터 분석 | 🧾 **이은영**<br>프론트엔드 / 데이터 분석 | ⚙️ **이정석**<br>백엔드 | 🎤 **박상준**<br>발표자 / 문서화 |
+| FastAPI · 데이터 파이프라인 · AI 모델 연동 · 배포 | React · Next.js · UI/UX · 추천 루틴 설계 | 문서 · 추천 루틴 설계 · 테스트 시나리오 작성 | 데이터 파이프라인 · Pinecone 임베딩 · 유사도 계산 | 성분 DB 구축 · 피부타입 점수 계산 · README 정리 |
+
+</div>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
@@ -142,22 +158,6 @@ uvicorn main:app --reload
 npm run dev
 브라우저에서 http://localhost:5173 접속 후
 피부타입 분석, OCR 분석, 맞춤 추천 기능을 바로 체험할 수 있습니다.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-<a id="team-members"></a>
-## 👥 Team Members
-
-<div align="center">
-
-| <img src="./images/member_bhj.png" width="120" height="120"> | <img src="./images/member_kjh.png" width="120" height="120"> | <img src="./images/member_leeu.png" width="120" height="120"> | <img src="./images/member_ljs.png" width="120" height="120"> | <img src="./images/member_psj.png" width="120" height="120"> |
-|:--:|:--:|:--:|:--:|:--:|
-| 🧠 **배형진**<br>팀 리더 / 백엔드 | 💻 **김지희**<br>프론트엔드 / 데이터 분석 | 🧾 **이은영**<br>프론트엔드 / 데이터 분석 | ⚙️ **이정석**<br>백엔드 | 🎤 **박상준**<br>발표자 / 문서화 |
-| FastAPI · 데이터 파이프라인 · AI 모델 연동 · 배포 | React · Next.js · UI/UX · 추천 루틴 설계 | 문서 · 추천 루틴 설계 · 테스트 시나리오 작성 | 데이터 파이프라인 · Pinecone 임베딩 · 유사도 계산 | 성분 DB 구축 · 피부타입 점수 계산 · README 정리 |
-
-</div>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
