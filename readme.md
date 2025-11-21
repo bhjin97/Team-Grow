@@ -151,6 +151,50 @@
 
 ---
 
+## 🔍 RAG 검색 구조 (Retrieval-Augmented Generation)
+
+아래 다이어그램은 본 프로젝트가 사용하는 **RAG 기반 검색·추천 엔진 구조**를 나타냅니다.
+
+<div align="center">
+  <img src="./images/rag.pdf" alt="RAG Architecture" width="850px">
+</div>
+
+### 📌 구성 요소 설명
+
+- **LLM**
+
+  - 사용자 질의를 분석하여 의도(intent) 파악
+  - 벡터 검색과 필터 기반 검색 중 어떤 전략을 사용할지 결정
+
+- **Vector Database (Pinecone)**
+
+  - 제품 특징 임베딩을 활용한 유사도 기반 검색
+  - Feature-only 질의에서 가장 효과적
+
+- **Relational Database (MariaDB)**
+  - 가격·브랜드·카테고리·성분명 등 구조화된 필터 조건 처리
+  - VectorDB 결과와 결합하여 최종 제품 리스트 생성
+
+---
+
+### 🔎 검색 전략 분기 (Search Routing Logic)
+
+- **Feature-only → Vector-first**  
+  제품 특징(촉촉함·산뜻함 등) 중심 질의는 임베딩 기반 벡터 검색을 우선 수행.
+
+- **Feature + Filter → Hybrid search**  
+  벡터 검색으로 후보 생성 후 RDB 필터링을 결합하여 최종 리스트 도출.
+
+- **Filter-only → RDB-first**  
+  가격·브랜드·카테고리처럼 구조화된 조건만 포함된 경우 → RDB에서 직접 검색.
+
+- **강한 필터(Query가 매우 구체적) → RDB-first → Vector-second**  
+  매우 좁은 조건(예: 특정 브랜드 + 특정 가격대 + 특정 성분) →
+  1. RDB에서 정확한 후보군을 먼저 줄이고
+  2. 남은 후보를 벡터DB로 재정렬(Re-ranking)하여 추천 품질을 향상.
+
+---
+
 <a id="getting-started"></a>
 
 ## 🚀 Getting Started
