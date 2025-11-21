@@ -106,40 +106,7 @@
 
 <a id="system-architecture"></a>
 
-## 🏗 System Architecture
-
-```text
-[사용자]
-   ↓ (React / Next.js)
-[프론트엔드]
-   ↓ REST API
-[FastAPI 백엔드] ──▶ [AI 분석 모듈 (Python, Pinecone)]
-   ↓
-[MariaDB / Airflow 파이프라인]
-
-Airflow : 매주 목요일, 리뷰 트렌드 데이터 자동 수집 및 분석
-Pinecone : 성분 유사도 기반 실시간 추천
-Next.js + React : 클라이언트 UI 및 대시보드
-FastAPI : 모델 연동 및 API 게이트웨이
-```
-
-![System Architecture][System Architecture]
-
-[System Architecture]: ./images/system_architecture.png
-
-## <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<a id="erd"></a>
-
-## 🕸️ ERD
-
-![ERD][erd]
-
-[erd]: ./images/ERD.png
-
----
-
-### 📌 전체 시스템 아키텍처 (상세 버전)
+### 📌 전체 시스템 아키텍처
 
 <div align="center">
   <img src="./images/architecture.png" alt="Detailed Architecture" width="900px">
@@ -172,6 +139,18 @@ FastAPI : 모델 연동 및 API 게이트웨이
 
 - **Users**  
   React UI를 통해 실시간 분석/추천 결과 제공
+
+## <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<a id="erd"></a>
+
+## 🕸️ ERD
+
+![ERD][erd]
+
+[erd]: ./images/ERD.png
+
+---
 
 <a id="getting-started"></a>
 
