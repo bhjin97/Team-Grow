@@ -151,6 +151,59 @@
 
 ---
 
+## 🔍 RAG 검색 구조 (Retrieval-Augmented Generation)
+
+본 프로젝트는 벡터 검색(Vector Search)과 구조화된 데이터베이스(RDB) 검색을 결합한  
+**Hybrid RAG Architecture**를 기반으로 동작합니다.
+
+아래 다이어그램은 본 프로젝트가 사용하는 **하이브리드 RAG 기반 검색·추천 엔진 구조**를 나타냅니다.
+
+<div align="center">
+  <img src="./images/rag.pdf" alt="RAG Architecture" width="850px">
+</div>
+
+### 📌 구성 요소 설명
+
+- **LLM**
+
+  - 사용자 질의를 분석하여 의도(intent) 파악
+  - 벡터 기반 검색 또는 RDB 기반 필터링 중 어떤 전략을 사용할지 결정하는 "라우팅 엔진" 역할
+
+- **Vector Database (Pinecone)**
+
+  - 제품 특징 임베딩 기반 유사도 검색
+  - Feature-only 질의에서 높은 리콜을 제공
+
+- **Relational Database (MariaDB)**
+
+  - 가격·브랜드·카테고리·성분명 등 구조화된 조건 검색에 최적
+  - VectorDB 결과를 정렬·필터링하여 최종 추천 품질을 높임
+
+- **Hybrid RAG 구조**
+  - 단일 검색 방식이 아닌  
+    **VectorDB + RDB를 상황별로 결합하여 사용하는 복합 검색 구조**
+  - 사용자의 의도와 질의 구성에 따라 최적의 검색 전략을 자동 선택
+
+---
+
+### 🔎 검색 전략 분기 (Search Routing Logic)
+
+- **Feature-only → Vector-first**  
+  특징 중심 질의는 벡터 검색이 가장 효과적.
+
+- **Feature + Filter → Hybrid search**  
+  벡터 후보 + RDB 필터링을 결합하는 **하이브리드 방식**.
+
+- **Filter-only → RDB-first**  
+  가격/브랜드/카테고리 등 구조화된 필터만 있을 경우 RDB가 최적.
+
+- **강한 필터(Query가 매우 구체적) → RDB-first → Vector-second**  
+  먼저 RDB로 후보를 좁히고  
+  이후 VectorDB를 사용해 feature 기반 재정렬(Re-ranking) 진행.  
+  → 정확도와 속도 모두 확보하는 최적 전략.
+
+---
+
 <a id="getting-started"></a>
 
 ## 🚀 Getting Started
