@@ -159,7 +159,7 @@
 아래 다이어그램은 본 프로젝트가 사용하는 **하이브리드 RAG 기반 검색·추천 엔진 구조**를 나타냅니다.
 
 <div align="center">
-  <img src="./images/rag.pdf" alt="RAG Architecture" width="850px">
+  <img src="./images/rag.png" alt="RAG Architecture" width="850px">
 </div>
 
 ### 📌 구성 요소 설명
