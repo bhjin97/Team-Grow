@@ -127,8 +127,7 @@ FastAPI : 모델 연동 및 API 게이트웨이
 
 [System Architecture]: ./images/system_architecture.png
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
----
+## <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <a id="erd"></a>
 
@@ -183,13 +182,13 @@ FastAPI : 모델 연동 및 API 게이트웨이
 git clone https://github.com/Team-Alere/Alere.git
 cd Alere
 
-#### 2. 백엔드 설치
+#### 2. 가상환경 설치
 
-pip install -r requirements.txt
+conda env create -f environment.yml
 
 #### 3. 프론트엔드 설치
 
-cd frontend
+cd frontend</br>
 npm install
 
 ---
