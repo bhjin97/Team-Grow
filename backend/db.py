@@ -1,3 +1,4 @@
+# env 본인 로컬 db주소로 변경하기!!
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
