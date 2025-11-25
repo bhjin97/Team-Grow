@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+
 import { API_BASE } from '../lib/env';
 
 type BeautyAILoginProps = {
