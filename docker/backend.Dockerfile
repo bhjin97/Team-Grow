@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-WORKDIR /app
+WORKDIR /app/backend
 
 # 시스템 의존 패키지
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -26,4 +26,4 @@ ENV GUNICORN_WORKERS=2 \
     GUNICORN_TIMEOUT=60
 
 # gunicorn + uvicorn workers
-CMD ["bash", "-lc", "exec gunicorn -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS} --timeout ${GUNICORN_TIMEOUT}"]
+CMD ["bash", "-lc", "exec gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS} --timeout ${GUNICORN_TIMEOUT}"]
