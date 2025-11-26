@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI 
 from fastapi.middleware.cors import CORSMiddleware
 
 # 주의: 프로젝트 구조에 맞춰 필요한 라우터만 임포트
