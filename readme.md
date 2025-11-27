@@ -4,7 +4,7 @@
 
 <br />
 <div align="center">
-  <a href="https://github.com/Team-Alere/Alere">
+  <a href="https://github.com/Team-Aller">
     <img src="./images/aller_logo.png" alt="Logo" width="200" height="140">
   </a>
 
