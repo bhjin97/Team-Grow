@@ -8,7 +8,7 @@
     <img src="./images/aller_logo.png" alt="Logo" width="200" height="140">
   </a>
 
-<h3 align="center">💄 Alere — 챗봇 기반 화장품 상담 서비스</h3>
+<h3 align="center">💄 Aller — 챗봇 기반 화장품 상담 서비스</h3>
 
   <p align="center">
     AI가 통합한 데이터(수천 개 리뷰 + 상품, 성분 분석 + 효능 데이터)를 통해 화장품 성분 분석 및 구매 가이드를 제공하는 플랫폼 
