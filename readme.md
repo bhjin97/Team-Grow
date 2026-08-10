@@ -1,18 +1,13 @@
-<!-- Improved compatibility of back to top link -->
-
 <a id="readme-top"></a>
 
-<br />
+# Aller
+
 <div align="center">
   <a href="https://github.com/Team-Aller">
     <img src="./images/aller_logo.png" alt="Logo" width="200" height="140">
   </a>
 
-<h3 align="center">💄 Aller — 챗봇 기반 화장품 상담 서비스</h3>
-
-  <p align="center">
-    AI가 통합한 데이터(수천 개 리뷰 + 상품, 성분 분석 + 효능 데이터)를 통해 화장품 성분 분석 및 구매 가이드를 제공하는 플랫폼 
-  </p>
+  <h3 align="center">💄 Aller — 챗봇 기반 화장품 상담 서비스</h3>
 </div>
 
 ---
@@ -20,23 +15,34 @@
 <details>
   <summary>📋 Table of Contents</summary>
 
-- <a href="#team-members">Team Members</a>
-- <a href="#about-the-project">About The Project</a>
-- <a href="#built-with">Built With</a>
-- <a href="#key-features">Key Features</a>
-- <a href="#system-architecture">System Architecture</a>
-- <a href="#erd">ERD</a>
-- <a href="#getting-started">Getting Started</a>
-- <a href="#usage">Usage</a>
-- <a href="#contact">Contact</a>
+- [1. 프로젝트 소개 및 팀 멤버](#1-프로젝트-소개-및-팀-멤버)
+- [2. 핵심 기능 및 서비스 화면](#2-핵심-기능-및-서비스-화면)
+- [3. 시스템 아키텍처 및 기술 스택](#3-시스템-아키텍처-및-기술-스택)
+- [4. 핵심 설계](#4-핵심-설계)
+- [5. 제품 데이터 파이프라인](#5-제품-데이터-파이프라인)
+- [6. 데이터 모델](#6-데이터-모델)
+- [7. 주요 기술적 고민](#7-주요-기술적-고민)
+- [8. 실행 방법](#8-실행-방법)
 
 </details>
 
 ---
 
-<a id="team-members"></a>
+## 1. 프로젝트 소개 및 팀 멤버
 
-## 👥 Team Members
+### 프로젝트 개요
+
+<!-- 다음 단계에서 프로젝트 기간, 구성, 목표, 주요 기능 작성 -->
+
+AI가 통합한 데이터(수천 개 리뷰 + 상품, 성분 분석 + 효능 데이터)를 통해 화장품 성분 분석 및 구매 가이드를 제공하는 플랫폼
+
+> **Alere**는 사용자의 피부 타입, 성분 분석, 리뷰 기반 데이터 시각화를 통해  
+> “피부에 맞는 화장품과 향수, 케어 루틴을 자동 추천하는 AI 기반 플랫폼”입니다.
+
+💧 바우만 피부타입 분석 + 📷 성분 추출(OCR) + 🔍 실시간 상담 챗팅 +  
+💡 가상 피부 시뮬레이션 + 맞춤형 루틴 추천까지 한 번에 제공합니다.
+
+### 팀 멤버
 
 <div align="center">
 
@@ -47,47 +53,15 @@
 
 </div>
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-<a id="about-the-project"></a>
-
-## 🧠 About The Project
-
-> **Alere**는 사용자의 피부 타입, 성분 분석, 리뷰 기반 데이터 시각화를 통해  
-> “피부에 맞는 화장품과 향수, 케어 루틴을 자동 추천하는 AI 기반 플랫폼”입니다.
-
-💧 바우만 피부타입 분석 + 📷 성분 추출(OCR) + 🔍 실시간 상담 챗팅 +  
-💡 가상 피부 시뮬레이션 + 맞춤형 루틴 추천까지 한 번에 제공합니다.
-
-![Product Screenshot][Product Screenshot]
-
-[Product Screenshot]: ./images/product_screenshot.png
+Team Alere
+문의: team.alere@gmail.com
+프로젝트 링크: https://github.com/Team-Alere/Alere
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
-<a id="built-with"></a>
-
-## ⚙️ Built With
-
-이 프로젝트는 여러 최신 기술 스택을 통합하여 구성되었습니다.
-
-- ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-- ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-- ![Airflow](https://img.shields.io/badge/Airflow-017CEE?style=for-the-badge&logo=apache-airflow&logoColor=white)
-- ![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=for-the-badge&logo=mariadb&logoColor=white)
-- ![Pinecone](https://img.shields.io/badge/Pinecone-00A0DC?style=for-the-badge&logo=pinecone&logoColor=white)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-<a id="key-features"></a>
-
-## 🌟 Key Features
+## 2. 핵심 기능 및 서비스 화면
 
 | 기능명                   | 설명                                                                                            |
 | ------------------------ | ----------------------------------------------------------------------------------------------- |
@@ -99,11 +73,23 @@
 | ⚡ 실시간 화장품 AI 추천 | Pinecone 벡터 검색 기반 유사 제품 실시간 추천                                                   |
 | 🧾 OCR 연동 성분 분석    | 사진 업로드 → 성분 자동 추출 → 주의성분 색상 표시                                               |
 
+![Product Screenshot][Product Screenshot]
+
+[Product Screenshot]: ./images/product_screenshot.png
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
-<a id="system-architecture"></a>
+## 3. 시스템 아키텍처 및 기술 스택
+
+이 프로젝트는 여러 최신 기술 스택을 통합하여 구성되었습니다.
+
+- ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+- ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+- ![Airflow](https://img.shields.io/badge/Airflow-017CEE?style=for-the-badge&logo=apache-airflow&logoColor=white)
+- ![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=for-the-badge&logo=mariadb&logoColor=white)
+- ![Pinecone](https://img.shields.io/badge/Pinecone-00A0DC?style=for-the-badge&logo=pinecone&logoColor=white)
 
 ### 📌 전체 시스템 아키텍처
 
@@ -139,19 +125,13 @@
 - **Users**  
   React UI를 통해 실시간 분석/추천 결과 제공
 
-## <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<a id="erd"></a>
-
-## 🕸️ ERD
-
-![ERD][erd]
-
-[erd]: ./images/ERD.png
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
-## 🔍 RAG 검색 구조 (Retrieval-Augmented Generation)
+## 4. 핵심 설계
+
+### 4.1 Hybrid RAG 검색 구조
 
 본 프로젝트는 벡터 검색(Vector Search)과 구조화된 데이터베이스(RDB) 검색을 결합한  
 **Hybrid RAG Architecture**를 기반으로 동작합니다.
@@ -162,7 +142,7 @@
   <img src="./images/rag.png" alt="RAG Architecture" width="850px">
 </div>
 
-### 📌 구성 요소 설명
+#### 📌 구성 요소 설명
 
 - **LLM**
 
@@ -184,9 +164,7 @@
     **VectorDB + RDB를 상황별로 결합하여 사용하는 복합 검색 구조**
   - 사용자의 의도와 질의 구성에 따라 최적의 검색 전략을 자동 선택
 
----
-
-### 🔎 검색 전략 분기 (Search Routing Logic)
+#### 🔎 검색 전략 분기 (Search Routing Logic)
 
 - **Feature-only → Vector-first**  
   특징 중심 질의는 벡터 검색이 가장 효과적.
@@ -202,11 +180,43 @@
   이후 VectorDB를 사용해 feature 기반 재정렬(Re-ranking) 진행.  
   → 정확도와 속도 모두 확보하는 최적 전략.
 
+### 4.2 피부 타입 기반 제품 적합도 분석
+
+<!-- 다음 단계에서 실제 구현을 확인하여 작성 -->
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ---
 
-<a id="getting-started"></a>
+## 5. 제품 데이터 파이프라인
 
-## 🚀 Getting Started
+<!-- 다음 단계에서 Airflow DAG와 수집 코드를 확인하여 작성 -->
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 6. 데이터 모델
+
+![ERD][erd]
+
+[erd]: ./images/ERD.png
+
+<!-- 다음 단계에서 실제 테이블과 관계를 확인하여 작성 -->
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 7. 주요 기술적 고민
+
+<!-- 다음 단계에서 코드와 프로젝트 자료를 확인하여 대표 사례 작성 -->
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 8. 실행 방법
 
 #### 1. 저장소 클론
 
@@ -222,12 +232,6 @@ conda env create -f environment.yml
 cd frontend</br>
 npm install
 
----
-
-<a id="usage"></a>
-
-## 💻 Usage
-
 #### 백엔드 실행
 
 uvicorn main:app --reload
@@ -237,17 +241,5 @@ uvicorn main:app --reload
 npm run dev
 브라우저에서 http://localhost:5173 접속 후
 피부타입 분석, OCR 분석, 맞춤 추천 기능을 바로 체험할 수 있습니다.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-<a id="contact"></a>
-
-## 📫 Contact
-
-Team Alere
-문의: team.alere@gmail.com
-프로젝트 링크: https://github.com/Team-Alere/Alere
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
