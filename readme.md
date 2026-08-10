@@ -3,243 +3,203 @@
 # Aller
 
 <div align="center">
-  <a href="https://github.com/Team-Aller">
-    <img src="./images/aller_logo.png" alt="Logo" width="200" height="140">
-  </a>
-
-  <h3 align="center">💄 Aller — 챗봇 기반 화장품 상담 서비스</h3>
+  <img src="./images/aller_logo.png" alt="Aller logo" width="200" height="140">
+  <h3>자연어 조건을 분석해 화장품을 탐색하고 추천 이유를 제공하는 Hybrid RAG 서비스</h3>
 </div>
 
----
+Aller는 사용자의 자연어 요청에서 상품 특징과 브랜드·가격·카테고리·성분 조건을 분리하고, 조건에 맞는 검색 전략으로 후보를 찾습니다. Pinecone의 의미 검색과 MariaDB의 구조화된 필터를 결합한 뒤, 후보 상품 데이터를 바탕으로 추천 결과를 생성합니다.
 
-<details>
-  <summary>📋 Table of Contents</summary>
+## 목차
 
-- [1. 프로젝트 소개 및 팀 멤버](#1-프로젝트-소개-및-팀-멤버)
-- [2. 핵심 기능 및 서비스 화면](#2-핵심-기능-및-서비스-화면)
-- [3. 시스템 아키텍처 및 기술 스택](#3-시스템-아키텍처-및-기술-스택)
-- [4. 핵심 설계](#4-핵심-설계)
-- [5. 제품 데이터 파이프라인](#5-제품-데이터-파이프라인)
-- [6. 데이터 모델](#6-데이터-모델)
-- [7. 주요 기술적 고민](#7-주요-기술적-고민)
-- [8. 실행 방법](#8-실행-방법)
+- [1. 프로젝트 소개](#1-프로젝트-소개)
+- [2. 핵심 특징](#2-핵심-특징)
+- [3. 시스템 아키텍처](#3-시스템-아키텍처)
+- [4. Hybrid RAG 검색 구조](#4-hybrid-rag-검색-구조)
+- [5. 데이터 파이프라인 및 Airflow 자동화](#5-데이터-파이프라인-및-airflow-자동화)
+- [6. 주요 기술 선택과 한계](#6-주요-기술-선택과-한계)
+- [7. 담당 역할](#7-담당-역할)
+- [8. 기술 스택](#8-기술-스택)
+- [9. 데이터 모델](#9-데이터-모델)
+- [10. 실행 방법](#10-실행-방법)
 
-</details>
+## 1. 프로젝트 소개
 
----
+### 주요 기능
 
-## 1. 프로젝트 소개 및 팀 멤버
+- 자연어 기반 화장품 조건 검색 및 추천 이유 생성
+- 설문 기반 바우만 피부 타입 분석과 상품 적합도 조회
+- 이미지 OCR을 이용한 화장품 성분 추출 및 성분 정보 조회
+- 향수 추천, 케어 루틴, 상품·리뷰 통계 시각화
 
-### 프로젝트 개요
+### 서비스 화면
 
-<!-- 다음 단계에서 프로젝트 기간, 구성, 목표, 주요 기능 작성 -->
-
-AI가 통합한 데이터(수천 개 리뷰 + 상품, 성분 분석 + 효능 데이터)를 통해 화장품 성분 분석 및 구매 가이드를 제공하는 플랫폼
-
-> **Alere**는 사용자의 피부 타입, 성분 분석, 리뷰 기반 데이터 시각화를 통해  
-> “피부에 맞는 화장품과 향수, 케어 루틴을 자동 추천하는 AI 기반 플랫폼”입니다.
-
-💧 바우만 피부타입 분석 + 📷 성분 추출(OCR) + 🔍 실시간 상담 챗팅 +  
-💡 가상 피부 시뮬레이션 + 맞춤형 루틴 추천까지 한 번에 제공합니다.
+![Aller service screens](./images/product_screenshot.png)
 
 ### 팀 멤버
 
 <div align="center">
 
-| <img src="./images/member_bhj.png" width="120" height="120"> | <img src="./images/member_kjh.png" width="120" height="120"> | <img src="./images/member_leeu.png" width="120" height="120"> | <img src="./images/member_ljs.png" width="120" height="120"> | <img src="./images/member_psj.png" width="120" height="120"> |
-| :----------------------------------------------------------: | :----------------------------------------------------------: | :-----------------------------------------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: |
-|              🧠 **배형진**<br>팀 리더 / 백엔드               |          💻 **김지희**<br>프론트엔드 / 데이터 분석           |           🧾 **이은영**<br>프론트엔드 / 데이터 분석           |                   ⚙️ **이정석**<br>백엔드                    |               🎤 **박상준**<br>발표자 / 문서화               |
-|      FastAPI · 데이터 파이프라인 · AI 모델 연동 · 배포       |           React · Next.js · UI/UX · 추천 루틴 설계           |         문서 · 추천 루틴 설계 · 테스트 시나리오 작성          |      데이터 파이프라인 · Pinecone 임베딩 · 유사도 계산       |       성분 DB 구축 · 피부타입 점수 계산 · README 정리        |
+| <img src="./images/member_bhj.png" width="120" height="120" alt="배형진"> | <img src="./images/member_kjh.png" width="120" height="120" alt="김지희"> | <img src="./images/member_leeu.png" width="120" height="120" alt="이은영"> | <img src="./images/member_ljs.png" width="120" height="120" alt="이정석"> | <img src="./images/member_psj.png" width="120" height="120" alt="박상준"> |
+| :---: | :---: | :---: | :---: | :---: |
+| **배형진** | **김지희** | **이은영** | **이정석** | **박상준** |
 
 </div>
 
-Team Alere
-문의: team.alere@gmail.com
-프로젝트 링크: https://github.com/Team-Alere/Alere
+## 2. 핵심 특징
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+- **질의 의도 분리**: 일반 대화와 상품 검색 요청을 구분하고 상품 검색에 필요한 조건을 구조화합니다.
+- **다중 검색 전략**: 특징과 필터의 조합에 따라 Vector-first, Vector+RDB, RDB-first, Filter-only 경로를 선택합니다.
+- **검색 결과 결합**: Pinecone의 의미 유사도와 MariaDB의 상품·성분·브랜드·가격 조건을 함께 사용합니다.
+- **두 단계 응답**: `/recommend`가 상품 후보와 캐시 키를 반환하고, `/finalize`가 저장된 후보를 이용해 추천 이유를 스트리밍합니다.
+- **주간 데이터 갱신**: 별도로 구현한 Airflow 파이프라인이 4개 카테고리의 상품 정보와 리뷰 수를 수집해 MariaDB를 갱신합니다.
 
----
-
-## 2. 핵심 기능 및 서비스 화면
-
-| 기능명                   | 설명                                                                                            |
-| ------------------------ | ----------------------------------------------------------------------------------------------- |
-| 🧬 가상피부 시뮬레이션   | 사용자의 피부 타입(바우만 피부타입)을 기반으로 화장품 성분 즉시 비교 분석, 객관적인 점수로 반환 |
-| 💐 맞춤 향수 추천        | 사용자 선택 기반 향 성분 매칭을 통한 맞춤형 향수 추천                                           |
-| 💧 맞춤 케어 루틴 추천   | 계절, 시간대별, 사용사 선택 키워드 반영한 루틴을 추천                                           |
-| 🔍 피부타입 간단 진단    | 설문 기반 바우만 피부타입 간이 테스트                                                           |
-| 📊 리뷰 기반 시각화      | 리뷰 데이터를 이용한 인기 제품 탐색, 리뷰 증가율 및 평점 기반 랭킹 시각화                       |
-| ⚡ 실시간 화장품 AI 추천 | Pinecone 벡터 검색 기반 유사 제품 실시간 추천                                                   |
-| 🧾 OCR 연동 성분 분석    | 사진 업로드 → 성분 자동 추출 → 주의성분 색상 표시                                               |
-
-![Product Screenshot][Product Screenshot]
-
-[Product Screenshot]: ./images/product_screenshot.png
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-## 3. 시스템 아키텍처 및 기술 스택
-
-이 프로젝트는 여러 최신 기술 스택을 통합하여 구성되었습니다.
-
-- ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-- ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-- ![Airflow](https://img.shields.io/badge/Airflow-017CEE?style=for-the-badge&logo=apache-airflow&logoColor=white)
-- ![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=for-the-badge&logo=mariadb&logoColor=white)
-- ![Pinecone](https://img.shields.io/badge/Pinecone-00A0DC?style=for-the-badge&logo=pinecone&logoColor=white)
-
-### 📌 전체 시스템 아키텍처
+## 3. 시스템 아키텍처
 
 <div align="center">
-  <img src="./images/architecture.png" alt="Detailed Architecture" width="900px">
+  <img src="./images/architecture.png" alt="Aller system architecture" width="900px">
 </div>
 
-위 구조는 다음 요소로 구성됩니다:
+- **Frontend**: React와 Vite 기반 사용자 인터페이스
+- **Backend**: FastAPI API와 질의 분석·추천·OCR·피부 분석 기능
+- **MariaDB**: 상품, 성분, 브랜드, 사용자 등 관계형 데이터 조회
+- **Pinecone**: 상품 특징 임베딩을 이용한 의미 기반 검색
+- **Application memory**: `/recommend`와 `/finalize` 사이의 후보 결과를 임시 보관
+- **Deployment**: GitHub Actions에서 frontend/backend 이미지를 빌드해 AWS ECR로 push하고, Docker Compose로 실행하는 배포 구성
 
-- **GitHub Actions**  
-  소스 푸시 → Docker 이미지 자동 빌드 → AWS ECR에 업로드
+> Airflow 파이프라인은 프로젝트 과정에서 별도로 구현되었으며 현재 공개 저장소에는 DAG와 크롤러 코드가 포함되어 있지 않습니다.
 
-- **AWS EC2 + Docker**
+## 4. Hybrid RAG 검색 구조
 
-  - Frontend (React + Vite)
-  - Backend (FastAPI)
-  - Plotly 기반 시각화
-  - 컨테이너로 서비스 운영
-
-- **LLM / OCR / DB 모듈**
-
-  - OpenAI 기반 질의 분석 & 추천
-  - Vision API 기반 OCR 성분 추출
-  - Pinecone을 통한 실시간 유사도 검색
-  - MariaDB로 모든 정규 데이터 관리
-
-- **Airflow Data Pipeline**
-
-  - Playwright 포함 크롤러로 제품/리뷰 수집
-  - Python ETL로 데이터 정제
-  - Data Lake(MariaDB)에 자동 저장
-
-- **Users**  
-  React UI를 통해 실시간 분석/추천 결과 제공
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-## 4. 핵심 설계
-
-### 4.1 Hybrid RAG 검색 구조
-
-본 프로젝트는 벡터 검색(Vector Search)과 구조화된 데이터베이스(RDB) 검색을 결합한  
-**Hybrid RAG Architecture**를 기반으로 동작합니다.
-
-아래 다이어그램은 본 프로젝트가 사용하는 **하이브리드 RAG 기반 검색·추천 엔진 구조**를 나타냅니다.
+기존 이미지는 Vector DB와 RDB를 함께 사용하는 개념을 보여줍니다. 실제 애플리케이션은 질의에 포함된 특징과 구조화 조건에 따라 검색 경로를 나눕니다.
 
 <div align="center">
-  <img src="./images/rag.png" alt="RAG Architecture" width="850px">
+  <img src="./images/rag.png" alt="Hybrid RAG overview" width="850px">
 </div>
 
-#### 📌 구성 요소 설명
+```mermaid
+flowchart TD
+    A["사용자 질의"] --> B["의도·검색 조건 분석"]
+    B -->|"일반 질의"| C["일반 응답"]
+    B -->|"상품 검색"| D{"특징·필터 조합"}
+    D -->|"특징만"| E["Pinecone 검색"]
+    E --> F["rdb_fetch_by_pids로 상품 정보 조회"]
+    D -->|"특징 + 필터"| G["Pinecone 후보 검색"]
+    G --> H["rdb_filter로 조건 적용"]
+    D -->|"강한 복합 필터"| I["rdb_filter로 후보 축소"]
+    I --> J["후보 벡터 유사도 재정렬"]
+    D -->|"필터만"| K["rdb_filter로 조회"]
+    F --> L["후보 정렬"]
+    H --> L
+    J --> L
+    K --> L
+    L --> M["/recommend: 상품 카드·cache_key"]
+    M --> N["메모리 캐시"]
+    N --> O["/finalize: 추천 이유 스트리밍"]
+```
 
-- **LLM**
+| 질의 조건 | 검색 흐름 |
+| --- | --- |
+| 상품 특징만 존재 | Pinecone 검색 후 `rdb_fetch_by_pids()`로 상품 정보 조회 |
+| 특징과 구조화 조건이 함께 존재 | Pinecone 후보에 `rdb_filter()`로 브랜드·성분·가격·카테고리 조건 적용 |
+| 특징과 모든 주요 필터가 존재 | MariaDB에서 후보를 먼저 줄인 뒤 Pinecone 벡터로 유사도 재정렬 |
+| 구조화 조건만 존재 | `rdb_filter()`로 MariaDB 조회 |
 
-  - 사용자 질의를 분석하여 의도(intent) 파악
-  - 벡터 기반 검색 또는 RDB 기반 필터링 중 어떤 전략을 사용할지 결정하는 "라우팅 엔진" 역할
+추천 API는 후보와 중간 결과를 메모리 캐시에 저장합니다. 최종 응답 API는 캐시된 후보를 우선 사용하고, 캐시가 없으면 검색을 다시 수행한 뒤 후보의 `rag_text`를 바탕으로 추천 이유를 스트리밍합니다.
 
-- **Vector Database (Pinecone)**
+## 5. 데이터 파이프라인 및 Airflow 자동화
 
-  - 제품 특징 임베딩 기반 유사도 검색
-  - Feature-only 질의에서 높은 리콜을 제공
+현재 공개 저장소에는 포함되어 있지 않지만, 프로젝트 과정에서 별도로 구현한 Airflow 파이프라인과 실행 로그를 통해 주간 데이터 수집 및 MariaDB 갱신 자동화를 확인했습니다.
 
-- **Relational Database (MariaDB)**
+`4개 카테고리 크롤링 → MariaDB stage 적재 → 상품명 정제·중복 통합 → 상품 upsert → 주간 리뷰 수 이력 upsert`
 
-  - 가격·브랜드·카테고리·성분명 등 구조화된 조건 검색에 최적
-  - VectorDB 결과를 정렬·필터링하여 최종 추천 품질을 높임
+- DAG `weekly_product_pipeline`은 매주 월요일 오전 10시(KST)에 실행됩니다.
+- 스킨/토너, 에센스/세럼/앰플, 크림, 선크림을 페이지 범위에 따라 7개 Playwright 크롤링 task로 나눕니다.
+- 7개 task는 `Olive_pool`을 사용하며, 모두 성공한 뒤 `upsert_master`가 실행됩니다.
+- 상품명 정제 후 SHA-256 기반 식별자로 중복 데이터를 통합하고 `INSERT ... ON DUPLICATE KEY UPDATE`로 갱신합니다.
+- 상품별 리뷰 수를 제품 ID와 연결해 주간 이력으로 저장합니다.
 
-- **Hybrid RAG 구조**
-  - 단일 검색 방식이 아닌  
-    **VectorDB + RDB를 상황별로 결합하여 사용하는 복합 검색 구조**
-  - 사용자의 의도와 질의 구성에 따라 최적의 검색 전략을 자동 선택
+| 구분 | 구현 내용 | Airflow 자동화 |
+| --- | --- | :---: |
+| 상품 수집 | 4개 카테고리의 상품 상세 정보 수집 | O |
+| 상품 정제 | 상품명 정제 및 중복 통합 | O |
+| MariaDB | stage 및 상품 데이터 upsert | O |
+| 리뷰 이력 | 상품별 주간 리뷰 수 갱신 | O |
+| 임베딩 생성 | 해당 DAG에서 확인되지 않음 | X |
+| Pinecone upsert | 해당 DAG에 포함되지 않음 | X |
 
-#### 🔎 검색 전략 분기 (Search Routing Logic)
+현재 DAG는 `retries=0`이며 자동 재시도나 실패 데이터 복구를 구현한 것으로 표현하지 않습니다. 리뷰 본문 수집과 Pinecone vector upsert 역시 이 DAG의 자동화 범위에 포함되지 않습니다.
 
-- **Feature-only → Vector-first**  
-  특징 중심 질의는 벡터 검색이 가장 효과적.
+## 6. 주요 기술 선택과 한계
 
-- **Feature + Filter → Hybrid search**  
-  벡터 후보 + RDB 필터링을 결합하는 **하이브리드 방식**.
+### 검색 경로 분리
 
-- **Filter-only → RDB-first**  
-  가격/브랜드/카테고리 등 구조화된 필터만 있을 경우 RDB가 최적.
+의미가 중요한 특징 질의는 Pinecone을 사용하고, 가격·브랜드·카테고리·성분처럼 정확한 조건은 MariaDB에서 처리합니다. 강한 복합 조건에서는 RDB 후보를 먼저 제한해 해당 후보의 벡터만 비교합니다.
 
-- **강한 필터(Query가 매우 구체적) → RDB-first → Vector-second**  
-  먼저 RDB로 후보를 좁히고  
-  이후 VectorDB를 사용해 feature 기반 재정렬(Re-ranking) 진행.  
-  → 정확도와 속도 모두 확보하는 최적 전략.
+### 동적 페이지 수집과 중복 갱신
 
-### 4.2 피부 타입 기반 제품 적합도 분석
+상품 페이지의 탭 클릭, 스크롤, selector 대기가 필요해 Playwright를 사용했습니다. 수집 결과는 stage 테이블에 적재한 뒤 정제된 상품명을 기준으로 통합하고 upsert합니다.
 
-<!-- 다음 단계에서 실제 구현을 확인하여 작성 -->
+### 확인된 한계
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+- 정제된 상품명만으로 hash ID를 만들기 때문에 브랜드나 용량이 다른 동명 상품이 합쳐질 가능성이 있습니다.
+- 일부 페이지·상품 오류를 건너뛰는 구조여서 부분 수집 상태에서도 크롤링 task가 성공할 수 있습니다.
+- 상품과 리뷰 이력 upsert는 하나의 원자적 transaction으로 묶여 있지 않습니다.
+- Airflow DAG에는 자동 재시도와 Pinecone upsert가 포함되어 있지 않습니다.
 
----
+## 7. 담당 역할
 
-## 5. 제품 데이터 파이프라인
+### 배형진
 
-<!-- 다음 단계에서 Airflow DAG와 수집 코드를 확인하여 작성 -->
+- 전성분 데이터를 제외한 제품 및 리뷰 데이터 파이프라인 담당
+- Playwright 기반 상품 정보·리뷰 수 수집부터 정제, 중복 처리, MariaDB 적재 및 주간 이력 갱신까지 Airflow로 자동화
+- 이정석 팀원과 Hybrid RAG 통합·수정 및 Pinecone 검색 구조 공동 설계
+- Docker/ECR 기반 배포 환경 단독 구성
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+## 8. 기술 스택
 
----
+| 구분 | 기술 | 역할 |
+| --- | --- | --- |
+| Frontend | React, TypeScript, Vite | 사용자 인터페이스와 결과 시각화 |
+| Backend | FastAPI, SQLAlchemy, PyMySQL | API, 관계형 데이터 조회 및 서비스 로직 |
+| AI / RAG | OpenAI, LangChain, Pinecone | 질의 분석, 의미 검색, 최종 응답 생성 |
+| Database | MariaDB | 상품·성분·브랜드·사용자 데이터 관리 |
+| Data Pipeline | Airflow, Playwright | 별도 주간 크롤링 및 MariaDB 갱신 파이프라인 |
+| Infrastructure | Docker, GitHub Actions, AWS ECR | 컨테이너 이미지 빌드·배포 |
 
-## 6. 데이터 모델
+## 9. 데이터 모델
 
-![ERD][erd]
+![Aller ERD](./images/ERD.png)
 
-[erd]: ./images/ERD.png
+현재 애플리케이션의 추천 검색은 `product_data`를 비롯한 상품·성분 관계 데이터를 사용합니다. 별도 파이프라인의 stage 및 리뷰 이력 테이블은 현재 공개 저장소의 모델에 포함되어 있지 않습니다.
 
-<!-- 다음 단계에서 실제 테이블과 관계를 확인하여 작성 -->
+## 10. 실행 방법
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+### 1. 저장소 클론 및 Python 환경 구성
 
----
-
-## 7. 주요 기술적 고민
-
-<!-- 다음 단계에서 코드와 프로젝트 자료를 확인하여 대표 사례 작성 -->
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-## 8. 실행 방법
-
-#### 1. 저장소 클론
-
-git clone https://github.com/Team-Alere/Alere.git
-cd Alere
-
-#### 2. 가상환경 설치
-
+```bash
+git clone https://github.com/bhjin97/Team-Grow.git
+cd Team-Grow
 conda env create -f environment.yml
+conda activate grow
+```
 
-#### 3. 프론트엔드 설치
+### 2. Backend 실행
 
-cd frontend</br>
-npm install
-
-#### 백엔드 실행
-
+```bash
+cd backend
 uvicorn main:app --reload
+```
 
-#### 프론트엔드 실행
+Backend는 MariaDB, OpenAI, Pinecone 및 Google Cloud Vision 등 사용하는 기능에 맞는 환경변수와 인증 정보가 필요합니다. 실제 비밀값은 저장소에 포함하지 않습니다.
 
+### 3. Frontend 실행
+
+```bash
+cd frontend
+npm install
 npm run dev
-브라우저에서 http://localhost:5173 접속 후
-피부타입 분석, OCR 분석, 맞춤 추천 기능을 바로 체험할 수 있습니다.
+```
+
+필요한 경우 `VITE_API_BASE`로 Backend 주소를 지정합니다. 별도 Airflow 구현은 현재 저장소의 기본 실행 절차에 포함되지 않습니다.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
