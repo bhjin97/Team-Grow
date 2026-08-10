@@ -37,18 +37,18 @@ Aller는 자연어로 입력한 제품 특징과 브랜드·가격·카테고리
     <td align="center"><img src="./images/member_psj.png" width="100" height="100" alt="박상준"></td>
   </tr>
   <tr>
-    <td align="center"><strong>배형진</strong><br>Team Leader</td>
+    <td align="center"><strong>배형진</strong></td>
     <td align="center"><strong>김지희</strong></td>
     <td align="center"><strong>이은영</strong></td>
     <td align="center"><strong>이정석</strong></td>
     <td align="center"><strong>박상준</strong></td>
   </tr>
   <tr>
-    <td align="center">Backend · Data Pipeline<br>Hybrid RAG · Deployment</td>
+    <td align="center">Team Leader · Data Pipeline<br>Hybrid RAG · Deployment</td>
     <td align="center">Frontend · Data Analysis<br>UI/UX · Recommendation</td>
     <td align="center">Frontend · Documentation<br>Recommendation · Testing</td>
-    <td align="center">Backend · Data Pipeline<br>Hybrid RAG · Embedding</td>
-    <td align="center">Ingredient DB · Skin Score<br>Presentation · Documentation</td>
+    <td align="center">Backend<br>Hybrid RAG · Embedding</td>
+    <td align="center">Ingredient DB · Skin Score<br>Presentation · OCR</td>
   </tr>
 </table>
 
