@@ -10,60 +10,69 @@
 Aller는 자연어로 입력한 제품 특징과 브랜드·가격·카테고리·성분 조건을 분석해 적합한 화장품을 찾고, 추천 이유를 제공하는 서비스입니다.
 
 <details>
-<summary><strong>목차</strong></summary>
+<summary><strong>📋 Table of Contents</strong></summary>
 
 - [팀원 및 역할](#팀원-및-역할)
-- [1. 프로젝트 소개](#1-프로젝트-소개)
-- [2. 핵심 기능](#2-핵심-기능)
-- [3. 서비스 화면](#3-서비스-화면)
+- [프로젝트 소개](#-프로젝트-소개)
+- [핵심 기능](#-핵심-기능)
+- [서비스 화면](#서비스-화면)
 - [4. 시스템 아키텍처](#4-시스템-아키텍처)
 - [5. Hybrid RAG 검색 구조](#5-hybrid-rag-검색-구조)
 - [6. 데이터 파이프라인 및 Airflow 자동화](#6-데이터-파이프라인-및-airflow-자동화)
-- [7. 주요 기술 선택과 한계](#7-주요-기술-선택과-한계)
-- [8. 기술 스택](#8-기술-스택)
-- [9. 데이터 모델](#9-데이터-모델)
+- [7. 데이터 모델링](#7-데이터-모델링)
+- [8. 주요 기술 선택과 한계](#8-주요-기술-선택과-한계)
+- [9. 기술 스택](#9-기술-스택)
 - [10. 실행 방법](#10-실행-방법)
 
 </details>
 
 ## 팀원 및 역할
 
-| 팀원 | 담당 영역 |
-| --- | --- |
-| <img src="./images/member_bhj.png" width="64" height="64" alt="배형진"><br>**배형진** | 팀 리더·백엔드, 전성분을 제외한 제품·리뷰 데이터 파이프라인, 이정석과 Hybrid RAG 및 Pinecone 검색 구조 공동 설계·통합, Docker/ECR 배포 구성 |
-| <img src="./images/member_kjh.png" width="64" height="64" alt="김지희"><br>**김지희** | 프론트엔드·데이터 분석, React·Next.js UI/UX, 추천 루틴 설계 |
-| <img src="./images/member_leeu.png" width="64" height="64" alt="이은영"><br>**이은영** | 프론트엔드·데이터 분석, 문서화, 추천 루틴 설계, 테스트 시나리오 작성 |
-| <img src="./images/member_ljs.png" width="64" height="64" alt="이정석"><br>**이정석** | 백엔드, 데이터 파이프라인, Pinecone 임베딩·유사도 계산, 배형진과 Hybrid RAG 및 Pinecone 검색 구조 공동 설계·통합 |
-| <img src="./images/member_psj.png" width="64" height="64" alt="박상준"><br>**박상준** | 발표·문서화, 성분 DB 구축, 피부 타입 점수 계산, README 정리 |
+<table>
+  <tr>
+    <td align="center"><img src="./images/member_bhj.png" width="100" height="100" alt="배형진"></td>
+    <td align="center"><img src="./images/member_kjh.png" width="100" height="100" alt="김지희"></td>
+    <td align="center"><img src="./images/member_leeu.png" width="100" height="100" alt="이은영"></td>
+    <td align="center"><img src="./images/member_ljs.png" width="100" height="100" alt="이정석"></td>
+    <td align="center"><img src="./images/member_psj.png" width="100" height="100" alt="박상준"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>배형진</strong><br>Team Leader</td>
+    <td align="center"><strong>김지희</strong></td>
+    <td align="center"><strong>이은영</strong></td>
+    <td align="center"><strong>이정석</strong></td>
+    <td align="center"><strong>박상준</strong></td>
+  </tr>
+  <tr>
+    <td align="center">Backend · Data Pipeline<br>Hybrid RAG · Deployment</td>
+    <td align="center">Frontend · Data Analysis<br>UI/UX · Recommendation</td>
+    <td align="center">Frontend · Documentation<br>Recommendation · Testing</td>
+    <td align="center">Backend · Data Pipeline<br>Hybrid RAG · Embedding</td>
+    <td align="center">Ingredient DB · Skin Score<br>Presentation · Documentation</td>
+  </tr>
+</table>
 
-## 1. 프로젝트 소개
+## 📌 프로젝트 소개
 
 Pinecone의 의미 검색과 MariaDB의 조건 검색을 결합해 자연어 요청에 맞는 상품 후보를 탐색합니다. 설문으로 분석한 바우만 피부 타입과 제품 정보를 이용한 적합도 계산, 이미지 OCR을 이용한 제품 분석도 함께 제공합니다.
 
 향수 추천, 계절·시간대별 케어 루틴, 상품과 리뷰 추이 시각화 기능을 통해 검색 이후의 제품 탐색을 지원합니다.
 
-## 2. 핵심 기능
+## 🌟 핵심 기능
 
-- **Hybrid RAG 기반 화장품 검색 및 AI 채팅**<br>
-  자연어 질의에서 제품 특징과 구조화 조건을 분석하고, Pinecone 의미 검색과 MariaDB 조건 검색을 조합합니다. 검색된 후보 상품과 관련 데이터를 추천 카드와 AI 응답에 활용합니다.
+| 기능 | 설명 |
+| --- | --- |
+| 🔎 **Hybrid RAG 화장품 검색 및 AI 채팅** | 자연어 질의에서 제품 특징과 구조화 조건을 분석하고, Pinecone 의미 검색과 MariaDB 조건 검색을 결합해 상품과 추천 이유를 제공합니다. |
+| 🧬 **바우만 피부 타입 분석** | 설문 응답을 바탕으로 사용자의 바우만 피부 타입을 분석합니다. |
+| 🎯 **제품 피부 적합도 계산** | 피부 타입별 가중치와 제품 성분 정보를 이용해 제품별 적합도를 계산합니다. |
+| 📷 **OCR 기반 제품 인식 및 기능 연계** | 이미지에서 인식한 제품·성분 정보를 피부 적합도 계산과 AI 채팅 화면의 제품 안내에 활용합니다. |
+| 💐 **향수 추천** | 사용자가 선택한 향 선호 정보를 바탕으로 향수를 추천합니다. |
+| 💧 **케어 루틴 추천** | 계절·시간대·선택 키워드를 반영해 단계별 케어 루틴을 제안합니다. |
+| 📊 **상품·리뷰 추이 시각화** | 상품별 리뷰 수 변화와 인기 상품 정보를 시각화합니다. |
 
-- **바우만 피부 타입 분석 및 제품 적합도 계산**<br>
-  설문 결과를 바탕으로 회원의 바우만 피부 타입을 분석합니다. 피부 타입별 가중치와 제품 성분 정보를 이용해 제품별 적합도를 계산합니다.
+## 서비스 화면
 
-- **OCR 기반 제품 인식 및 기능 연계**<br>
-  화장품 이미지에서 제품·성분 정보를 인식합니다. 피부 분석 화면에서는 회원의 피부 타입에 따른 제품 적합도를 계산하고, AI 채팅 화면에서는 인식 결과를 제품·성분 안내에 활용합니다.
-
-### 부가 기능
-
-- 사용자 선택을 반영한 향수 추천
-- 계절·시간대·키워드 기반 케어 루틴 추천
-- 상품별 리뷰 수 추이와 인기 상품 시각화
-
-## 3. 서비스 화면
-
-![Aller service screens](./images/product_screenshot.png)
-
-<!-- 대표 서비스 화면 추가 예정 -->
+<!-- 서비스 시연 영상 추가 예정 -->
 
 ## 4. 시스템 아키텍처
 
@@ -103,6 +112,12 @@ flowchart TD
     N --> O["finalize API: 추천 이유 스트리밍"]
 ```
 
+Hybrid RAG의 주요 구성 요소와 저장소 간 관계는 다음 개요에서 확인할 수 있습니다.
+
+<div align="center">
+  <img src="./images/rag.png" alt="Hybrid RAG overview" width="800px">
+</div>
+
 | 질의 조건 | 검색 흐름 |
 | --- | --- |
 | 상품 특징만 존재 | Pinecone 검색 후 `rdb_fetch_by_pids()`로 상품 정보 조회 |
@@ -136,7 +151,13 @@ Airflow 파이프라인을 별도로 구현해 상품 데이터 수집부터 Mar
 
 현재 DAG에는 자동 재시도와 실패 데이터 복구 로직이 적용되어 있지 않습니다.
 
-## 7. 주요 기술 선택과 한계
+## 7. 데이터 모델링
+
+![Aller ERD](./images/ERD.png)
+
+Hybrid RAG 추천 검색은 `product_data_chain`과 상품·성분 관계 데이터를 사용합니다. 피부 타입 기반 적합도 계산과 일반 상품 조회에는 `product_data`를 사용합니다. 별도 Airflow 파이프라인의 stage 및 리뷰 이력 테이블은 현재 공개 저장소의 애플리케이션 모델에 포함되어 있지 않습니다.
+
+## 8. 주요 기술 선택과 한계
 
 ### 검색 경로 분리
 
@@ -153,7 +174,7 @@ Airflow 파이프라인을 별도로 구현해 상품 데이터 수집부터 Mar
 - 상품과 리뷰 이력 upsert는 하나의 transaction으로 묶여 있지 않습니다.
 - Airflow DAG에는 자동 재시도와 Pinecone upsert가 포함되어 있지 않습니다.
 
-## 8. 기술 스택
+## 9. 기술 스택
 
 ### Frontend
 
@@ -185,12 +206,6 @@ Airflow 파이프라인을 별도로 구현해 상품 데이터 수집부터 Mar
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
 ![AWS ECR](https://img.shields.io/badge/AWS_ECR-FF9900?style=flat-square&logo=amazonaws&logoColor=white)
-
-## 9. 데이터 모델
-
-![Aller ERD](./images/ERD.png)
-
-Hybrid RAG 추천 검색은 `product_data_chain`과 상품·성분 관계 데이터를 사용합니다. 피부 타입 기반 적합도 계산과 일반 상품 조회에는 `product_data`를 사용합니다. 별도 Airflow 파이프라인의 stage 및 리뷰 이력 테이블은 현재 공개 저장소의 애플리케이션 모델에 포함되어 있지 않습니다.
 
 ## 10. 실행 방법
 
