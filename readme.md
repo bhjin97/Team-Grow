@@ -12,21 +12,21 @@ Aller는 자연어로 입력한 제품 특징과 브랜드·가격·카테고리
 <details>
 <summary><strong>📋 Table of Contents</strong></summary>
 
-- [팀원 및 역할](#팀원-및-역할)
+- [팀원 및 역할](#-팀원-및-역할)
 - [프로젝트 소개](#-프로젝트-소개)
 - [핵심 기능](#-핵심-기능)
-- [서비스 화면](#서비스-화면)
-- [4. 시스템 아키텍처](#4-시스템-아키텍처)
-- [5. Hybrid RAG 검색 구조](#5-hybrid-rag-검색-구조)
-- [6. 데이터 파이프라인 및 Airflow 자동화](#6-데이터-파이프라인-및-airflow-자동화)
-- [7. 데이터 모델링](#7-데이터-모델링)
-- [8. 주요 기술 선택과 한계](#8-주요-기술-선택과-한계)
-- [9. 기술 스택](#9-기술-스택)
-- [10. 실행 방법](#10-실행-방법)
+- [서비스 화면](#-서비스-화면)
+- [시스템 아키텍처](#-시스템-아키텍처)
+- [Hybrid RAG 검색 구조](#-hybrid-rag-검색-구조)
+- [데이터 파이프라인 및 Airflow 자동화](#-데이터-파이프라인-및-airflow-자동화)
+- [데이터 모델링](#-데이터-모델링)
+- [주요 기술 선택과 한계](#-주요-기술-선택과-한계)
+- [기술 스택](#-기술-스택)
+- [실행 방법](#-실행-방법)
 
 </details>
 
-## 팀원 및 역할
+## 👥 팀원 및 역할
 
 <table>
   <tr>
@@ -56,7 +56,7 @@ Aller는 자연어로 입력한 제품 특징과 브랜드·가격·카테고리
 
 Pinecone의 의미 검색과 MariaDB의 조건 검색을 결합해 자연어 요청에 맞는 상품 후보를 탐색합니다. 설문으로 분석한 바우만 피부 타입과 제품 정보를 이용한 적합도 계산, 이미지 OCR을 이용한 제품 분석도 함께 제공합니다.
 
-향수 추천, 계절·시간대별 케어 루틴, 상품과 리뷰 추이 시각화 기능을 통해 검색 이후의 제품 탐색을 지원합니다.
+상품별 리뷰 수 변화와 인기 상품 시각화를 통해 검색 이후의 제품 탐색을 지원합니다.
 
 ## 🌟 핵심 기능
 
@@ -66,15 +66,13 @@ Pinecone의 의미 검색과 MariaDB의 조건 검색을 결합해 자연어 요
 | 🧬 **바우만 피부 타입 분석** | 설문 응답을 바탕으로 사용자의 바우만 피부 타입을 분석합니다. |
 | 🎯 **제품 피부 적합도 계산** | 피부 타입별 가중치와 제품 성분 정보를 이용해 제품별 적합도를 계산합니다. |
 | 📷 **OCR 기반 제품 인식 및 기능 연계** | 이미지에서 인식한 제품·성분 정보를 피부 적합도 계산과 AI 채팅 화면의 제품 안내에 활용합니다. |
-| 💐 **향수 추천** | 사용자가 선택한 향 선호 정보를 바탕으로 향수를 추천합니다. |
-| 💧 **케어 루틴 추천** | 계절·시간대·선택 키워드를 반영해 단계별 케어 루틴을 제안합니다. |
 | 📊 **상품·리뷰 추이 시각화** | 상품별 리뷰 수 변화와 인기 상품 정보를 시각화합니다. |
 
-## 서비스 화면
+## 🖥️ 서비스 화면
 
 <!-- 서비스 시연 영상 추가 예정 -->
 
-## 4. 시스템 아키텍처
+## 🏗️ 시스템 아키텍처
 
 <div align="center">
   <img src="./images/architecture.png" alt="Aller system architecture" width="900px">
@@ -87,7 +85,7 @@ Pinecone의 의미 검색과 MariaDB의 조건 검색을 결합해 자연어 요
 - **Application memory**: `/recommend`와 `/finalize` 사이의 검색 후보 임시 보관
 - **Deployment**: GitHub Actions를 이용한 frontend/backend 이미지 빌드와 AWS ECR push, Docker Compose 실행 구성
 
-## 5. Hybrid RAG 검색 구조
+## 🔎 Hybrid RAG 검색 구조
 
 사용자 질의에서 제품 특징과 구조화 조건을 분리한 뒤, 조건 조합에 따라 검색 경로를 선택합니다.
 
@@ -127,37 +125,29 @@ Hybrid RAG의 주요 구성 요소와 저장소 간 관계는 다음 개요에�
 
 `/recommend`는 상품 후보와 `cache_key`를 반환하고 검색 결과를 메모리에 임시 저장합니다. `/finalize`는 캐시된 후보를 우선 사용해 추천 이유를 스트리밍하며, 캐시가 없으면 검색을 다시 수행합니다.
 
-## 6. 데이터 파이프라인 및 Airflow 자동화
+## 🔄 데이터 파이프라인 및 Airflow 자동화
 
 Airflow 파이프라인을 별도로 구현해 상품 데이터 수집부터 MariaDB 갱신까지 주간 단위로 자동화했습니다. 해당 DAG와 크롤러 코드는 현재 공개 저장소에 포함되어 있지 않습니다.
 
-`4개 카테고리 크롤링 → MariaDB stage 적재 → 상품명 정제·중복 통합 → 상품 upsert → 주간 리뷰 수 이력 upsert`
+<p align="center">
+  <img src="./images/airflow_dag.svg" alt="Aller Airflow DAG" width="1000">
+</p>
 
 - `weekly_product_pipeline`은 매주 월요일 오전 10시(KST)에 실행됩니다.
-- 스킨/토너, 에센스/세럼/앰플, 크림, 선크림을 페이지 범위에 따라 7개 Playwright 크롤링 task로 나눕니다.
-- 크롤링 task는 `Olive_pool`을 사용하며, 7개 task가 모두 성공한 뒤 `upsert_master`를 실행합니다.
-- 정제된 상품명의 SHA-256 기반 식별자로 중복 데이터를 통합하고 `INSERT ... ON DUPLICATE KEY UPDATE`로 갱신합니다.
+- 4개 카테고리를 페이지 범위에 따라 7개의 Playwright 크롤링 task로 나누어 처리합니다.
+- 크롤링 task는 `Olive_pool`을 사용하며, 모든 task가 완료된 뒤 상품 데이터를 정제하고 갱신합니다.
+- 정제된 상품명의 SHA-256 기반 식별자로 중복 상품을 통합하고 `INSERT ... ON DUPLICATE KEY UPDATE` 방식으로 저장합니다.
 - 상품별 리뷰 수를 제품 ID와 연결해 주간 이력으로 저장합니다.
 
-| 구분 | 처리 내용 | Airflow 자동화 |
-| --- | --- | :---: |
-| 상품 수집 | 4개 카테고리 상품 상세 정보 수집 | O |
-| 상품 정제 | 상품명 정제 및 중복 통합 | O |
-| MariaDB | stage 및 상품 데이터 upsert | O |
-| 리뷰 이력 | 상품별 주간 리뷰 수 갱신 | O |
-| 리뷰 본문 수집 | 현재 DAG의 처리 범위 아님 | X |
-| 임베딩 생성 | 현재 DAG의 처리 범위 아님 | X |
-| Pinecone upsert | 현재 DAG의 처리 범위 아님 | X |
+현재 자동화 범위는 상품 정보 수집·정제, MariaDB 갱신, 상품별 주간 리뷰 수 이력 저장까지입니다. 리뷰 본문 수집, 임베딩 생성, Pinecone upsert는 포함되어 있지 않습니다.
 
-현재 DAG에는 자동 재시도와 실패 데이터 복구 로직이 적용되어 있지 않습니다.
-
-## 7. 데이터 모델링
+## 🗃️ 데이터 모델링
 
 ![Aller ERD](./images/ERD.png)
 
 Hybrid RAG 추천 검색은 `product_data_chain`과 상품·성분 관계 데이터를 사용합니다. 피부 타입 기반 적합도 계산과 일반 상품 조회에는 `product_data`를 사용합니다. 별도 Airflow 파이프라인의 stage 및 리뷰 이력 테이블은 현재 공개 저장소의 애플리케이션 모델에 포함되어 있지 않습니다.
 
-## 8. 주요 기술 선택과 한계
+## ⚖️ 주요 기술 선택과 한계
 
 ### 검색 경로 분리
 
@@ -174,7 +164,7 @@ Hybrid RAG 추천 검색은 `product_data_chain`과 상품·성분 관계 데이
 - 상품과 리뷰 이력 upsert는 하나의 transaction으로 묶여 있지 않습니다.
 - Airflow DAG에는 자동 재시도와 Pinecone upsert가 포함되어 있지 않습니다.
 
-## 9. 기술 스택
+## 🛠️ 기술 스택
 
 ### Frontend
 
@@ -207,7 +197,7 @@ Hybrid RAG 추천 검색은 `product_data_chain`과 상품·성분 관계 데이
 ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
 ![AWS ECR](https://img.shields.io/badge/AWS_ECR-FF9900?style=flat-square&logo=amazonaws&logoColor=white)
 
-## 10. 실행 방법
+## 🚀 실행 방법
 
 ### 1. 저장소 클론 및 Python 환경 구성
 

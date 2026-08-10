@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 300" role="img" aria-labelledby="title desc">
+  <title id="title">Aller Airflow DAG</title>
+  <desc id="desc">매주 월요일 실행되는 상품 크롤링, MariaDB 적재, 상품 정제, 상품 upsert, 리뷰 수 이력 upsert 흐름</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#2563eb"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#1e3a8a" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect width="1500" height="300" rx="20" fill="#f8fbff"/>
+  <text x="750" y="38" text-anchor="middle" font-family="system-ui, sans-serif" font-size="24" font-weight="700" fill="#1e3a8a">weekly_product_pipeline</text>
+  <g fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)">
+    <path d="M230 150 H264"/><path d="M510 150 H544"/><path d="M740 150 H774"/><path d="M1010 150 H1044"/><path d="M1235 150 H1269"/>
+  </g>
+  <g filter="url(#shadow)" font-family="system-ui, sans-serif" text-anchor="middle">
+    <rect x="20" y="75" width="210" height="150" rx="14" fill="#eff6ff" stroke="#60a5fa" stroke-width="2"/>
+    <text x="125" y="127" font-size="20" font-weight="700" fill="#1e40af">주간 스케줄</text><text x="125" y="164" font-size="16" fill="#334155">매주 월요일</text><text x="125" y="190" font-size="16" fill="#334155">10:00 KST</text>
+    <rect x="270" y="75" width="240" height="150" rx="14" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+    <text x="390" y="130" font-size="19" font-weight="700" fill="#1e40af">Playwright 상품</text><text x="390" y="158" font-size="19" font-weight="700" fill="#1e40af">크롤링 × 7</text><text x="390" y="194" font-size="16" fill="#334155">Olive_pool</text>
+    <rect x="550" y="75" width="190" height="150" rx="14" fill="#eff6ff" stroke="#60a5fa" stroke-width="2"/>
+    <text x="645" y="142" font-size="19" font-weight="700" fill="#1e40af">MariaDB</text><text x="645" y="174" font-size="18" fill="#334155">stage 적재</text>
+    <rect x="780" y="75" width="230" height="150" rx="14" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+    <text x="895" y="128" font-size="18" font-weight="700" fill="#1e40af">상품명 정제 및</text><text x="895" y="158" font-size="18" font-weight="700" fill="#1e40af">중복 통합</text><text x="895" y="194" font-size="16" fill="#334155">SHA-256 식별자</text>
+    <rect x="1050" y="75" width="185" height="150" rx="14" fill="#eff6ff" stroke="#60a5fa" stroke-width="2"/>
+    <text x="1142.5" y="143" font-size="19" font-weight="700" fill="#1e40af">상품 master</text><text x="1142.5" y="176" font-size="18" fill="#334155">upsert</text>
+    <rect x="1275" y="75" width="205" height="150" rx="14" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+    <text x="1377.5" y="128" font-size="18" font-weight="700" fill="#1e40af">주간 리뷰 수</text><text x="1377.5" y="158" font-size="18" font-weight="700" fill="#1e40af">이력 upsert</text><text x="1377.5" y="194" font-size="15" fill="#334155">product ID 연결</text>
+  </g>
+</svg>
