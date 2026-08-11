@@ -3,7 +3,7 @@
 # Aller
 
 <div align="center">
-  <img src="./images/aller_logo.png" alt="Aller logo" width="200" height="140">
+  <img src="./images/aller_logo.png" alt="Aller logo" width="500" height="200">
   <h3>자연어 검색과 피부 타입 분석을 결합한 화장품 추천 서비스</h3>
 </div>
 
