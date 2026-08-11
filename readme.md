@@ -51,7 +51,7 @@ Aller는 자연어로 입력한 제품 특징과 브랜드·가격·카테고리
   <tr>
     <td align="center">Team Leader · Data Pipeline<br>Hybrid RAG · Deployment</td>
     <td align="center">Frontend · Data Analysis<br>UI/UX · Recommendation</td>
-    <td align="center">Frontend · Documentation<br>Recommendation · Testing</td>
+    <td align="center">Frontend · Documentation<br>Recommendation · Backend</td>
     <td align="center">Backend<br>Hybrid RAG · Embedding</td>
     <td align="center">Ingredient DB · Skin Score<br>Presentation · OCR</td>
   </tr>
