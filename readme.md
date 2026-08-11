@@ -201,13 +201,11 @@ flowchart LR
 
 직접 선택한 제품의 `/api/analyze`와 이미지로 분석한 제품의 `/api/analyze-ocr`에 동일한 계산 기준이 적용됩니다.
 
-```mermaid
-flowchart LR
-    A["제품 전성분"] --> B["6가지 효능군 분류"]
-    B --> C["피부 타입별 기여도 계산"]
-    C --> D["기본 25점 + 성과 75점"]
-    D --> E["신뢰도·주의 성분 반영"]
-```
+<div align="center">
+  <img src="./images/product_analysis.png"
+       alt="제품 피부 적합도 분석 흐름"
+       width="900">
+</div>
 
 ### 계산 기준
 
