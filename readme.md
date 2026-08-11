@@ -28,6 +28,8 @@ Aller는 자연어로 입력한 제품 특징과 브랜드·가격·카테고리
 
 </details>
 
+---
+
 ## 👥 팀원 및 역할
 
 <table>
@@ -54,11 +56,15 @@ Aller는 자연어로 입력한 제품 특징과 브랜드·가격·카테고리
   </tr>
 </table>
 
+---
+
 ## 📌 프로젝트 소개
 
 Pinecone의 의미 검색과 MariaDB의 조건 검색을 결합해 자연어 요청에 맞는 상품 후보를 탐색합니다. 설문으로 분석한 바우만 피부 타입과 제품 정보를 이용한 적합도 계산, 이미지 OCR을 이용한 제품 분석도 함께 제공합니다.
 
 상품별 주간 리뷰 증가량과 카테고리별 추이를 시각화해 검색 이후의 제품 탐색을 지원합니다.
+
+---
 
 ## 🌟 핵심 기능
 
@@ -71,9 +77,13 @@ Pinecone의 의미 검색과 MariaDB의 조건 검색을 결합해 자연어 요
 | 📊 **상품·리뷰 추이 시각화** | 주간 리뷰 증가량을 바탕으로 최근 소비자 관심 변화가 큰 상품과 카테고리별 추이를 시각화합니다. |
 
 
+---
+
 ## 🖥️ 서비스 화면
 
 <!-- 서비스 시연 영상 추가 예정 -->
+
+---
 
 ## 🏗️ 시스템 아키텍처
 
@@ -87,6 +97,8 @@ Pinecone의 의미 검색과 MariaDB의 조건 검색을 결합해 자연어 요
 - **Pinecone**: 상품 특징 임베딩을 이용한 의미 검색
 - **Application memory**: `/recommend`와 `/finalize` 사이의 검색 후보 임시 보관
 - **Deployment**: GitHub Actions를 이용한 frontend/backend 이미지 빌드와 AWS ECR push, Docker Compose 실행 구성
+
+---
 
 ## 🔎 Hybrid RAG 검색 구조
 
@@ -127,6 +139,8 @@ Hybrid RAG의 주요 구성 요소와 저장소 간 관계는 다음 개요에�
 | 구조화 조건만 존재 | `rdb_filter()`로 MariaDB 조회 |
 
 `/recommend`는 상품 후보와 `cache_key`를 반환하고 검색 결과를 메모리에 임시 저장합니다. `/finalize`는 캐시된 후보를 우선 사용해 추천 이유를 스트리밍하며, 캐시가 없으면 검색을 다시 수행합니다.
+
+---
 
 ## 📷 OCR 기반 제품 인식 및 기능 연계
 
@@ -171,6 +185,8 @@ flowchart LR
 - **개인 대시보드:** `/api/analyze-ocr`
 - 두 기능은 Google Cloud Vision을 사용하지만 서로 다른 API와 OCR 처리 로직으로 구현되어 있습니다.
 
+---
+
 ## 🎯 제품 피부 적합도 계산
 
 바우만 설문으로 분류한 **16가지 피부 타입**과 제품의 성분 구성을 비교해 **0~100점의 상대적 적합도**를 계산합니다.
@@ -210,6 +226,8 @@ flowchart LR
 
 이 점수는 프로젝트에서 정의한 피부 타입별 기준에 따라 제품의 성분 구성을 상대적으로 평가한 값이며, 의학적 진단이나 피부 개선 효과를 의미하지 않습니다.
 
+---
+
 ## 🔄 데이터 파이프라인 및 Airflow 자동화
 
 Airflow 파이프라인을 별도로 구현해 상품 데이터 수집부터 MariaDB 갱신까지 주간 단위로 자동화했습니다. 해당 DAG와 크롤러 코드는 현재 공개 저장소에 포함되어 있지 않습니다.
@@ -226,11 +244,15 @@ Airflow 파이프라인을 별도로 구현해 상품 데이터 수집부터 Mar
 
 저장된 이력은 이전 주와 현재 주의 누적 리뷰 수 차이를 계산해 상품별 리뷰 증가량과 카테고리별 추이를 시각화하는 데 사용합니다. 리뷰 증가량은 최근 소비자 관심 변화를 살펴보는 간접 지표입니다. 현재 자동화 범위에는 리뷰 본문 수집, 임베딩 생성, Pinecone upsert가 포함되어 있지 않습니다.
 
+---
+
 ## 🗃️ 데이터 모델링
 
 ![Aller ERD](./images/ERD.png)
 
 Hybrid RAG 추천 검색은 `product_data_chain`과 상품·성분 관계 데이터를 사용합니다. 피부 타입 기반 적합도 계산과 일반 상품 조회에는 `product_data`를 사용합니다. 별도 Airflow 파이프라인의 stage 및 리뷰 이력 테이블은 현재 공개 저장소의 애플리케이션 모델에 포함되어 있지 않습니다.
+
+---
 
 ## ⚖️ 주요 기술 선택과 한계
 
@@ -248,6 +270,8 @@ Hybrid RAG 추천 검색은 `product_data_chain`과 상품·성분 관계 데이
 - 일부 페이지·상품 오류를 건너뛰기 때문에 부분 수집 상태에서도 크롤링 task가 성공할 수 있습니다.
 - 상품과 리뷰 이력 upsert는 하나의 transaction으로 묶여 있지 않습니다.
 - Airflow DAG에는 자동 재시도와 Pinecone upsert가 포함되어 있지 않습니다.
+
+---
 
 ## 🛠️ 기술 스택
 
@@ -281,6 +305,8 @@ Hybrid RAG 추천 검색은 `product_data_chain`과 상품·성분 관계 데이
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
 ![AWS ECR](https://img.shields.io/badge/AWS_ECR-FF9900?style=flat-square&logo=amazonaws&logoColor=white)
+
+---
 
 ## 🚀 실행 방법
 
