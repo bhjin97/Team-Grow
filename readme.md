@@ -83,7 +83,7 @@ Pinecone의 의미 검색과 MariaDB의 조건 검색을 결합해 자연어 요
 ---
 
 <a id="screens"></a>
-## 🖥️ 서비스 화면
+## 🖥️ 서비스 화면 - 시연 영상
 
 [![ALLER 시연 영상](https://img.youtube.com/vi/w3JsB6KwPug/maxresdefault.jpg)](https://www.youtube.com/watch?v=w3JsB6KwPug)
 
