@@ -66,6 +66,8 @@ Pinecone의 의미 검색과 MariaDB의 조건 검색을 결합해 자연어 요
 
 상품별 주간 리뷰 증가량과 카테고리별 추이를 시각화해 검색 이후의 제품 탐색을 지원합니다.
 
+📄 [Aller 발표자료](./docs/references/aller-final-presentation.pdf)
+
 ---
 
 <a id="features"></a>
